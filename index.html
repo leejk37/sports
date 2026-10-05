@@ -29,7 +29,7 @@
 
 <script>
 // ① GAS 웹앱 배포 주소(…/exec)를 여기에 붙여넣으세요.
-const GAS_URL = 'https://script.google.com/macros/s/여기에_배포ID/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzV_zxlkSiqSJ_lvgv3z7WkLuFr-nOtS8pY-JDqWBduKi07cLiiX7acZiFAahxL_DtmEw/exec';
 
 // ② 비밀키는 이 파일에 쓰지 않고, 기기마다 처음 한 번 입력해 저장합니다.
 let key = localStorage.getItem('sportsKey');
@@ -54,9 +54,22 @@ async function onCode(code) {
   code = String(code).trim();
   if (!code || (seen[code] && Date.now() - seen[code] < 4000)) return;
   seen[code] = Date.now();
+  show('', '확인 중', '', code, 0);
+  let r;
   try {
     // Content-Type을 지정하지 않아야 GAS가 다른 사이트의 요청을 받아줍니다.
-    const r = await (await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ code, key }) })).json();
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ code, key }), signal: ctrl.signal });
+    clearTimeout(t);
+    const text = await res.text();
+    try { r = JSON.parse(text); }
+    catch (e) { show('stop', 'GAS 응답 오류', '', text.replace(/<[^>]+>/g, ' ').slice(0, 120), 0); return; }
+  } catch (e) {
+    show('stop', '전송 실패', '', e.name === 'AbortError' ? '15초 동안 응답이 없어요' : String(e.message || e), 0);
+    return;
+  }
+  try {
     if (r.status === 'in')           { beep([660, 880]);      show('in', '입실', r.name, r.kind); }
     else if (r.status === 'out')     { beep([880, 660, 523]); show('out', '퇴실', r.name, `${r.min}분 운동했어요`); }
     else if (r.status === 'tooSoon') { beep([440]);           show('warn', '이미 입실했어요', r.name, '나갈 때 다시 보여주세요'); }
