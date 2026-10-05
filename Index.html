@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스마트스포츠실</title>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root { --base:#1E2A4A; --chalk:#F5F6FA; --in:#2BB24C; --out:#2F7FD8; --warn:#F2B705; --stop:#D64545; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Noto Sans KR',sans-serif; background:var(--base); color:var(--chalk);
+         height:100vh; display:grid; grid-template-columns:1fr 1fr; overflow:hidden; }
+  #cam { width:100%; height:100vh; background:#000; }
+  #cam video { object-fit:cover; }
+  #msg { display:flex; flex-direction:column; justify-content:center; align-items:center;
+         text-align:center; padding:24px; transition:background-color .25s; }
+  #msg.in{background:var(--in)} #msg.out{background:var(--out)}
+  #msg.warn{background:var(--warn);color:#1d1d1b} #msg.stop{background:var(--stop)}
+  .h { font-family:'Do Hyeon',sans-serif; font-size:clamp(48px,8vw,100px); line-height:1.1; }
+  .n { font-family:'Do Hyeon',sans-serif; font-size:clamp(36px,6vw,72px); margin-top:16px; }
+  .s { font-size:clamp(18px,2.4vw,26px); margin-top:14px; opacity:.9; }
+  @media (orientation:portrait){ body{grid-template-columns:1fr; grid-template-rows:45vh 1fr} #cam{height:45vh} }
+</style>
+</head>
+<body>
+<div id="cam"></div>
+<div id="msg"><div class="h">QR을 보여주세요</div><div class="s">들어올 때 한 번, 나갈 때 한 번</div></div>
+
+<script>
+// ① GAS 웹앱 배포 주소(…/exec)를 여기에 붙여넣으세요.
+const GAS_URL = 'https://script.google.com/macros/s/여기에_배포ID/exec';
+
+// ② 비밀키는 이 파일에 쓰지 않고, 기기마다 처음 한 번 입력해 저장합니다.
+let key = localStorage.getItem('sportsKey');
+if (!key) {
+  key = prompt('비밀키를 입력하세요 (선생님만)');
+  if (key) localStorage.setItem('sportsKey', key);
+}
+
+const msg = document.getElementById('msg');
+const seen = {};
+let timer;
+
+Html5Qrcode.getCameras()
+  .then(cams => {
+    if (!cams.length) throw new Error('연결된 카메라가 없습니다');
+    const front = cams.find(c => /front|user|전면|integrated|webcam/i.test(c.label)) || cams[0];
+    return new Html5Qrcode('cam').start(front.id, { fps: 10, qrbox: 240 }, onCode);
+  })
+  .catch(err => show('stop', '카메라를 열 수 없어요', '', String(err && err.message || err), 0));
+
+async function onCode(code) {
+  code = String(code).trim();
+  if (!code || (seen[code] && Date.now() - seen[code] < 4000)) return;
+  seen[code] = Date.now();
+  try {
+    // Content-Type을 지정하지 않아야 GAS가 다른 사이트의 요청을 받아줍니다.
+    const r = await (await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ code, key }) })).json();
+    if (r.status === 'in')           { beep([660, 880]);      show('in', '입실', r.name, r.kind); }
+    else if (r.status === 'out')     { beep([880, 660, 523]); show('out', '퇴실', r.name, `${r.min}분 운동했어요`); }
+    else if (r.status === 'tooSoon') { beep([440]);           show('warn', '이미 입실했어요', r.name, '나갈 때 다시 보여주세요'); }
+    else if (r.status === 'denied')  { localStorage.removeItem('sportsKey'); show('stop', '비밀키가 틀렸어요', '', '새로고침 후 다시 입력하세요', 0); }
+    else if (r.status === 'unknown') { beep([220]);           show('stop', '등록되지 않은 QR', '', '선생님께 알려주세요'); }
+    else                             { show('stop', '오류', '', r.message || ''); }
+  } catch (e) {
+    show('stop', '저장 실패', '', '인터넷 연결을 확인하세요');
+  }
+}
+
+function show(cls, h, n, s, hold = 4000) {
+  clearTimeout(timer);
+  msg.className = cls;
+  msg.innerHTML = `<div class="h">${h}</div><div class="n">${esc(n)}</div><div class="s">${esc(s)}</div>`;
+  if (!hold) return;
+  timer = setTimeout(() => {
+    msg.className = '';
+    msg.innerHTML = '<div class="h">QR을 보여주세요</div><div class="s">들어올 때 한 번, 나갈 때 한 번</div>';
+  }, hold);
+}
+
+let ac;
+function beep(freqs) {
+  try {
+    ac = ac || new AudioContext();
+    freqs.forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * .12;
+      o.frequency.value = f; g.gain.setValueAtTime(.15, t); g.gain.exponentialRampToValueAtTime(.001, t + .15);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + .2);
+    });
+  } catch (e) {}
+}
+function esc(s) { return String(s || '').replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';'); }
+</script>
+</body>
+</html>
