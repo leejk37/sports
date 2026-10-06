@@ -9,8 +9,9 @@
 <style>
   :root { --base:#1E2A4A; --chalk:#F5F6FA; --in:#2BB24C; --out:#2F7FD8; --warn:#F2B705; --stop:#D64545; }
   * { box-sizing:border-box; margin:0; padding:0; }
+  /* [수정 1] 카메라:메시지 = 3:2 (기존 1fr 1fr) */
   body { font-family:'Noto Sans KR',sans-serif; background:var(--base); color:var(--chalk);
-         height:100vh; display:grid; grid-template-columns:1fr 1fr; overflow:hidden; }
+         height:100vh; display:grid; grid-template-columns:3fr 2fr; overflow:hidden; }
   #cam { width:100%; height:100vh; background:#000; grid-column:1; grid-row:1; min-width:0; overflow:hidden; }
   #msg { grid-column:2; grid-row:1; }
   #cam video { object-fit:cover; }
@@ -21,7 +22,8 @@
   .h { font-family:'Do Hyeon',sans-serif; font-size:clamp(48px,8vw,100px); line-height:1.1; }
   .n { font-family:'Do Hyeon',sans-serif; font-size:clamp(36px,6vw,72px); margin-top:16px; }
   .s { font-size:clamp(18px,2.4vw,26px); margin-top:14px; opacity:.9; }
-  @media (orientation:portrait){ body{grid-template-columns:1fr; grid-template-rows:45vh 1fr} #cam{height:45vh} #msg{grid-column:1; grid-row:2} }
+  /* [수정 2] 세로 화면에서 카메라 높이 60vh (기존 45vh) */
+  @media (orientation:portrait){ body{grid-template-columns:1fr; grid-template-rows:60vh 1fr} #cam{height:60vh} #msg{grid-column:1; grid-row:2} }
 </style>
 </head>
 <body>
@@ -43,11 +45,20 @@ const msg = document.getElementById('msg');
 const seen = {};
 let timer;
 
+// [수정 3] 스캔 영역 비율 (0.8 = 카메라 화면 짧은 쪽의 80%)
+const SCAN_RATIO = 0.8;
+
 Html5Qrcode.getCameras()
   .then(cams => {
     if (!cams.length) throw new Error('연결된 카메라가 없습니다');
     const front = cams.find(c => /front|user|전면|integrated|webcam/i.test(c.label)) || cams[0];
-    return new Html5Qrcode('cam').start(front.id, { fps: 10, qrbox: 240 }, onCode);
+    return new Html5Qrcode('cam').start(front.id, {
+      fps: 10,
+      qrbox: (w, h) => {
+        const size = Math.floor(Math.min(w, h) * SCAN_RATIO);
+        return { width: size, height: size };
+      }
+    }, onCode);
   })
   .catch(err => show('stop', '카메라를 열 수 없어요', '', String(err && err.message || err), 0));
 
