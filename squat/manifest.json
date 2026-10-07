@@ -1,0 +1,10 @@
+{
+  "name": "스쿼트 측정",
+  "short_name": "스쿼트",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#14325C",
+  "theme_color": "#1E4D8C",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}
