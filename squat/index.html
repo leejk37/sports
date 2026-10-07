@@ -298,11 +298,15 @@ function scanQR() {
   scanCtx.drawImage(video, 0, 0, w, h);
   const code = jsQR(scanCtx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
   if (!code || !code.data) return;
-  const raw = code.data.trim();
-  const found = raw.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/);   // QR 안에서 이메일만 골라냄
-  const email = found ? found[0].toLowerCase() : "";
+  const raw = code.data.trim().toLowerCase();
+  let email = "";
+  if (raw.includes("@")) {
+    email = raw;                                   // 이메일 전체가 들어 있는 경우
+  } else if (/^[a-z0-9._-]+$/.test(raw)) {
+    email = raw + CONFIG.EMAIL_DOMAIN;             // 아이디만 있으면 도메인 붙이기
+  }
   if (email.endsWith(CONFIG.EMAIL_DOMAIN)) { student = email; beep(880); goReady(); }
-  else setHint("인식된 내용: " + raw.slice(0, 40), true);    // 실제 QR 내용을 화면에 표시
+  else setHint("인식된 내용: " + raw.slice(0, 40), true);
 }
 
 /* ---------- 각도 계산 ---------- */
