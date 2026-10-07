@@ -298,9 +298,11 @@ function scanQR() {
   scanCtx.drawImage(video, 0, 0, w, h);
   const code = jsQR(scanCtx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
   if (!code || !code.data) return;
-  const email = code.data.trim().toLowerCase();
+  const raw = code.data.trim();
+  const found = raw.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/);   // QR 안에서 이메일만 골라냄
+  const email = found ? found[0].toLowerCase() : "";
   if (email.endsWith(CONFIG.EMAIL_DOMAIN)) { student = email; beep(880); goReady(); }
-  else setHint("학교 QR 이름표가 아니에요", true);
+  else setHint("인식된 내용: " + raw.slice(0, 40), true);    // 실제 QR 내용을 화면에 표시
 }
 
 /* ---------- 각도 계산 ---------- */
