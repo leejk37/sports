@@ -24,8 +24,14 @@
   body { font-family:'Noto Sans KR',sans-serif; background:var(--base); color:var(--chalk);
          display:grid; grid-template-columns:1fr 1fr; overflow:hidden;
          user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
-  #cam { width:100%; height:100%; background:#000; }
-  #cam video { object-fit:cover; }
+  body { grid-template-columns:3fr 2fr; }   /* 카메라 60%, 안내 40% */
+  #cam { width:100%; height:100%; background:#000; position:relative; overflow:hidden; }
+  #cam video { width:100% !important; height:100% !important; object-fit:cover; }
+  #qr-shaded-region { display:none !important; }   /* 라이브러리 기본 상자 숨김 */
+  #guide { position:absolute; top:50%; left:50%; z-index:2; pointer-events:none;
+           width:min(70%, 70vh); aspect-ratio:1; transform:translate(-50%,-50%);
+           border:6px solid rgba(255,255,255,.85); border-radius:28px;
+           box-shadow:0 0 0 100vmax rgba(0,0,0,.35); }
   #msg { display:flex; flex-direction:column; justify-content:center; align-items:center;
          text-align:center; padding:24px env(safe-area-inset-right) 24px 24px; transition:background-color .25s; }
   #msg.in{background:var(--in)} #msg.out{background:var(--out)}
@@ -59,7 +65,7 @@
 </style>
 </head>
 <body>
-<div id="cam"></div>
+<div id="cam"><div id="guide"></div></div>
 <div id="msg"><div class="h">QR을 보여주세요</div><div class="s">들어올 때 한 번, 나갈 때 한 번</div></div>
 
 <div id="start">
