@@ -2,7 +2,7 @@
   "name": "윗몸말아올리기 측정",
   "short_name": "윗몸말아올리기",
   "description": "QR 이름표로 학생을 확인하고 윗몸말아올리기 횟수와 자세를 자동으로 측정해 기록합니다.",
-  "id": "./",
+  "id": "/sports/curlup/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
