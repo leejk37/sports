@@ -137,17 +137,22 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 /* ---------- 카메라 ---------- */
 function startCam() {
+  const cam = new Html5Qrcode('cam');
   Html5Qrcode.getCameras()
     .then(cams => {
       if (!cams.length) throw new Error('연결된 카메라가 없습니다');
       const front = cams.find(c => /front|user|전면|integrated|webcam/i.test(c.label)) || cams[0];
-      return new Html5Qrcode('cam').start(front.id, {
-  fps: 10,
-  qrbox: (w, h) => {                       // w, h = 카메라 화면 크기
-    const size = Math.floor(Math.min(w, h) * 0.8);   // 짧은 쪽의 80%
-    return { width: size, height: size };            // 정사각형
-  }
-}, onCode);
+      // 인식 영역 = 화면 전체 (qrbox 없음)
+      return cam.start(front.id, { fps: 10, aspectRatio: 1.333 }, onCode);
+    })
+    .then(() => {
+      // 카메라가 켜진 뒤에 안내 사각형을 붙입니다
+      const box = document.getElementById('cam');
+      if (!document.getElementById('guide')) {
+        const g = document.createElement('div');
+        g.id = 'guide';
+        box.appendChild(g);
+      }
     })
     .catch(err => show('stop', '카메라를 열 수 없어요', '', String(err && err.message || err), 0));
 }
