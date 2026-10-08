@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>스마트스포츠실 QR</title>
+
+<!-- 앱 설치·아이콘 -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1E2A4A">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="QR 입실">
+
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<script src="lib/html5-qrcode.min.js"></script>
+<style>
+  :root { --base:#1E2A4A; --chalk:#F5F6FA; --in:#2BB24C; --out:#2F7FD8; --warn:#F2B705; --stop:#D64545; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { font-family:'Noto Sans KR',sans-serif; background:var(--base); color:var(--chalk);
+         display:grid; grid-template-columns:1fr 1fr; overflow:hidden;
+         user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
+  #cam { width:100%; height:100%; background:#000; }
+  #cam video { object-fit:cover; }
+  #msg { display:flex; flex-direction:column; justify-content:center; align-items:center;
+         text-align:center; padding:24px env(safe-area-inset-right) 24px 24px; transition:background-color .25s; }
+  #msg.in{background:var(--in)} #msg.out{background:var(--out)}
+  #msg.warn{background:var(--warn);color:#1d1d1b} #msg.stop{background:var(--stop)}
+  .h { font-family:'Do Hyeon',sans-serif; font-size:clamp(48px,8vw,100px); line-height:1.1; }
+  .n { font-family:'Do Hyeon',sans-serif; font-size:clamp(36px,6vw,72px); margin-top:16px; }
+  .s { font-size:clamp(18px,2.4vw,26px); margin-top:14px; opacity:.9; }
+  @media (orientation:portrait){ body{grid-template-columns:1fr; grid-template-rows:45% 1fr} }
+
+  /* 시작 화면: 한 번 눌러야 전체화면·카메라·소리가 켜집니다 */
+  #start { position:fixed; inset:0; z-index:10; background:var(--base);
+           display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
+           padding:env(safe-area-inset-top) 24px env(safe-area-inset-bottom); text-align:center; }
+  #start img { width:120px; height:120px; border-radius:26px; }
+  #start h1 { font-family:'Do Hyeon',sans-serif; font-weight:400; font-size:clamp(36px,6vw,56px); }
+  #start p { font-size:18px; opacity:.75; line-height:1.6; }
+  .btn { font-family:'Do Hyeon',sans-serif; font-size:30px; border:0; border-radius:18px;
+         padding:18px 56px; background:var(--in); color:#fff; cursor:pointer; }
+  .btn.sub { font-size:20px; padding:12px 28px; background:transparent; color:var(--chalk);
+             border:2px solid rgba(245,246,250,.4); }
+  .btn:focus-visible { outline:4px solid var(--warn); outline-offset:4px; }
+  [hidden] { display:none !important; }
+
+  /* 선생님 메뉴: 왼쪽 위 모서리를 1초 길게 누르기 */
+  #corner { position:fixed; top:0; left:0; width:72px; height:72px; z-index:5; }
+  #menu { position:fixed; inset:0; z-index:20; background:rgba(15,21,38,.92);
+          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; }
+  #menu .btn { min-width:280px; }
+  #net { position:fixed; right:12px; bottom:12px; z-index:6; font-size:15px; padding:6px 12px;
+         border-radius:999px; background:var(--stop); color:#fff; }
+</style>
+</head>
+<body>
+<div id="cam"></div>
+<div id="msg"><div class="h">QR을 보여주세요</div><div class="s">들어올 때 한 번, 나갈 때 한 번</div></div>
+
+<div id="start">
+  <img src="icons/icon-192.png" alt="">
+  <h1>스마트스포츠실</h1>
+  <button class="btn" id="go">시작하기</button>
+  <button class="btn sub" id="install" hidden>앱으로 설치하기</button>
+  <p id="hint"></p>
+</div>
+
+<div id="corner"></div>
+<div id="menu" hidden>
+  <button class="btn sub" id="mFull">전체화면 켜기·끄기</button>
+  <button class="btn sub" id="mKey">비밀키 다시 입력</button>
+  <button class="btn sub" id="mReload">새로고침</button>
+  <button class="btn" id="mClose">닫기</button>
+</div>
+<div id="net" hidden>인터넷 연결 끊김</div>
+
+<script>
+// ① GAS 웹앱 배포 주소(…/exec)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzV_zxlkSiqSJ_lvgv3z7WkLuFr-nOtS8pY-JDqWBduKi07cLiiX7acZiFAahxL_DtmEw/exec';
+
+const $ = id => document.getElementById(id);
+const msg = $('msg');
+const seen = {};
+let timer, key, started = false;
+
+/* ---------- 앱 설치 ---------- */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+
+let installEvt;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('install').hidden = false; });
+$('install').onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('install').hidden = true; };
+
+const isApp = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (!isApp && isIOS) $('hint').textContent = '설치: 공유 버튼 → 홈 화면에 추가';
+
+/* ---------- 시작: 전체화면 + 화면 꺼짐 방지 + 카메라 ---------- */
+$('go').onclick = async () => {
+  key = localStorage.getItem('sportsKey');
+  if (!key) {
+    key = prompt('비밀키를 입력하세요 (선생님만)');
+    if (!key) return;
+    localStorage.setItem('sportsKey', key);
+  }
+  beep([]);                       // 소리 기능 깨우기(아이폰은 첫 터치 때만 허용)
+  await goFull();
+  keepAwake();
+  $('start').hidden = true;
+  if (!started) { started = true; startCam(); }
+};
+
+async function goFull() {
+  const el = document.documentElement;
+  try { if (!document.fullscreenElement && el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
+}
+function toggleFull() {
+  if (document.fullscreenElement) document.exitFullscreen(); else goFull();
+}
+
+let wake;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator) wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+// 다른 앱에 갔다 돌아오면 화면 꺼짐 방지가 풀리므로 다시 켭니다.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && started) keepAwake(); });
+
+/* ---------- 카메라 ---------- */
+function startCam() {
+  Html5Qrcode.getCameras()
+    .then(cams => {
+      if (!cams.length) throw new Error('연결된 카메라가 없습니다');
+      const front = cams.find(c => /front|user|전면|integrated|webcam/i.test(c.label)) || cams[0];
+      return new Html5Qrcode('cam').start(front.id, { fps: 10, qrbox: 240 }, onCode);
+    })
+    .catch(err => show('stop', '카메라를 열 수 없어요', '', String(err && err.message || err), 0));
+}
+
+async function onCode(code) {
+  code = String(code).trim();
+  if (!code || (seen[code] && Date.now() - seen[code] < 4000)) return;
+  seen[code] = Date.now();
+  try {
+    // Content-Type을 지정하지 않아야 GAS가 다른 사이트의 요청을 받아줍니다.
+    const r = await (await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ code, key }) })).json();
+    if (r.status === 'in')           { beep([660, 880]);      show('in', '입실', r.name, r.kind); }
+    else if (r.status === 'out')     { beep([880, 660, 523]); show('out', '퇴실', r.name, `${r.min}분 운동했어요`); }
+    else if (r.status === 'tooSoon') { beep([440]);           show('warn', '이미 입실했어요', r.name, '나갈 때 다시 보여주세요'); }
+    else if (r.status === 'denied')  { localStorage.removeItem('sportsKey'); show('stop', '비밀키가 틀렸어요', '', '왼쪽 위를 길게 눌러 다시 입력하세요', 0); }
+    else if (r.status === 'unknown') { beep([220]);           show('stop', '등록되지 않은 QR', '', '선생님께 알려주세요'); }
+    else                             { show('stop', '오류', '', r.message || ''); }
+  } catch (e) {
+    show('stop', '저장 실패', '', '인터넷 연결을 확인하세요');
+  }
+}
+
+function show(cls, h, n, s, hold = 4000) {
+  clearTimeout(timer);
+  msg.className = cls;
+  msg.innerHTML = `<div class="h">${h}</div><div class="n">${esc(n)}</div><div class="s">${esc(s)}</div>`;
+  if (!hold) return;
+  timer = setTimeout(() => {
+    msg.className = '';
+    msg.innerHTML = '<div class="h">QR을 보여주세요</div><div class="s">들어올 때 한 번, 나갈 때 한 번</div>';
+  }, hold);
+}
+
+/* ---------- 선생님 메뉴 (왼쪽 위 1초 길게 누르기) ---------- */
+let press;
+$('corner').addEventListener('pointerdown', () => { press = setTimeout(() => $('menu').hidden = false, 1000); });
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('corner').addEventListener(ev, () => clearTimeout(press)));
+$('mFull').onclick = toggleFull;
+$('mKey').onclick = () => {
+  const k = prompt('새 비밀키를 입력하세요');
+  if (k) { localStorage.setItem('sportsKey', k); key = k; }
+};
+$('mReload').onclick = () => location.reload();
+$('mClose').onclick = () => $('menu').hidden = true;
+
+/* ---------- 인터넷 연결 표시 ---------- */
+const net = () => $('net').hidden = navigator.onLine;
+addEventListener('online', net); addEventListener('offline', net); net();
+
+/* ---------- 효과음 ---------- */
+let ac;
+function beep(freqs) {
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    freqs.forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * .12;
+      o.frequency.value = f; g.gain.setValueAtTime(.15, t); g.gain.exponentialRampToValueAtTime(.001, t + .15);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + .2);
+    });
+  } catch (e) {}
+}
+function esc(s) { return String(s || '').replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';'); }
+</script>
+</body>
+</html>
