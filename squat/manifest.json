@@ -1,5 +1,6 @@
 {
   "name": "스쿼트 측정",
+  "id": "/sports/squat/",
   "short_name": "스쿼트",
   "start_url": "./",
   "display": "fullscreen",
