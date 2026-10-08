@@ -2,7 +2,7 @@
   "name": "스마트스포츠실 QR",
   "short_name": "QR 입실",
   "description": "스마트스포츠실 입실·퇴실 QR 인식",
-  "id": "./",
+  "id": "/sports/qr/",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
