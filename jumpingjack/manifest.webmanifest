@@ -2,7 +2,7 @@
   "name": "점핑잭 측정",
   "short_name": "점핑잭",
   "description": "QR 이름표로 학생을 확인하고 점핑잭 횟수와 자세를 자동으로 측정해 기록합니다.",
-  "id": "./",
+  "id": "/sports/jumpingjack/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
