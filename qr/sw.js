@@ -1,6 +1,6 @@
 // 앱 껍데기(화면·라이브러리·아이콘)를 기기에 저장해 빠르게 열리게 합니다.
 // 파일을 고쳐 올릴 때마다 VERSION 숫자를 올리면 기기들이 새 버전을 받습니다.
-const VERSION = 'qr-v1';
+const VERSION = 'qr-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './lib/html5-qrcode.min.js',
