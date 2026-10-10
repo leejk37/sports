@@ -462,9 +462,30 @@ async function save() {
   } finally { clearTimeout(timer); }
 }
 
+/* ===== 허브 연결: 주소에 학생 정보가 있으면 QR 단계를 건너뜀 ===== */
+const PARAMS = new URLSearchParams(location.search);
+const FROM_HUB = PARAMS.get('from') === 'hub';
+function startFromParams() {
+  const em = (PARAMS.get('email') || '').trim().toLowerCase();
+  if (!/^[\w.\-]+@[\w.\-]+$/.test(em)) return false;
+  email = em;
+  $('who').textContent = (PARAMS.get('name') || em.split('@')[0]) + ' 학생';
+  show('time');
+  return true;
+}
+function backOrScan() {
+  if (FROM_HUB) { location.href = '../'; return; }   // 허브로 돌아가기
+  email = ''; $('who').textContent = ''; show('scan');
+}
+if (FROM_HUB) {
+  $('next').textContent = '허브로 돌아가기';
+  $('rescan').textContent = '허브로 돌아가기';
+  $('cancel').textContent = '허브로';
+}
+
 /* ===== 버튼 ===== */
 document.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => toReady(+b.dataset.sec));
-$('rescan').onclick = $('next').onclick = $('cancel').onclick = () => { email = ''; $('who').textContent = ''; show('scan'); };
+$('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = startCountdown;
 $('retrySave').onclick = save;   // 같은 clientId로 다시 보내므로 중복 저장되지 않음
 $('flip').onclick = async () => {
@@ -488,7 +509,7 @@ $('flip').onclick = async () => {
       runningMode: 'VIDEO', numPoses: 1
     });
     try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) {}
-    show('scan');
+    if (!startFromParams()) show('scan');
   } catch (e) {
     $('s-loading').innerHTML = '<p class="msg">카메라 또는 모델을 불러오지 못했어요.<br>' + e.message + '</p>';
   }
