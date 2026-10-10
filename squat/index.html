@@ -222,7 +222,7 @@ const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true });
 
 let landmarker, drawer, facing = "user";
 let mode = "loading";            // loading | scan | ready | countdown | run | result
-let student = null, duration = 30;
+let student = null, studentName = "", duration = 30;
 let good = 0, badDepth = 0, badBack = 0;
 let rep = { down: false, minKnee: 180, maxLean: 0 };
 let smoothKnee = null, endTime = 0, lastScan = 0, lastVideoTime = -1;
@@ -231,18 +231,38 @@ let lastPayload = null;
 const LEFT  = { sh: 11, hip: 23, knee: 25, ank: 27 };
 const RIGHT = { sh: 12, hip: 24, knee: 26, ank: 28 };
 
+/* ---------- 허브 연결: 주소에 학생 정보가 있으면 QR 단계를 건너뜀 ---------- */
+const PARAMS = new URLSearchParams(location.search);
+const FROM_HUB = PARAMS.get("from") === "hub";
+function startFromParams() {
+  const em = (PARAMS.get("email") || "").trim().toLowerCase();
+  if (!em.endsWith(CONFIG.EMAIL_DOMAIN)) return false;
+  student = em;
+  studentName = PARAMS.get("name") || "";
+  goReady();
+  return true;
+}
+function backOrScan() {
+  if (FROM_HUB) { location.href = "../"; return; }   // 허브로 돌아가기
+  goScan();
+}
+if (FROM_HUB) {
+  $("nextStudent").textContent = "허브로 돌아가기";
+  $("changeStudent").textContent = "허브로 돌아가기";
+}
+
 /* ---------- 화면 전환 ---------- */
 function show(panel) {
   for (const id of ["scanPanel", "readyPanel", "runPanel", "resultPanel"]) $(id).hidden = id !== panel;
 }
 function setHint(text, warn = false) { $("hint").textContent = text; $("hint").classList.toggle("warn", warn); }
 function goScan() {
-  student = null; $("who").textContent = ""; mode = "scan";
+  student = null; studentName = ""; $("who").textContent = ""; mode = "scan";
   show("scanPanel"); setHint("QR 이름표를 화면 가운데에 비춰 주세요");
 }
 function goReady() {
   mode = "ready"; show("readyPanel");
-  $("who").textContent = student.replace(CONFIG.EMAIL_DOMAIN, "");
+  $("who").textContent = studentName ? studentName + " 학생" : student.replace(CONFIG.EMAIL_DOMAIN, "");
   setHint("옆으로 서서 머리부터 발끝까지 보이게 해요");
 }
 
@@ -306,7 +326,7 @@ function scanQR() {
   } else if (/^[a-z0-9._-]+$/.test(raw)) {
     email = raw + CONFIG.EMAIL_DOMAIN;             // 아이디만 있으면 도메인 붙이기
   }
-  if (email.endsWith(CONFIG.EMAIL_DOMAIN)) { student = email; beep(880); goReady(); }
+  if (email.endsWith(CONFIG.EMAIL_DOMAIN)) { student = email; studentName = ""; beep(880); goReady(); }
   else setHint("인식된 내용: " + raw.slice(0, 40), true);
 }
 
@@ -415,8 +435,8 @@ $("startBtn").addEventListener("click", async () => {
   endTime = performance.now() + duration * 1000; mode = "run";
 });
 $("stopBtn").addEventListener("click", () => { mode = "ready"; goReady(); });
-$("changeStudent").addEventListener("click", goScan);
-$("nextStudent").addEventListener("click", goScan);
+$("changeStudent").addEventListener("click", backOrScan);
+$("nextStudent").addEventListener("click", backOrScan);
 $("again").addEventListener("click", goReady);
 $("retrySave").addEventListener("click", () => send(lastPayload));
 $("switchCam").addEventListener("click", async () => {
@@ -435,19 +455,34 @@ function finish() {
 async function send(payload) {
   const status = $("saveStatus");
   status.className = ""; status.textContent = "기록을 저장하는 중이에요"; $("retrySave").hidden = true;
+  let j = null;
   try {
     const r = await fetch(CONFIG.GAS_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },   // CORS 사전요청을 피하려고 text/plain 사용
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      redirect: "follow",
+      credentials: "omit"
     });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "저장 실패");
+    const text = await r.text();
+    try { j = JSON.parse(text); } catch { j = null; }   // 구글 안내 페이지(HTML)가 오면 읽지 못함
+  } catch (e) {
+    j = null;                                           // Failed to fetch: 전송은 됐지만 결과를 못 읽음
+  }
+
+  if (j && j.ok) {
     status.className = "ok";
     status.textContent = `저장했어요${j.name ? ` (${j.name})` : ""}`;
-  } catch (e) {
+  } else if (j && !j.ok) {                              // 서버가 실제로 거부한 경우(인증 실패, 명단 없음 등)
     status.className = "err";
-    status.textContent = `저장하지 못했어요: ${e.message}`;
+    status.textContent = `저장하지 못했어요: ${j.error || "저장 실패"}`;
+    $("retrySave").hidden = false;
+  } else if (navigator.onLine) {                        // 결과만 못 읽은 경우: 중복 저장을 막으려고 다시 저장 버튼은 숨김
+    status.className = "ok";
+    status.textContent = "전송했어요 (시트에서 확인해 주세요)";
+  } else {
+    status.className = "err";
+    status.textContent = "인터넷 연결을 확인한 뒤 다시 저장해 주세요";
     $("retrySave").hidden = false;
   }
 }
@@ -457,7 +492,7 @@ async function send(payload) {
   try {
     await startCamera();
     await loadModel();
-    goScan();
+    if (!startFromParams()) goScan();
     requestAnimationFrame(loop);
   } catch (e) {
     setHint("카메라 또는 AI 모델을 열 수 없어요. 카메라 권한을 확인해 주세요", true);
