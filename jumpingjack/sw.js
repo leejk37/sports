@@ -1,6 +1,6 @@
 /* 점핑잭 PWA 서비스 워커
  * 화면 파일을 고치면 아래 VERSION 숫자를 올려 주세요(예: v2 → v3). */
-const VERSION = 'jj-v1';
+const VERSION = 'jj-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest',
               './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 // 동작 인식 모델·라이브러리(용량이 커서 한 번 받아 두면 다음부터 빨리 열림)
