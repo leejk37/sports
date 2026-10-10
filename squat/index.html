@@ -500,5 +500,11 @@ async function send(payload) {
   }
 })();
 </script>
+<script>
+  // PWA: 서비스 워커 등록 (동작 인식 모델을 저장해 두어 다음부터 빨리 열림)
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(console.error));
+  }
+</script>
 </body>
 </html>
