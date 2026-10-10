@@ -1,6 +1,6 @@
 /* 허브(최상위) 서비스 워커 — 허브 화면 파일만 관리하고,
  * 운동 앱 폴더(squat/, curlup/ 등)는 각자의 sw.js에 맡깁니다. */
-const VERSION = 'hub-v1';
+const VERSION = 'hub-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 const HUB_PATHS = CORE.map(p => new URL(p, self.registration.scope).pathname);
 
