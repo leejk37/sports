@@ -1,1 +1,307 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>트레드밀 기록</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f4e8c">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="트레드밀">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --yellow:#f5c518; --ink:#ffffff;
+    --soft:rgba(255,255,255,.82); --good:#7ee8b5; --warn:#ffb199; --red:#e03131;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:var(--ink)}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:4px solid var(--yellow)}
+  header h1{margin:0;font-size:24px;font-weight:800;flex:1;letter-spacing:-.5px}
+  #who{font-size:17px;font-weight:700;color:var(--soft)}
+  .hbtn{font:inherit;font-size:15px;font-weight:700;padding:8px 12px;border-radius:8px;
+    border:1.5px solid rgba(255,255,255,.75);background:transparent;color:#fff;cursor:pointer}
 
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:22px;min-height:0;overflow:auto}
+  .screen{display:none;flex-direction:column;align-items:center;gap:20px;width:min(560px,100%)}
+  .screen.on{display:flex}
+  h2{margin:0;font-size:34px;font-weight:800;text-align:center;line-height:1.3;letter-spacing:-.5px}
+  p.sub{margin:0;font-size:19px;font-weight:600;color:var(--soft);text-align:center;line-height:1.55}
+
+  button.btn{font:inherit;width:100%;font-size:24px;font-weight:800;padding:20px;border-radius:16px;cursor:pointer;
+    border:2px solid #fff;background:#fff;color:var(--blue);text-align:left}
+  button.btn small{display:block;font-size:16px;font-weight:600;opacity:.75;margin-top:4px}
+  button.btn.line{background:transparent;color:#fff;text-align:center;font-size:20px;padding:14px}
+  button:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+
+  /* 스캔 */
+  #scanBox{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:16px;overflow:hidden;border:3px solid var(--yellow)}
+  #scanBox video{width:100%;height:100%;object-fit:cover}
+
+  /* 큰 원형 버튼 */
+  .round{width:min(64vmin,380px);aspect-ratio:1;border-radius:50%;border:0;cursor:pointer;
+    font:inherit;font-size:min(13vmin,76px);font-weight:900;color:#fff;box-shadow:0 10px 0 rgba(0,0,0,.25)}
+  .round:active{transform:translateY(6px);box-shadow:0 4px 0 rgba(0,0,0,.25)}
+  #startBtn{background:#2b8a3e}
+  #stopBtn{background:var(--red)}
+  .clock{font-size:min(22vmin,150px);font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+  .clock small{font-size:.3em;font-weight:700;color:var(--soft);margin-left:6px}
+  #countdown{font-size:min(40vmin,260px);font-weight:900;color:var(--yellow);line-height:1}
+
+  /* 횟수 입력 */
+  .stepper{display:flex;align-items:center;gap:18px}
+  .stepper button{width:88px;height:88px;border-radius:50%;border:2px solid #fff;background:transparent;color:#fff;font:inherit;font-size:48px;font-weight:800;cursor:pointer}
+  .stepper .val{font-size:96px;font-weight:900;min-width:150px;text-align:center;font-variant-numeric:tabular-nums}
+
+  .field{width:100%;display:flex;align-items:center;gap:12px;font-size:22px;font-weight:800}
+  .field span{width:110px}
+  .field input{flex:1;min-width:0;font:inherit;font-size:40px;font-weight:900;padding:10px 14px;border-radius:12px;border:2px solid #fff;background:rgba(255,255,255,.12);color:#fff;text-align:right}
+  .field em{font-style:normal;width:64px;color:var(--soft)}
+  .rows{width:100%;border-top:1px solid rgba(255,255,255,.25)}
+  .row{display:flex;justify-content:space-between;font-size:21px;font-weight:700;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.25)}
+  #saveState{width:100%;font-size:18px;font-weight:700;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.12);text-align:center}
+  #saveState:empty{display:none}
+  #saveState.ok{color:var(--good)}
+  #saveState.fail{color:var(--warn)}
+  #flash{position:fixed;left:50%;top:80px;transform:translateX(-50%);padding:10px 22px;border-radius:12px;
+    background:#d9480f;font-size:22px;font-weight:800;opacity:0;transition:opacity .2s;pointer-events:none}
+  #flash.on{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>트레드밀 기록</h1>
+    <span id="who"></span>
+    <button class="hbtn" id="cancel">처음으로</button>
+  </header>
+
+  <main>
+    <!-- QR 스캔 (허브에서 오지 않았을 때만) -->
+    <section class="screen" id="s-scan">
+      <h2>QR 이름표를 보여 주세요</h2>
+      <div id="scanBox"><video id="video" playsinline muted></video></div>
+    </section>
+
+    <!-- 시작 대기 -->
+    <section class="screen" id="s-ready">
+      <p class="sub">트레드밀에 올라가 걷기 시작하면서 ‘시작’을 눌러요</p>
+      <button class="round" id="startBtn">시작</button>
+      <button class="btn line" id="rescan">다른 학생</button>
+    </section>
+
+    <!-- 카운트다운 -->
+    <section class="screen" id="s-countdown">
+      <div id="countdown">3</div>
+      <p class="sub">‘삐–’ 소리와 함께 시간이 시작돼요</p>
+    </section>
+
+    <!-- 측정 중 -->
+    <section class="screen" id="s-run">
+      <div class="clock"><span id="clock">0:00</span></div>
+      <button class="round" id="stopBtn">종료</button>
+      <p class="sub">운동을 마치면 ‘종료’를 눌러요</p>
+    </section>
+
+    <!-- 트레드밀 화면의 기록 입력 -->
+    <section class="screen" id="s-count">
+      <h2>트레드밀 화면의<br>기록을 적어요</h2>
+      <label class="field"><span>달린 거리</span><input id="dist" type="number" inputmode="decimal" step="0.01" min="0" max="20" placeholder="0.00"><em>km</em></label>
+      <label class="field"><span>최고 속도</span><input id="speed" type="number" inputmode="decimal" step="0.1" min="0" max="25" placeholder="0.0"><em>km/h</em></label>
+      <p class="sub">모르는 칸은 비워 두어도 돼요</p>
+      <button class="btn" id="countDone" style="text-align:center">저장하기</button>
+    </section>
+
+    <!-- 결과 -->
+    <section class="screen" id="s-result">
+      <h2>기록 완료!</h2>
+      <div class="clock"><span id="resMain">0:00</span></div>
+      <div class="rows" id="resRows"></div>
+      <div id="saveState"></div>
+      <button class="btn line" id="retrySave" hidden>다시 저장</button>
+      <button class="btn" id="again" style="text-align:center">한 번 더</button>
+      <button class="btn line" id="next">다음 학생</button>
+    </section>
+  </main>
+</div>
+<div id="flash"></div>
+
+<script>
+/* ===== 설정: 다른 운동 앱과 같은 GAS_URL, TOKEN ===== */
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
+  TOKEN:   '26cp4s_squat',
+  TYPE:    'treadmill',
+  DOMAIN:  '@cpe.es.kr',
+  READY_SEC: 3,          // 시작 버튼 후 카운트다운 (0이면 바로 시작)
+  MIN_SEC: 10,           // 이보다 짧은 기록은 잘못 누른 것으로 보고 저장하지 않음
+  MAX_SEC: 3600,
+  SAVE_TIMEOUT_MS: 30000
+};
+
+const $ = id => document.getElementById(id);
+let email = '', clientId = '';
+let startAt = 0, rafId = 0, cdTimer = 0, seconds = 0, dist = '', speed = '';
+const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+let audio, wakeLock, stream, scanTimer;
+
+function show(m) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === 's-' + m));
+  if (m !== 'scan') stopCamera();
+}
+function beep(freq = 880, ms = 120) {
+  try {
+    audio ??= new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; o.connect(g); g.connect(audio.destination);
+    g.gain.setValueAtTime(0.3, audio.currentTime);
+    o.start(); o.stop(audio.currentTime + ms / 1000);
+  } catch (e) {}
+}
+let flashT;
+function flash(t) { $('flash').textContent = t; $('flash').classList.add('on'); clearTimeout(flashT); flashT = setTimeout(() => $('flash').classList.remove('on'), 1200); }
+
+/* ===== QR 스캔 (허브를 거치지 않을 때) ===== */
+async function startScan() {
+  show('scan');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    $('video').srcObject = stream; await $('video').play();
+    const c = document.createElement('canvas'), cx = c.getContext('2d', { willReadFrequently: true });
+    scanTimer = setInterval(() => {
+      const v = $('video'); if (!v.videoWidth) return;
+      c.width = 640; c.height = Math.round(640 * v.videoHeight / v.videoWidth);
+      cx.drawImage(v, 0, 0, c.width, c.height);
+      const code = jsQR(cx.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'attemptBoth' });
+      if (!code) return;
+      const id = code.data.trim();
+      if (!/^[\w.\-]+(@[\w.\-]+)?$/.test(id)) { flash('이름표 QR이 아니에요'); return; }
+      email = (id.includes('@') ? id : id + CONFIG.DOMAIN).toLowerCase();
+      $('who').textContent = email.split('@')[0];
+      beep(1200, 80); show('ready');
+    }, 250);
+  } catch (e) { flash('카메라를 열 수 없어요'); }
+}
+function stopCamera() { clearInterval(scanTimer); stream?.getTracks().forEach(t => t.stop()); stream = null; }
+
+/* ===== 측정 ===== */
+function toReady() { show('ready'); }
+function start() {
+  beep(660, 60);   // 첫 터치로 소리 켜기
+  clientId = crypto.randomUUID?.() || String(Date.now()) + Math.random();
+  try { navigator.wakeLock?.request('screen').then(l => wakeLock = l); } catch (e) {}
+  if (CONFIG.READY_SEC <= 0) return run();
+  show('countdown');
+  let n = CONFIG.READY_SEC;
+  const tick = () => {
+    if (n > 0) { $('countdown').textContent = n; beep(660, 150); n--; cdTimer = setTimeout(tick, 1000); }
+    else run();
+  };
+  tick();
+}
+function run() {
+  beep(1000, 400);
+  startAt = performance.now();
+  show('run');
+  const draw = () => {
+    const s = (performance.now() - startAt) / 1000;
+    $('clock').textContent = mmss(s);
+    if (s >= CONFIG.MAX_SEC) return stop();
+    rafId = requestAnimationFrame(draw);
+  };
+  draw();
+}
+function stop() {
+  cancelAnimationFrame(rafId);
+  seconds = Math.round((performance.now() - startAt) / 1000);
+  beep(500, 400);
+  if (seconds < CONFIG.MIN_SEC) { flash('너무 짧아요. 다시 해요'); return toReady(); }
+  $('dist').value = ''; $('speed').value = '';
+  show('count');
+}
+function finish() {
+  const num = (v, max) => { const x = parseFloat(v); return isFinite(x) && x >= 0 && x <= max ? x : ''; };
+  dist = num($('dist').value, 20); speed = num($('speed').value, 25);
+  show('result');
+  $('resMain').textContent = mmss(seconds);
+  $('resRows').innerHTML =
+    `<div class="row"><span>달린 거리</span><span>${dist === '' ? '–' : dist + ' km'}</span></div>` +
+    `<div class="row"><span>최고 속도</span><span>${speed === '' ? '–' : speed + ' km/h'}</span></div>`;
+  save();
+}
+
+/* ===== 저장 ===== */
+function setSave(text, cls) {
+  const el = $('saveState'); el.textContent = text; el.className = cls || '';
+  $('retrySave').hidden = cls !== 'fail';
+}
+async function save() {
+  setSave('저장 중…');
+  const body = { type: CONFIG.TYPE, token: CONFIG.TOKEN, email, seconds, distance: dist, maxSpeed: speed, clientId };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CONFIG.SAVE_TIMEOUT_MS);
+  try {
+    const res = await fetch(CONFIG.GAS_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body), redirect: 'follow', credentials: 'omit', signal: ctrl.signal
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error('서버 응답을 읽지 못했어요: ' + text.slice(0, 60)); }
+    if (data.ok !== true) throw new Error(data.error || '서버에서 저장을 거부했어요');
+    setSave((data.name ? data.name + ' 학생 ' : '') + '저장 완료', 'ok');
+  } catch (e) {
+    console.error(e);
+    const serverRefused = /인증 실패|명단에 없는|학교 계정|거부/.test(e.message);
+    const unreadable = !serverRefused && (e.name === 'TypeError' || String(e.message).includes('<!DOCTYPE'));
+    if (unreadable && navigator.onLine) {
+      setSave('전송 완료 (결과 확인 불가 · 시트에서 확인)', 'ok');
+      $('retrySave').hidden = false;   // 같은 clientId라 다시 보내도 중복 저장 안 됨
+      return;
+    }
+    setSave('저장 실패: ' + (e.name === 'AbortError' ? '응답이 늦어요. 시트를 확인해 주세요.' : e.message), 'fail');
+  } finally { clearTimeout(timer); }
+}
+
+/* ===== 허브 연결 ===== */
+const PARAMS = new URLSearchParams(location.search);
+const FROM_HUB = PARAMS.get('from') === 'hub';
+function backOrScan() {
+  clearTimeout(cdTimer); cancelAnimationFrame(rafId);
+  if (FROM_HUB) { location.href = '../'; return; }
+  email = ''; $('who').textContent = ''; startScan();
+}
+if (FROM_HUB) {
+  $('next').textContent = '허브로 돌아가기';
+  $('rescan').textContent = '허브로 돌아가기';
+  $('cancel').textContent = '허브로';
+}
+
+/* ===== 버튼 ===== */
+$('startBtn').onclick = start;
+$('stopBtn').onclick = stop;
+$('countDone').onclick = finish;
+$('again').onclick = toReady;
+$('retrySave').onclick = save;
+$('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
+
+/* ===== 시작 ===== */
+(() => {
+  const em = (PARAMS.get('email') || '').trim().toLowerCase();
+  if (/^[\w.\-]+@[\w.\-]+$/.test(em)) {
+    email = em;
+    $('who').textContent = (PARAMS.get('name') || em.split('@')[0]) + ' 학생';
+    show('ready');
+  } else startScan();
+})();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
+}
+</script>
+</body>
+</html>
