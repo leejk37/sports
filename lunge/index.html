@@ -43,7 +43,7 @@
     background:#d9480f;color:#fff;font-size:24px;font-weight:800;opacity:0;transition:opacity .2s}
   #flash.on{opacity:1}
 
-  /* 오른쪽 세로 게이지: 앞무릎이 얼마나 굽혀졌는지 */
+  /* 오른쪽 세로 게이지: 엉덩이가 얼마나 내려갔는지 */
   #gauge{position:absolute;right:14px;top:6%;bottom:6%;width:22px;border:3px solid #fff;border-radius:14px;
     background:rgba(255,255,255,.08);overflow:hidden}
   #gaugeFill{position:absolute;left:0;right:0;bottom:0;height:0;background:#4dabf7;transition:height .08s}
@@ -116,7 +116,7 @@
 
       <section class="screen" id="s-ready">
         <h2>카메라 옆쪽으로<br>비스듬히 서 주세요</h2>
-        <p>몸 옆면이 보이게(약 45°) 서요.<br>한 걸음 내디뎌도 머리부터 발끝까지 화면에 들어와야 해요.<br>똑바로 서 있으면 3-2-1이 시작돼요.</p>
+        <p>몸 옆면이 보이게(약 45°) 서요.<br>한 걸음 내디뎌도 머리부터 발끝까지 화면에 들어와야 해요.<br>똑바로 서서 가만히 있으면 3-2-1이 시작돼요.</p>
         <div id="readyState"></div>
         <button class="btn line" id="forceStart">바로 시작</button>
       </section>
@@ -164,16 +164,19 @@ const CONFIG = {
   DOMAIN:  '@cpe.es.kr',
 
   // ---- 판정 기준 (처음 측정할 때 화면 왼쪽 위 숫자를 보며 조정) ----
-  // 무릎 각도: 엉덩이-무릎-발목 (180°=쭉 폄, 90°=직각)
-  // 앞다리 = 두 무릎 중 화면에서 더 높이 있는 쪽 (뒷무릎은 바닥 쪽으로 내려감)
-  DEEP: 105,         // 앞무릎이 이 이하로 굽혀지면 → 충분히 내려감
-  START: 145,        // 앞무릎이 이 아래로 내려가면 → 한 번 시작
-  UP: 160,           // 두 무릎 모두 이 이상이면 → 다시 일어섬(1회 완성)
+  // 내려간 비율 = 엉덩이가 내려간 거리 ÷ 다리 길이(선 자세의 엉덩이~발목)
+  //   → 몸을 옆으로 돌려도 위아래 높이는 거의 그대로라 촬영 각도에 덜 흔들림
+  //   → 가려진 다리의 무릎 각도와 상관없이 셀 수 있음
+  START: 0.15,       // 이만큼 내려가면 → 한 번 시작
+  DEEP: 0.30,        // 이만큼 내려가면 → 충분히 내려감 (부족하면 '깊이 부족')
+  UP: 0.08,          // 이 아래로 돌아오면 → 다시 일어섬(1회 완성)
   LEAN_MAX: 30,      // 상체(어깨-엉덩이 선)가 세로에서 이 이상 기울면 → 상체 숙임
   MIN_REP_MS: 500,   // 이보다 짧은 움직임은 흔들림으로 무시
   VIS_MIN: 0.5,
   SMOOTH: 0.5,
-  STABLE_MS: 1000,
+  STABLE_MS: 1000,   // 이만큼 가만히 서 있으면 준비 완료
+  STILL: 0.03,       // 준비 자세에서 엉덩이 흔들림 허용 범위(다리 길이 대비)
+  TRACK: 0.05,       // 서 있을 때 기준 높이를 천천히 따라감(학생이 조금 움직여도 보정)
   SAVE_TIMEOUT_MS: 30000
 };
 
@@ -188,6 +191,7 @@ let pose, stream, facing = localStorage.getItem('lungeFacing') || 'user';
 let email = '', duration = 30, endAt = 0;
 let counts = { good: 0, badDepth: 0, badLean: 0, left: 0, right: 0 };
 let phase = 'up', rep = null, sL = null, sR = null, sLean = null, readySince = null, frontSide = 'L';
+let sHip = null, sLeg = null, base = null, legLen = null, drop = 0, stillRef = null, calib = [];
 let lastQr = 0, lastVideoTime = -1, clientId = '';
 let audio;
 
@@ -200,20 +204,20 @@ function show(m) {
 
 const HINTS = {
   scan: 'QR 이름표를 화면 가운데에 비춰 주세요',
-  ready: '옆쪽으로 비스듬히 똑바로 서 주세요',
+  ready: '옆쪽으로 비스듬히 똑바로 서서 가만히 있어요',
   countdown: '움직이지 말고 기다려요',
   measure: '',
 };
 function setHint(text) { $('hint').textContent = text || HINTS[mode] || ''; }
 
-/* 게이지: 앞무릎이 얼마나 굽혀졌는지 (목표선 = DEEP) */
+/* 게이지: 엉덩이가 얼마나 내려갔는지 (목표선 = DEEP) */
 const GAUGE_MAX = 1.25;
 $('gaugeTarget').style.bottom = (100 / GAUGE_MAX) + '%';
 const frontAngle = () => frontSide === 'L' ? sL : sR;
 function setGauge() {
   const fill = $('gaugeFill');
-  if (mode !== 'measure' || sL == null) { fill.style.height = '0'; fill.classList.remove('reached'); return; }
-  const r = Math.max(0, Math.min(GAUGE_MAX, (CONFIG.UP - frontAngle()) / (CONFIG.UP - CONFIG.DEEP)));
+  if (mode !== 'measure' || base == null) { fill.style.height = '0'; fill.classList.remove('reached'); return; }
+  const r = Math.max(0, Math.min(GAUGE_MAX, drop / CONFIG.DEEP));
   fill.style.height = (r / GAUGE_MAX * 100) + '%';
   fill.classList.toggle('reached', r >= 1);
 }
@@ -258,6 +262,10 @@ function analyze(lm) {
   // 옆에서 찍으면 먼 쪽 다리가 가려질 수 있음 → 한쪽 다리만 또렷해도 측정
   const legOk = s => [s + 'h', s + 'k', s + 'a'].every(k => P[k].v > CONFIG.VIS_MIN);
   const ok = (legOk('l') || legOk('r')) && (P.ls.v > CONFIG.VIS_MIN || P.rs.v > CONFIG.VIS_MIN);
+  // 엉덩이 높이(두 엉덩이 가운데), 다리 길이(엉덩이 ~ 더 잘 보이는 발목)
+  const hipY = (P.lh.y + P.rh.y) / 2;
+  const ankY = P.la.v >= P.ra.v ? P.la.y : P.ra.y;
+  const leg = Math.max(1, ankY - hipY);
   const kneeL = angle(P.lh, P.lk, P.la), kneeR = angle(P.rh, P.rk, P.ra);
   // 앞다리: 무릎이 더 높이(y가 작게) 있는 쪽. 뒷무릎은 바닥 쪽으로 내려감
   const front = P.lk.y < P.rk.y ? 'L' : 'R';
@@ -265,7 +273,7 @@ function analyze(lm) {
   const sx = (P.ls.x + P.rs.x) / 2, sy = (P.ls.y + P.rs.y) / 2;
   const hx = (P.lh.x + P.rh.x) / 2, hy = (P.lh.y + P.rh.y) / 2;
   const lean = Math.atan2(Math.abs(sx - hx), Math.abs(hy - sy) || 1) * 180 / Math.PI;
-  return { ok, kneeL, kneeR, front, lean, P };
+  return { ok, kneeL, kneeR, front, lean, hipY, leg, P };
 }
 
 /* ===== 그리기 ===== */
@@ -288,10 +296,10 @@ function drawPose(r) {
   const fk = r.P[frontSide === 'L' ? 'lk' : 'rk'];
   ctx.fillStyle = '#f5c518'; ctx.beginPath(); ctx.arc(X(fk.x), fk.y, 14, 0, Math.PI * 2); ctx.fill();
   // 교사용 확인 수치(기준값 조정할 때 참고)
-  ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 300, 120);
+  ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 320, 120);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 28px Pretendard, sans-serif';
-  ctx.fillText('앞무릎 ' + Math.round(frontAngle()) + '° (' + (frontSide === 'L' ? '왼발' : '오른발') + ')', 24, 48);
-  ctx.fillText('뒷무릎 ' + Math.round(frontSide === 'L' ? sR : sL) + '°', 24, 84);
+  ctx.fillText('내려감 ' + (base == null ? '–' : Math.round(drop * 100) + '%'), 24, 48);
+  ctx.fillText('앞무릎 ' + Math.round(frontAngle()) + '° (' + (frontSide === 'L' ? '왼발' : '오른발') + ')', 24, 84);
   ctx.fillText('상체 ' + Math.round(sLean) + '°', 24, 120);
 }
 
@@ -313,19 +321,25 @@ function loop() {
   const r = analyze(lm);
   const ease = (s, v) => s == null ? v : s + CONFIG.SMOOTH * (v - s);
   sL = ease(sL, r.kneeL); sR = ease(sR, r.kneeR); sLean = ease(sLean, r.lean);
+  sHip = ease(sHip, r.hipY);
   frontSide = r.front;
+  if (base != null) drop = (sHip - base) / legLen;
   drawPose(r);
   setHint(r.ok ? '' : '엉덩이·무릎·발목이 잘 보이게 해 주세요');
   setGauge();
-  if (!r.ok) return;
 
-  const standing = sL >= CONFIG.UP && sR >= CONFIG.UP;
   if (mode === 'ready') {
-    $('readyState').textContent = standing ? '✓ 준비 자세 확인됨' : '무릎을 펴고 똑바로 서 주세요…';
-    if (standing) { readySince ??= now; if (now - readySince > CONFIG.STABLE_MS) startCountdown(); }
-    else readySince = null;
+    if (!r.ok) { readySince = null; return; }
+    sLeg = ease(sLeg, r.leg);
+    // 엉덩이가 1초 동안 거의 안 움직이면 준비 완료
+    if (stillRef == null || Math.abs(sHip - stillRef) > CONFIG.STILL * sLeg) { stillRef = sHip; readySince = now; }
+    $('readyState').textContent = now - readySince > 300 ? '✓ 그대로 가만히…' : '똑바로 서서 가만히 있어요…';
+    if (now - readySince > CONFIG.STABLE_MS) startCountdown();
+  } else if (mode === 'countdown') {
+    // 3-2-1 동안 선 자세의 엉덩이 높이와 다리 길이를 모아 기준으로 삼음
+    if (r.ok) calib.push({ hip: r.hipY, leg: r.leg });
   } else if (mode === 'measure') {
-    measure(standing, now);
+    measure(now);
   }
 }
 
@@ -348,11 +362,13 @@ function scanQr() {
 function toReady(sec) {
   duration = sec;
   counts = { good: 0, badDepth: 0, badLean: 0, left: 0, right: 0 };
-  sL = sR = sLean = null; readySince = null;
+  sL = sR = sLean = sHip = sLeg = null; readySince = null; stillRef = null;
+  base = legLen = null; drop = 0;
   beep(660, 60);
   show('ready');
 }
 function startCountdown() {
+  calib = [];
   show('countdown');
   let n = 3;
   const tick = () => {
@@ -362,8 +378,13 @@ function startCountdown() {
   };
   tick();
 }
+const median = a => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
 function startMeasure() {
   phase = 'up'; rep = null;
+  // 기준: 3-2-1 동안 모은 값의 가운데 값 (없으면 지금 값)
+  base = calib.length ? median(calib.map(c => c.hip)) : sHip;
+  legLen = calib.length ? median(calib.map(c => c.leg)) : (sLeg || canvas.height * 0.45);
+  drop = 0;
   endAt = performance.now() + duration * 1000;
   clientId = (crypto.randomUUID?.() || String(Date.now()) + Math.random());
   updateCounts();
@@ -371,24 +392,26 @@ function startMeasure() {
   $('big').textContent = '시작'; setTimeout(() => mode === 'measure' && ($('big').textContent = ''), 600);
   beep(1000, 300);
 }
-function measure(standing, now) {
+function measure(now) {
   const left = Math.max(0, endAt - now);
   $('timerBar').style.width = (left / (duration * 1000) * 100) + '%';
   if (left <= 0) { finish(); return; }
+  if (sHip == null || base == null) return;
 
-  const fa = frontAngle();
   if (phase === 'up') {
-    // 앞무릎이 확실히 굽혀지기 시작하면 한 바퀴 시작
-    if (fa < CONFIG.START) { phase = 'down'; rep = { start: now, minFront: fa, side: frontSide, maxLean: sLean }; }
+    // 서 있는 동안: 기준 높이를 천천히 따라감, 더 높이 서면 바로 기준으로
+    if (drop < CONFIG.UP) base = sHip < base ? sHip : base + CONFIG.TRACK * (sHip - base);
+    // 엉덩이가 확실히 내려가기 시작하면 한 바퀴 시작
+    if (drop > CONFIG.START) { phase = 'down'; rep = { start: now, maxDrop: drop, side: frontSide, maxLean: sLean }; }
   } else {
-    if (fa < rep.minFront) { rep.minFront = fa; rep.side = frontSide; }   // 가장 깊을 때의 앞다리 기억
+    if (drop > rep.maxDrop) { rep.maxDrop = drop; rep.side = frontSide; }   // 가장 깊을 때의 앞다리 기억
     rep.maxLean = Math.max(rep.maxLean, sLean);
-    if (standing) { judge(now); phase = 'up'; rep = null; }               // 다시 일어서야 1회 완성
+    if (drop < CONFIG.UP) { judge(now); phase = 'up'; rep = null; }      // 다시 일어서야 1회 완성
   }
 }
 function judge(now) {
   if (now - rep.start < CONFIG.MIN_REP_MS) return;
-  const deepOk = rep.minFront <= CONFIG.DEEP;
+  const deepOk = rep.maxDrop >= CONFIG.DEEP;
   const leanOk = rep.maxLean <= CONFIG.LEAN_MAX;
   if (deepOk && leanOk) {
     counts.good++;
