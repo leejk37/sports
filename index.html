@@ -159,8 +159,8 @@ const EXERCISES = [
   { id: 'squat',       name: '스쿼트',         desc: '자세 인식 · 횟수 측정', url: 'squat/',       ready: true,  tag: '카메라' },
   { id: 'curlup',      name: '윗몸말아올리기', desc: '자세 인식 · 횟수 측정', url: 'curlup/',      ready: true,  tag: '카메라' },
   { id: 'jumpingjack', name: '점핑잭',         desc: '자세 인식 · 횟수 측정', url: 'jumpingjack/', ready: true,  tag: '카메라' },
-  { id: 'treadmill',   name: '트레드밀',       desc: '운동 시간 기록',        url: 'timer/?ex=treadmill', ready: false, tag: '준비 중' },
-  { id: 'hanging',     name: '행잉',           desc: '버틴 시간 기록',        url: 'timer/?ex=hanging',   ready: false, tag: '준비 중' }
+  { id: 'treadmill',   name: '트레드밀',       desc: '운동 시간 · 거리 기록', url: 'treadmill/', ready: true, tag: '타이머' },
+  { id: 'hanging',     name: '행잉',           desc: '버틴 시간 기록',        url: 'hang/',      ready: true, tag: '타이머' }
 ];
 
 const $ = id => document.getElementById(id);
