@@ -162,9 +162,11 @@
     <section id="readyPanel" hidden>
       <p class="lead">옆으로 서서<br>온몸이 보이게 해요</p>
       <p class="sub">무릎이 노란 막대의 초록 선 아래까지 내려가야 1회로 세요. 허리는 곧게!</p>
-      <div class="seg" role="group" aria-label="측정 시간">
+      <div class="seg" role="group" aria-label="측정 방법">
         <button type="button" data-sec="30" aria-pressed="true">30초</button>
         <button type="button" data-sec="60" aria-pressed="false">1분</button>
+        <button type="button" data-reps="10" aria-pressed="false">10회</button>
+        <button type="button" data-reps="20" aria-pressed="false">20회</button>
       </div>
       <button class="primary" id="startBtn" type="button">측정 시작</button>
       <button class="secondary" id="changeStudent" type="button">다른 학생으로 바꾸기</button>
@@ -174,7 +176,7 @@
     <section id="runPanel" hidden>
       <p id="timer">30</p>
       <p class="big-count" id="goodNow">0</p>
-      <p class="count-label">정확한 스쿼트</p>
+      <p class="count-label" id="runLabel">정확한 스쿼트</p>
       <div class="stats">
         <div class="stat"><b id="depthNow">0</b><span>더 깊이 필요</span></div>
         <div class="stat"><b id="backNow">0</b><span>허리 숙임</span></div>
@@ -190,6 +192,7 @@
         <div class="stat"><b id="depthFinal">0</b><span>더 깊이 필요</span></div>
         <div class="stat"><b id="backFinal">0</b><span>허리 숙임</span></div>
       </div>
+      <p class="count-label" id="timeFinal" hidden></p>
       <p id="saveStatus">기록을 저장하는 중이에요</p>
       <button class="secondary" id="retrySave" type="button" hidden>다시 저장하기</button>
       <button class="primary" id="nextStudent" type="button">다음 학생</button>
@@ -211,7 +214,8 @@ const CONFIG = {
   DOWN_ANGLE: 100,     // 이 각도 이하까지 내려가야 정확한 스쿼트
   IGNORE_ANGLE: 135,   // 이보다 덜 굽히면 흔들림으로 보고 무시
   MAX_LEAN: 50,        // 상체가 수직에서 이 각도보다 더 숙여지면 '허리 숙임'
-  MIN_VISIBILITY: 0.5  // 관절이 이만큼 확실히 보여야 측정
+  MIN_VISIBILITY: 0.5, // 관절이 이만큼 확실히 보여야 측정
+  MAX_SEC: 180         // 횟수 모드에서 이 시간이 지나면 자동 종료(멈춘 학생 대비)
 };
 /* ============================================ */
 
@@ -223,6 +227,8 @@ const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true });
 let landmarker, drawer, facing = "user";
 let mode = "loading";            // loading | scan | ready | countdown | run | result
 let student = null, studentName = "", duration = 30;
+let target = 0, runStart = 0, runEnd = 0;   // target: 0이면 시간 모드, 숫자면 횟수 모드
+const elapsedSec = () => Math.max(1, Math.round((runEnd - runStart) / 1000));
 let good = 0, badDepth = 0, badBack = 0;
 let rep = { down: false, minKnee: 180, maxLean: 0 };
 let smoothKnee = null, endTime = 0, lastScan = 0, lastVideoTime = -1;
@@ -410,8 +416,13 @@ function loop() {
 
     if (mode === "run") {
       const left = Math.max(0, Math.ceil((endTime - now) / 1000));
-      $("timer").textContent = left;
-      if (left === 0) finish();
+      if (target) {                       // 횟수 모드: 걸린 시간이 올라감, 목표에 닿으면 끝
+        $("timer").textContent = Math.floor((now - runStart) / 1000) + "초";
+        if (good >= target || left === 0) finish();
+      } else {                            // 시간 모드: 남은 시간이 줄어듦
+        $("timer").textContent = left;
+        if (left === 0) finish();
+      }
     }
   }
   requestAnimationFrame(loop);
@@ -419,7 +430,8 @@ function loop() {
 
 /* ---------- 측정 흐름 ---------- */
 document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
-  duration = Number(b.dataset.sec);
+  target = Number(b.dataset.reps || 0);
+  duration = target ? CONFIG.MAX_SEC : Number(b.dataset.sec);
   document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
 }));
 
@@ -428,11 +440,12 @@ $("startBtn").addEventListener("click", async () => {
   beep(1, 1); // 첫 터치로 소리 켜기
   good = badDepth = badBack = 0; rep = { down: false, minKnee: 180, maxLean: 0 };
   $("goodNow").textContent = 0; $("depthNow").textContent = 0; $("backNow").textContent = 0;
-  $("timer").textContent = duration;
+  $("timer").textContent = target ? "0초" : duration;
+  $("runLabel").textContent = target ? `정확한 스쿼트 · 목표 ${target}회` : "정확한 스쿼트";
   show("runPanel"); mode = "countdown";
   for (const n of [3, 2, 1]) { $("countdown").textContent = n; beep(520); await new Promise(r => setTimeout(r, 1000)); }
   $("countdown").textContent = ""; beep(990, 250);
-  endTime = performance.now() + duration * 1000; mode = "run";
+  runStart = performance.now(); endTime = runStart + duration * 1000; mode = "run";
 });
 $("stopBtn").addEventListener("click", () => { mode = "ready"; goReady(); });
 $("changeStudent").addEventListener("click", backOrScan);
@@ -445,10 +458,13 @@ $("switchCam").addEventListener("click", async () => {
 });
 
 function finish() {
-  mode = "result"; beep(990, 400);
+  mode = "result"; beep(990, 400); runEnd = performance.now();
+  $("timeFinal").hidden = !target;
+  $("timeFinal").textContent = target ? `걸린 시간 ${elapsedSec()}초` : "";
   $("goodFinal").textContent = good; $("depthFinal").textContent = badDepth; $("backFinal").textContent = badBack;
   show("resultPanel"); setHint("");
-  lastPayload = { type: "squat", token: CONFIG.TOKEN, email: student, duration, good, badDepth, badBack };
+  lastPayload = { type: "squat", token: CONFIG.TOKEN, email: student,
+    duration: target ? elapsedSec() : duration, target, good, badDepth, badBack };
   send(lastPayload);
 }
 

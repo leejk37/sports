@@ -69,6 +69,8 @@
   .row b{color:var(--warn)}
   #timer{height:12px;background:rgba(255,255,255,.2);border-radius:6px;overflow:hidden}
   #timerBar{height:100%;width:100%;background:var(--yellow)}
+  .pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .screen p.pickLabel{font-size:16px;margin:4px 0 -6px}
   #saveState{font-size:17px;font-weight:700;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.12)}
   #saveState:empty{display:none}
   #saveState.ok{color:var(--good)}
@@ -108,9 +110,17 @@
       </section>
 
       <section class="screen" id="s-time">
-        <h2>측정 시간을<br>골라 주세요</h2>
-        <button class="btn" data-sec="30">30초</button>
-        <button class="btn" data-sec="60">1분</button>
+        <h2>어떻게 측정할까요?</h2>
+        <p class="pickLabel">시간 동안 몇 번?</p>
+        <div class="pick">
+          <button class="btn" data-sec="30">30초</button>
+          <button class="btn" data-sec="60">1분</button>
+        </div>
+        <p class="pickLabel">몇 번을 얼마나 빨리?</p>
+        <div class="pick">
+          <button class="btn" data-reps="10">10회</button>
+          <button class="btn" data-reps="20">20회</button>
+        </div>
         <button class="btn line" id="rescan">다른 학생 스캔</button>
       </section>
 
@@ -128,7 +138,7 @@
 
       <section class="screen" id="s-measure">
         <div id="timer"><div id="timerBar"></div></div>
-        <div class="count"><span id="goodNum">0</span><small>회</small></div>
+        <div class="count"><span id="goodNum">0</span><small id="goalLabel">회</small></div>
         <div class="rows">
           <div class="row"><span>왼발 앞 · 오른발 앞</span><span id="sideNum">0 · 0</span></div>
           <div class="row"><span>깊이 부족</span><b id="dNum">0</b></div>
@@ -143,6 +153,7 @@
           <div class="row"><span>왼발 앞 · 오른발 앞</span><span id="resSide">0 · 0</span></div>
           <div class="row"><span>깊이 부족</span><b id="resD">0</b></div>
           <div class="row"><span>상체 숙임</span><b id="resT">0</b></div>
+          <div class="row" id="resTimeRow" style="display:none"><span>걸린 시간</span><span id="resTime"></span></div>
           <div class="row"><span>정확도</span><span id="resAcc">0%</span></div>
         </div>
         <div id="saveState"></div>
@@ -177,7 +188,8 @@ const CONFIG = {
   STABLE_MS: 1000,   // 이만큼 가만히 서 있으면 준비 완료
   STILL: 0.03,       // 준비 자세에서 엉덩이 흔들림 허용 범위(다리 길이 대비)
   TRACK: 0.05,       // 서 있을 때 기준 높이를 천천히 따라감(학생이 조금 움직여도 보정)
-  SAVE_TIMEOUT_MS: 30000
+  SAVE_TIMEOUT_MS: 30000,
+  MAX_SEC: 180       // 횟수 모드에서 이 시간이 지나면 자동 종료(멈춘 학생 대비)
 };
 
 /* ===== 화면 요소 ===== */
@@ -188,7 +200,7 @@ const qrCanvas = document.createElement('canvas'), qrCtx = qrCanvas.getContext('
 /* ===== 상태 ===== */
 let mode = 'loading';
 let pose, stream, facing = localStorage.getItem('lungeFacing') || 'user';
-let email = '', duration = 30, endAt = 0;
+let email = '', duration = 30, endAt = 0, target = 0, runStart = 0, runEnd = 0;
 let counts = { good: 0, badDepth: 0, badLean: 0, left: 0, right: 0 };
 let phase = 'up', rep = null, sL = null, sR = null, sLean = null, readySince = null, frontSide = 'L';
 let sHip = null, sLeg = null, base = null, legLen = null, drop = 0, stillRef = null, calib = [];
@@ -359,8 +371,9 @@ function scanQr() {
 }
 
 /* ===== 측정 흐름 ===== */
-function toReady(sec) {
-  duration = sec;
+function toReady(sec, reps = 0) {
+  target = reps;                 // 0이면 시간 모드, 숫자면 횟수 모드
+  duration = reps ? CONFIG.MAX_SEC : sec;
   counts = { good: 0, badDepth: 0, badLean: 0, left: 0, right: 0 };
   sL = sR = sLean = sHip = sLeg = null; readySince = null; stillRef = null;
   base = legLen = null; drop = 0;
@@ -386,6 +399,8 @@ function startMeasure() {
   legLen = calib.length ? median(calib.map(c => c.leg)) : (sLeg || canvas.height * 0.45);
   drop = 0;
   endAt = performance.now() + duration * 1000;
+  runStart = performance.now();
+  $('goalLabel').textContent = target ? '/ ' + target + '회' : '회';
   clientId = (crypto.randomUUID?.() || String(Date.now()) + Math.random());
   updateCounts();
   show('measure');
@@ -393,9 +408,7 @@ function startMeasure() {
   beep(1000, 300);
 }
 function measure(now) {
-  const left = Math.max(0, endAt - now);
-  $('timerBar').style.width = (left / (duration * 1000) * 100) + '%';
-  if (left <= 0) { finish(); return; }
+  if (tickGoal(now)) return;
   if (sHip == null || base == null) return;
 
   if (phase === 'up') {
@@ -431,7 +444,23 @@ function accuracy() {
   const t = counts.good + counts.badDepth + counts.badLean;
   return t ? Math.round(counts.good / t * 100) : 0;
 }
+/* 시간 모드: 막대가 줄어듦 / 횟수 모드: 막대가 차오르고 목표에 닿으면 끝 */
+function tickGoal(now) {
+  const left = Math.max(0, endAt - now);
+  if (target) {
+    $('timerBar').style.width = Math.min(100, counts.good / target * 100) + '%';
+    if (counts.good >= target || left <= 0) { finish(); return true; }
+    return false;
+  }
+  $('timerBar').style.width = (left / (duration * 1000) * 100) + '%';
+  if (left <= 0) { finish(); return true; }
+  return false;
+}
+const elapsedSec = () => Math.max(1, Math.round((runEnd - runStart) / 1000));
 function finish() {
+  runEnd = performance.now();
+  $('resTimeRow').style.display = target ? 'flex' : 'none';
+  $('resTime').textContent = target ? elapsedSec() + '초' : '';
   beep(500, 500);
   show('result');
   $('resGood').textContent = counts.good;
@@ -450,7 +479,8 @@ function setSave(text, cls) {
 async function save() {
   setSave('저장 중…');
   const body = {
-    type: CONFIG.TYPE, token: CONFIG.TOKEN, email, duration,
+    type: CONFIG.TYPE, token: CONFIG.TOKEN, email,
+    duration: target ? elapsedSec() : duration, target,
     good: counts.good, badDepth: counts.badDepth, badLean: counts.badLean,
     left: counts.left, right: counts.right, clientId
   };
@@ -508,6 +538,7 @@ if (FROM_HUB) {
 
 /* ===== 버튼 ===== */
 document.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => toReady(+b.dataset.sec));
+document.querySelectorAll('[data-reps]').forEach(b => b.onclick = () => toReady(0, +b.dataset.reps));
 $('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = startCountdown;
 $('retrySave').onclick = save;

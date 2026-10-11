@@ -69,6 +69,8 @@
   .row b{color:var(--warn)}
   #timer{height:12px;background:rgba(255,255,255,.2);border-radius:6px;overflow:hidden}
   #timerBar{height:100%;width:100%;background:var(--yellow)}
+  .pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .screen p.pickLabel{font-size:16px;margin:4px 0 -6px}
   #saveState{font-size:17px;font-weight:700;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.12)}
   #saveState:empty{display:none}
   #saveState.ok{color:var(--good)}
@@ -108,9 +110,17 @@
       </section>
 
       <section class="screen" id="s-time">
-        <h2>측정 시간을<br>골라 주세요</h2>
-        <button class="btn" data-sec="30">30초</button>
-        <button class="btn" data-sec="60">1분</button>
+        <h2>어떻게 측정할까요?</h2>
+        <p class="pickLabel">시간 동안 몇 번?</p>
+        <div class="pick">
+          <button class="btn" data-sec="30">30초</button>
+          <button class="btn" data-sec="60">1분</button>
+        </div>
+        <p class="pickLabel">몇 번을 얼마나 빨리?</p>
+        <div class="pick">
+          <button class="btn" data-reps="10">10회</button>
+          <button class="btn" data-reps="20">20회</button>
+        </div>
         <button class="btn line" id="rescan">다른 학생 스캔</button>
       </section>
 
@@ -128,7 +138,7 @@
 
       <section class="screen" id="s-measure">
         <div id="timer"><div id="timerBar"></div></div>
-        <div class="count"><span id="goodNum">0</span><small>회</small></div>
+        <div class="count"><span id="goodNum">0</span><small id="goalLabel">회</small></div>
         <div class="rows">
           <div class="row"><span>팔 덜 올림</span><b id="aNum">0</b></div>
           <div class="row"><span>다리 덜 벌림</span><b id="lNum">0</b></div>
@@ -141,6 +151,7 @@
         <div class="rows">
           <div class="row"><span>팔 덜 올림</span><b id="resA">0</b></div>
           <div class="row"><span>다리 덜 벌림</span><b id="resL">0</b></div>
+          <div class="row" id="resTimeRow" style="display:none"><span>걸린 시간</span><span id="resTime"></span></div>
           <div class="row"><span>정확도</span><span id="resAcc">0%</span></div>
         </div>
         <div id="saveState"></div>
@@ -172,7 +183,8 @@ const CONFIG = {
   VIS_MIN: 0.5,
   SMOOTH: 0.6,       // 점핑잭은 빠르므로 부드럽게 하는 정도를 약하게
   STABLE_MS: 1000,
-  SAVE_TIMEOUT_MS: 30000
+  SAVE_TIMEOUT_MS: 30000,
+  MAX_SEC: 180       // 횟수 모드에서 이 시간이 지나면 자동 종료(멈춘 학생 대비)
 };
 
 /* ===== 화면 요소 ===== */
@@ -183,7 +195,7 @@ const qrCanvas = document.createElement('canvas'), qrCtx = qrCanvas.getContext('
 /* ===== 상태 ===== */
 let mode = 'loading';
 let pose, stream, facing = localStorage.getItem('jjFacing') || 'user';
-let email = '', duration = 30, endAt = 0;
+let email = '', duration = 30, endAt = 0, target = 0, runStart = 0, runEnd = 0;
 let counts = { good: 0, badArms: 0, badLegs: 0 };
 let phase = 'closed', rep = null, sArm = null, sLeg = null, readySince = null;
 let lastQr = 0, lastVideoTime = -1, clientId = '';
@@ -334,8 +346,9 @@ function scanQr() {
 }
 
 /* ===== 측정 흐름 ===== */
-function toReady(sec) {
-  duration = sec;
+function toReady(sec, reps = 0) {
+  target = reps;                 // 0이면 시간 모드, 숫자면 횟수 모드
+  duration = reps ? CONFIG.MAX_SEC : sec;
   counts = { good: 0, badArms: 0, badLegs: 0 };
   sArm = sLeg = null; readySince = null;
   beep(660, 60);
@@ -354,6 +367,8 @@ function startCountdown() {
 function startMeasure() {
   phase = 'closed'; rep = null;
   endAt = performance.now() + duration * 1000;
+  runStart = performance.now();
+  $('goalLabel').textContent = target ? '/ ' + target + '회' : '회';
   clientId = (crypto.randomUUID?.() || String(Date.now()) + Math.random());
   updateCounts();
   show('measure');
@@ -361,9 +376,7 @@ function startMeasure() {
   beep(1000, 300);
 }
 function measure(closed, now) {
-  const left = Math.max(0, endAt - now);
-  $('timerBar').style.width = (left / (duration * 1000) * 100) + '%';
-  if (left <= 0) { finish(); return; }
+  if (tickGoal(now)) return;
 
   if (phase === 'closed') {
     // 팔이나 다리가 확실히 벌어지기 시작하면 한 바퀴 시작
@@ -401,7 +414,23 @@ function accuracy() {
   const t = counts.good + counts.badArms + counts.badLegs;
   return t ? Math.round(counts.good / t * 100) : 0;
 }
+/* 시간 모드: 막대가 줄어듦 / 횟수 모드: 막대가 차오르고 목표에 닿으면 끝 */
+function tickGoal(now) {
+  const left = Math.max(0, endAt - now);
+  if (target) {
+    $('timerBar').style.width = Math.min(100, counts.good / target * 100) + '%';
+    if (counts.good >= target || left <= 0) { finish(); return true; }
+    return false;
+  }
+  $('timerBar').style.width = (left / (duration * 1000) * 100) + '%';
+  if (left <= 0) { finish(); return true; }
+  return false;
+}
+const elapsedSec = () => Math.max(1, Math.round((runEnd - runStart) / 1000));
 function finish() {
+  runEnd = performance.now();
+  $('resTimeRow').style.display = target ? 'flex' : 'none';
+  $('resTime').textContent = target ? elapsedSec() + '초' : '';
   beep(500, 500);
   show('result');
   $('resGood').textContent = counts.good;
@@ -419,7 +448,8 @@ function setSave(text, cls) {
 async function save() {
   setSave('저장 중…');
   const body = {
-    type: CONFIG.TYPE, token: CONFIG.TOKEN, email, duration,
+    type: CONFIG.TYPE, token: CONFIG.TOKEN, email,
+    duration: target ? elapsedSec() : duration, target,
     good: counts.good, badArms: counts.badArms, badLegs: counts.badLegs, clientId
   };
   const ctrl = new AbortController();
@@ -476,6 +506,7 @@ if (FROM_HUB) {
 
 /* ===== 버튼 ===== */
 document.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => toReady(+b.dataset.sec));
+document.querySelectorAll('[data-reps]').forEach(b => b.onclick = () => toReady(0, +b.dataset.reps));
 $('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = startCountdown;
 $('retrySave').onclick = save;
