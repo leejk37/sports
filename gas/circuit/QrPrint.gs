@@ -1,6 +1,6 @@
 /**
  * QR 이름표 인쇄 — 서킷트레이닝(26_청평_스마트스포츠실) GAS 프로젝트에 새 파일로 추가
- *  - '학생명단' 탭을 읽어 학년·반별(또는 교직원) QR 이름표 인쇄 화면(QrPrint.html)을 보여 줍니다.
+ *  - '학생명단' 탭을 읽어 학년·반별(또는 교직원) QR 이름표 인쇄 화면(QrPrintPage.html)을 보여 줍니다.
  *  - QR 안에는 구글 아이디만(@ 앞부분) 넣습니다. 입퇴실·허브 로그인과 같은 이름표를 씁니다.
  *  - 열기: 웹앱 주소(…/exec) 뒤에 ?page=qr  (선생님 계정으로 로그인한 상태)
  *  - Code.gs의 doGet 맨 첫 줄에 추가:
@@ -15,7 +15,7 @@ function qrPrintPage_() {
   if (!qrIsOwner_()) {
     return HtmlService.createHtmlOutput('<p style="font:18px sans-serif;padding:24px">선생님 계정으로 로그인해야 열 수 있어요.</p>');
   }
-  return HtmlService.createHtmlOutputFromFile('QrPrint')
+  return HtmlService.createHtmlOutputFromFile('QrPrintPage')
     .setTitle('QR 이름표')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
