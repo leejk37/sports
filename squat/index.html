@@ -38,6 +38,8 @@
   }
   header h1 { font-family: "Jua", sans-serif; font-weight: 400; font-size: 1.6rem; margin: 0; }
   #who { margin-left: auto; font-size: 1rem; opacity: .9; }
+  .icon-btn[aria-pressed="true"] { background: var(--line); color: var(--ink); border-color: var(--line); }
+  .stage.editing { cursor: crosshair; touch-action: none; }
   .icon-btn {
     background: transparent; color: var(--chalk);
     border: 2px solid rgba(255,255,255,.5); border-radius: 8px;
@@ -138,6 +140,7 @@
 <header>
   <h1>스쿼트 측정</h1>
   <span id="who"></span>
+  <button class="icon-btn" id="zoneBtn" type="button" title="운동 구역 정하기 (선생님)">구역</button>
   <button class="icon-btn" id="switchCam" type="button">카메라 전환</button>
 </header>
 
@@ -215,7 +218,10 @@ const CONFIG = {
   IGNORE_ANGLE: 135,   // 이보다 덜 굽히면 흔들림으로 보고 무시
   MAX_LEAN: 50,        // 상체가 수직에서 이 각도보다 더 숙여지면 '허리 숙임'
   MIN_VISIBILITY: 0.5, // 관절이 이만큼 확실히 보여야 측정
-  MAX_SEC: 180         // 횟수 모드에서 이 시간이 지나면 자동 종료(멈춘 학생 대비)
+  MAX_SEC: 180,        // 횟수 모드에서 이 시간이 지나면 자동 종료(멈춘 학생 대비)
+  // 운동 구역: 이 틀 안에 엉덩이가 있는 사람만 측정 (화면 비율 0~1). '구역' 버튼으로 드래그해 바꾸면 이 기기에 기억됨
+  ZONE: { x0: 0.2, y0: 0.02, x1: 0.8, y1: 0.98 },
+  MAX_PEOPLE: 3        // 한 화면에서 찾아볼 최대 인원(이 중 틀 안에서 가장 크게 보이는 사람을 측정)
 };
 /* ============================================ */
 
@@ -233,6 +239,7 @@ let good = 0, badDepth = 0, badBack = 0;
 let rep = { down: false, minKnee: 180, maxLean: 0 };
 let smoothKnee = null, endTime = 0, lastScan = 0, lastVideoTime = -1;
 let lastPayload = null;
+let editing = false;              // 선생님이 운동 구역을 그리는 중
 
 const LEFT  = { sh: 11, hip: 23, knee: 25, ank: 27 };
 const RIGHT = { sh: 12, hip: 24, knee: 26, ank: 28 };
@@ -261,7 +268,10 @@ if (FROM_HUB) {
 function show(panel) {
   for (const id of ["scanPanel", "readyPanel", "runPanel", "resultPanel"]) $(id).hidden = id !== panel;
 }
-function setHint(text, warn = false) { $("hint").textContent = text; $("hint").classList.toggle("warn", warn); }
+function setHint(text, warn = false) {
+  if (editing && !text.startsWith("화면을 드래그")) return;   // 구역 정하는 동안은 안내 고정
+  $("hint").textContent = text; $("hint").classList.toggle("warn", warn);
+}
 function goScan() {
   student = null; studentName = ""; $("who").textContent = ""; mode = "scan";
   show("scanPanel"); setHint("QR 이름표를 화면 가운데에 비춰 주세요");
@@ -312,7 +322,7 @@ async function loadModel() {
       modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
       delegate
     },
-    runningMode: "VIDEO", numPoses: 1
+    runningMode: "VIDEO", numPoses: CONFIG.MAX_PEOPLE
   });
   try { landmarker = await make("GPU"); } catch { landmarker = await make("CPU"); }
   drawer = new DrawingUtils(ctx);
@@ -391,6 +401,65 @@ function analyze(lm) {
   }
 }
 
+/* ---------- 운동 구역 (이 틀 안의 사람만 측정) ---------- */
+let zone = (() => {
+  try { const z = JSON.parse(localStorage.getItem("squatZone")); if (z && z.x1 > z.x0 && z.y1 > z.y0) return z; } catch (e) {}
+  return { ...CONFIG.ZONE };
+})();
+let dragFrom = null;
+
+// 여러 사람 중: 엉덩이 가운데가 틀 안에 있는 사람 → 그중 가장 크게(카메라에 가깝게) 보이는 사람
+function pickPerson(people) {
+  let best = null, bestSize = 0;
+  for (const lm of people) {
+    const hx = (lm[23].x + lm[24].x) / 2, hy = (lm[23].y + lm[24].y) / 2;
+    if (hx < zone.x0 || hx > zone.x1 || hy < zone.y0 || hy > zone.y1) continue;
+    const ys = lm.filter(p => (p.visibility ?? 1) > 0.3).map(p => p.y);
+    const size = ys.length ? Math.max(...ys) - Math.min(...ys) : 0;
+    if (size > bestSize) { best = lm; bestSize = size; }
+  }
+  return best;
+}
+function drawZone() {
+  const W = canvas.width, H = canvas.height;
+  const x0 = zone.x0 * W, y0 = zone.y0 * H, x1 = zone.x1 * W, y1 = zone.y1 * H;
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.45)";                  // 틀 바깥은 어둡게
+  ctx.fillRect(0, 0, W, y0); ctx.fillRect(0, y1, W, H - y1);
+  ctx.fillRect(0, y0, x0, y1 - y0); ctx.fillRect(x1, y0, W - x1, y1 - y0);
+  ctx.strokeStyle = "#FFD23F"; ctx.lineWidth = editing ? 8 : 5; ctx.setLineDash([24, 14]);
+  ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  ctx.restore();
+}
+// 화면 위 손가락 위치 → 영상 안의 비율(0~1). 거울 모드와 여백(object-fit: contain)을 계산
+function toVideoXY(ev) {
+  const r = canvas.getBoundingClientRect();
+  const vw = video.videoWidth, vh = video.videoHeight, sc = Math.min(r.width / vw, r.height / vh);
+  const ox = (r.width - vw * sc) / 2, oy = (r.height - vh * sc) / 2;
+  let x = (ev.clientX - r.left - ox) / (vw * sc), y = (ev.clientY - r.top - oy) / (vh * sc);
+  if (facing === "user") x = 1 - x;
+  return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+}
+const stageEl = document.querySelector(".stage");
+stageEl.addEventListener("pointerdown", ev => { if (!editing) return; dragFrom = toVideoXY(ev); stageEl.setPointerCapture(ev.pointerId); });
+stageEl.addEventListener("pointermove", ev => {
+  if (!editing || !dragFrom) return;
+  const p = toVideoXY(ev);
+  zone = { x0: Math.min(dragFrom.x, p.x), y0: Math.min(dragFrom.y, p.y), x1: Math.max(dragFrom.x, p.x), y1: Math.max(dragFrom.y, p.y) };
+});
+stageEl.addEventListener("pointerup", () => {
+  if (!editing || !dragFrom) return;
+  dragFrom = null;
+  if (zone.x1 - zone.x0 < 0.1 || zone.y1 - zone.y0 < 0.2) zone = { ...CONFIG.ZONE };   // 너무 작으면 기본 틀로
+  try { localStorage.setItem("squatZone", JSON.stringify(zone)); } catch (e) {}
+});
+$("zoneBtn").addEventListener("click", () => {
+  editing = !editing;
+  $("zoneBtn").setAttribute("aria-pressed", String(editing));
+  stageEl.classList.toggle("editing", editing);
+  setHint(editing ? "화면을 드래그해 운동 구역을 그려요 · 끝나면 '구역'을 다시 눌러요" : "", false);
+});
+
 /* ---------- 메인 반복 ---------- */
 function loop() {
   if (video.readyState >= 2 && landmarker) {
@@ -404,8 +473,12 @@ function loop() {
       lastVideoTime = video.currentTime;
       const res = landmarker.detectForVideo(video, now);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const lm = res.landmarks && res.landmarks[0];
-      if (lm) {
+      const people = res.landmarks || [];
+      const lm = pickPerson(people);
+      drawZone();
+      if (!lm && people.length && mode !== "result") {
+        setHint("노란 틀 안으로 들어와 주세요", true);
+      } else if (lm) {
         drawer.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: "#FFFFFF", lineWidth: 4 });
         drawer.drawLandmarks(lm, { color: "#FFD23F", radius: 4 });
         analyze(lm);
