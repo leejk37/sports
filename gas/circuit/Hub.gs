@@ -3,6 +3,8 @@
  * 허브가 JSONP(GET + callback)로 요청하면 답합니다.
  * Code.gs의 doGet 첫 줄:  if (e && e.parameter && e.parameter.callback) return hubJsonp_(e);
  *
+ * 공용 모드(방 이름 있음)에서는 로그인 = 입실, 로그아웃 = 퇴실로 '입퇴실' 시트에도 기록 (Checkin.gs)
+ *
  * 요청 종류(action)
  *   student   : 학생 이름 확인 (이 기기 모드)
  *   list      : 방(room)의 로그인 목록
@@ -92,6 +94,8 @@ function hubLogin_(room, emailRaw, hours) {
     if (row > 0) sh.getRange(row, 7).setValue(new Date());          // 시간 연장
     else sh.appendRow([room, st.email, st.name, st.grade, st.cls, st.no, new Date()]);
     hubCleanup_(sh);
+    // 스포츠실(공용 모드) 로그인 = 입실 (이미 '이용 중'이면 그대로) — Checkin.gs
+    try { checkinIn_(st.email, st); } catch (e) { console.error('입실 기록 실패: ' + e); }
     return { ok: true, name: st.name, already: already, list: hubList_(room, hours) };
   } finally {
     lock.releaseLock();
@@ -107,7 +111,11 @@ function hubLogout_(room, emailRaw, hours) {
     const sh = hubSheet_();
     const v = sh.getDataRange().getValues();
     for (let i = v.length - 1; i >= 1; i--) {              // 아래에서부터 지워야 줄 번호가 안 꼬임
-      if (v[i][0] === room && (!email || v[i][1] === email)) sh.deleteRow(i + 1);
+      if (v[i][0] === room && (!email || v[i][1] === email)) {
+        // 로그아웃 = 퇴실 — Checkin.gs
+        try { checkinOut_(String(v[i][1]).toLowerCase()); } catch (e) { console.error('퇴실 기록 실패: ' + e); }
+        sh.deleteRow(i + 1);
+      }
     }
     return { ok: true, list: hubList_(room, hours) };
   } finally {

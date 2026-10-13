@@ -190,6 +190,12 @@ const $ = id => document.getElementById(id);
 })();
 const ROOM = (() => { try { return localStorage.getItem(CONFIG.ROOM_KEY) || ''; } catch (e) { return ''; } })();
 const SHARED = !!ROOM;
+function applyModeText() {
+  if (!SHARED) return;
+  document.querySelector('.secTitle h2').textContent = '입실한 학생';
+  $('camHint').textContent = 'QR 이름표를 노란 칸에 비추면 입실';
+  $('logoutAll').textContent = '모두 퇴실';
+}
 function setOnline(ok) {
   const el = $('room');
   el.textContent = SHARED ? (ok ? '공용 · ' + ROOM : '연결 끊김 · ' + ROOM) : '이 기기';
@@ -239,14 +245,14 @@ function renderStudents() {
   $('cnt').textContent = students.length + '명';
   $('logoutAll').hidden = students.length === 0;
   if (!students.length) {
-    box.innerHTML = '<div id="empty">아직 로그인한 학생이 없어요.<br>QR 이름표를 카메라에 비춰 주세요.</div>';
+    box.innerHTML = '<div id="empty">아직 ' + (SHARED ? '입실' : '로그인') + '한 학생이 없어요.<br>QR 이름표를 카메라에 비춰 주세요.</div>';
     return;
   }
   box.innerHTML = '';
   students.forEach(s => {
     const b = document.createElement('button');
     b.className = 'chip';
-    b.title = '눌러서 로그아웃';
+    b.title = SHARED ? '눌러서 퇴실' : '눌러서 로그아웃';
     b.innerHTML = `${esc(s.name)} <small>${esc(s.no ? s.no + '번' : s.email.split('@')[0])}</small><span class="x">✕</span>`;
     b.onclick = () => logoutOne(s);
     box.appendChild(b);
@@ -255,16 +261,16 @@ function renderStudents() {
 function esc(t) { return String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 async function logoutOne(s) {
-  if (!confirm(s.name + ' 학생을 로그아웃할까요?')) return;
+  if (!confirm(s.name + (SHARED ? ' 학생을 퇴실(로그아웃)할까요?' : ' 학생을 로그아웃할까요?'))) return;
   if (SHARED) {
-    try { const r = await shared('logout', { email: s.email }); if (r.ok) { students = r.list; renderStudents(); } else toast(r.error, true); }
+    try { const r = await shared('logout', { email: s.email }); if (r.ok) { students = r.list; renderStudents(); toast(s.name + ' 퇴실'); } else toast(r.error, true); }
     catch (e) { toast('연결이 안 돼요. 잠시 후 다시 해 주세요', true); }
     return;
   }
   students = students.filter(t => t.email !== s.email); saveLocal(students); renderStudents();
 }
 $('logoutAll').onclick = async () => {
-  if (!confirm('로그인한 학생을 모두 로그아웃할까요?')) return;
+  if (!confirm(SHARED ? '모든 학생을 퇴실(로그아웃) 처리할까요?' : '로그인한 학생을 모두 로그아웃할까요?')) return;
   if (SHARED) {
     try { const r = await shared('logoutAll'); if (r.ok) { students = r.list; renderStudents(); } else toast(r.error, true); }
     catch (e) { toast('연결이 안 돼요. 잠시 후 다시 해 주세요', true); }
@@ -288,7 +294,7 @@ async function login(raw) {
       if (!r.ok) toast(r.error || '로그인하지 못했어요', true);
       else {
         students = r.list; renderStudents(); setOnline(true); beep(1200, 90);
-        toast(r.already ? r.name + ' 학생은 이미 로그인했어요' : r.name + ' 로그인!');
+        toast(r.already ? r.name + ' 학생은 이미 입실했어요' : r.name + ' 입실!');
       }
     } catch (e) { setOnline(false); toast('연결이 안 돼요. 다시 찍어 주세요', true); }
     setTimeout(() => busy = false, 1200);   // 같은 QR 연속 인식 방지
@@ -404,7 +410,7 @@ function tick() {
 }
 
 /* ===== 시작 ===== */
-renderStudents(); renderMenu(); tick(); setInterval(tick, 10000);
+applyModeText(); renderStudents(); renderMenu(); tick(); setInterval(tick, 10000);
 refresh();
 startCamera(); requestAnimationFrame(loop);
 // 공용 모드: 다른 태블릿의 로그인·로그아웃을 주기적으로 반영

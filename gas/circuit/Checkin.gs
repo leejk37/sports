@@ -8,7 +8,10 @@
  *             편집기에서 setupCheckin() 실행(매일 18시 퇴실 누락 정리 트리거)
  *
  * 기록 시트 '입퇴실': 날짜 | 학년 | 반 | 번호 | 이름 | 이메일 | 입실 | 퇴실 | 이용(분) | 구분 | 상태
- * 규칙: 이용 중이 아니면 입실, 이용 중이면 퇴실(하루 여러 번 가능)
+ * 입실·퇴실은 두 곳에서 기록됨
+ *   ① 허브(공용 모드 ?room=gym): QR 로그인 = 입실, 로그아웃·모두 로그아웃 = 퇴실  ← 기본
+ *   ② 입퇴실 전용 화면(qr/): 이용 중이 아니면 입실, 이용 중이면 퇴실 (선택)
+ * 하루 여러 번 가능
  *       아침 시간(MORNING_END 전) 입실은 '아침활동', 그 외는 '자율이용'
  */
 const CHECKIN = {
@@ -30,40 +33,65 @@ function checkin_(d) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const st = lookupStudent_(ss, email);
+    const st = lookupStudent_(SpreadsheetApp.getActiveSpreadsheet(), email);
     if (!st.name) return squatJson_({ status: 'unknown' });
 
-    const now = new Date();
-    const fmt = p => Utilities.formatDate(now, CHECKIN.TZ, p);
-    const today = fmt('yyyy-MM-dd'), time = fmt('HH:mm:ss');
-    const sh = checkinSheet_(ss);
-    const rows = sh.getDataRange().getDisplayValues();
-
-    // 오늘 이 학생의 '이용 중' 기록을 아래에서부터 찾기
-    let open = -1;
-    for (let i = rows.length - 1; i > 0; i--) {
-      if (rows[i][0] !== today) break;
-      if (rows[i][5] === email && rows[i][10] === '이용 중') { open = i; break; }
-    }
-
-    if (open < 0) {
-      const kind = time.slice(0, 5) < CHECKIN.MORNING_END ? (st.group || '아침활동') : '자율이용';
-      sh.appendRow([today, st.grade, st.cls, st.no, st.name, email, time, '', '', kind, '이용 중']);
+    const open = checkinFindOpen_(email);
+    if (!open) {
+      const kind = checkinIn_(email, st);
       return squatJson_({ status: 'in', name: st.name, kind: kind });
     }
-
-    const sec = Math.round((now - new Date(`${today}T${rows[open][6]}+09:00`)) / 1000);
-    if (sec < CHECKIN.MIN_STAY_SEC) return squatJson_({ status: 'tooSoon', name: st.name });
-
-    const min = Math.round(sec / 60);
-    sh.getRange(open + 1, 8, 1, 4).setValues([[time, min, rows[open][9], '완료']]);
+    if (open.sec < CHECKIN.MIN_STAY_SEC) return squatJson_({ status: 'tooSoon', name: st.name });
+    const min = checkinOut_(email);
     return squatJson_({ status: 'out', name: st.name, min: min });
   } catch (err) {
     return squatJson_({ status: 'error', message: String(err.message || err) });
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ===== 허브·입퇴실 화면이 함께 쓰는 기록 함수 (부르는 쪽에서 잠금을 잡은 상태로 호출) ===== */
+const checkinNow_ = () => {
+  const now = new Date(), f = p => Utilities.formatDate(now, CHECKIN.TZ, p);
+  return { now, today: f('yyyy-MM-dd'), time: f('HH:mm:ss') };
+};
+
+/** 오늘 이 사람의 '이용 중' 줄 → { row(시트 줄 번호), inTime, kind, sec(입실 후 지난 초) } 또는 null */
+function checkinFindOpen_(email) {
+  const sh = checkinSheet_(SpreadsheetApp.getActiveSpreadsheet());
+  const rows = sh.getDataRange().getDisplayValues();
+  const t = checkinNow_();
+  for (let i = rows.length - 1; i > 0; i--) {
+    if (rows[i][0] !== t.today) break;
+    if (rows[i][5] === email && rows[i][10] === '이용 중') {
+      const sec = Math.round((t.now - new Date(`${t.today}T${rows[i][6]}+09:00`)) / 1000);
+      return { row: i + 1, inTime: rows[i][6], kind: rows[i][9], sec };
+    }
+  }
+  return null;
+}
+
+/** 입실 기록 (이미 '이용 중'이면 새로 쓰지 않음). 구분(아침활동/자율이용)을 돌려줌 */
+function checkinIn_(email, st) {
+  const open = checkinFindOpen_(email);
+  if (open) return open.kind;
+  const t = checkinNow_();
+  const kind = t.time.slice(0, 5) < CHECKIN.MORNING_END ? (st.group || '아침활동') : '자율이용';
+  checkinSheet_(SpreadsheetApp.getActiveSpreadsheet())
+    .appendRow([t.today, st.grade, st.cls, st.no, st.name, email, t.time, '', '', kind, '이용 중']);
+  return kind;
+}
+
+/** 퇴실 기록. 이용 시간(분)을 돌려줌, '이용 중' 줄이 없으면 null */
+function checkinOut_(email) {
+  const open = checkinFindOpen_(email);
+  if (!open) return null;
+  const t = checkinNow_();
+  const min = Math.max(0, Math.round(open.sec / 60));
+  checkinSheet_(SpreadsheetApp.getActiveSpreadsheet())
+    .getRange(open.row, 8, 1, 4).setValues([[t.time, min, open.kind, '완료']]);
+  return min;
 }
 
 function checkinSheet_(ss) {

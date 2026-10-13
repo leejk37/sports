@@ -8,7 +8,7 @@
 
 | 앱 | 화면 주소 | 저장 시트 | 방식 |
 |---|---|---|---|
-| 허브 | https://leejk37.github.io/sports/ | 허브로그인 | QR 로그인 → 운동 선택 |
+| 허브 | https://leejk37.github.io/sports/ | 허브로그인 · 입퇴실 | QR 로그인 → 운동 선택 (공용 모드에서는 로그인=입실, 로그아웃=퇴실) |
 | 스쿼트 | …/sports/squat/ | 스쿼트 | 카메라(MediaPipe) |
 | 윗몸말아올리기 | …/sports/curlup/ | 윗몸말아올리기 | 카메라 |
 | 점핑잭 | …/sports/jumpingjack/ | 점핑잭 | 카메라 |
@@ -18,7 +18,7 @@
 | 트레드밀 | …/sports/treadmill/ | 트레드밀 | 타이머 + 화면 숫자 입력 |
 | 행잉 | …/sports/hang/ | 행잉 | 타이머 |
 | 로잉머신 | …/sports/rowing/ | 로잉머신 | 방식 선택 → 끝난 뒤 시간·거리(km)·SPM 입력 |
-| 입퇴실 QR | …/sports/qr/ | 입퇴실 | QR 한 번 = 입실/퇴실 (서킷트레이닝 GAS `Checkin.gs`) |
+| 입퇴실 QR(선택) | …/sports/qr/ | 입퇴실 | QR 한 번 = 입실/퇴실. 기본은 허브에서 입퇴실 |
 
 공용 모드(스포츠실 태블릿): 한 번만 `…/sports/?room=gym` 으로 열면 기억됩니다.
 
