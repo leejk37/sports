@@ -25,7 +25,7 @@
 ## 2026-10-14
 
 - 공통 부분을 `Squat.gs`에서 `Main.gs`로 분리: 설정·doPost·명단 찾기·응답. `Squat.gs`는 스쿼트 저장만. 다른 파일이 쓰는 이름(`SQUAT_CONFIG`, `squatJson_`)은 그대로 둠.
-- 입퇴실 통합 진행: `Checkin.gs`를 서킷트레이닝 GAS에 추가, 스크립트 속성 `CHECKIN_KEY`, `setupCheckin` 실행(매일 18시 '퇴실 누락' 정리).
+- 입퇴실 통합 완료: `Checkin.gs`를 서킷트레이닝 GAS에 추가, 스크립트 속성 `CHECKIN_KEY`, `setupCheckin` 실행(매일 18시 '퇴실 누락' 정리). 입퇴실 QR 화면(`qr/`)이 서킷트레이닝 GAS로 `{type:'checkin', code, key}`를 보냄. 새 기록은 '입퇴실' 탭, 예전 기록은 옛 입퇴실 시트의 '기록' 탭에 남음.
 
 ## 2026-10 초 (이전 대화 요약)
 
