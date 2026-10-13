@@ -7,7 +7,8 @@
 <style>
   body { font-family: 'Noto Sans KR', sans-serif; margin: 16px; }
   .bar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .bar button, .bar select { font-size: 16px; padding: 6px 12px; }
+  .bar button, .bar select, .bar input { font-size: 16px; padding: 6px 12px; }
+  .bar input { width: 260px; }
   .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
   .card { border: 1px dashed #999; padding: 12px; text-align: center; break-inside: avoid; }
   .card .q { display: flex; justify-content: center; margin-bottom: 8px; }
@@ -20,12 +21,14 @@
 <body>
 <div class="bar">
   <button onclick="print()">인쇄하기</button>
-  <select id="grp" onchange="draw()"><option value="">반을 고르세요</option></select>
+  <select id="grp" onchange="$('q').value='';draw()"><option value="">반을 고르세요</option></select>
+  <input id="q" type="search" placeholder="이름·아이디로 찾기 (잃어버린 학생)" oninput="$('grp').value='';draw()">
   <span id="info">오려서 코팅해 나눠주세요.</span>
 </div>
 <div class="grid" id="grid">명단 불러오는 중</div>
 <script>
 let all = [];
+const $ = id => document.getElementById(id);
 
 google.script.run
   .withSuccessHandler(list => {
@@ -41,8 +44,9 @@ google.script.run
   .getQrStudents();
 
 function draw() {
-  const g = document.getElementById('grp').value;
-  const list = g === '*' ? all : all.filter(s => s.group === g);
+  const g = $('grp').value, q = $('q').value.trim().toLowerCase();
+  const list = q ? all.filter(s => s.name.toLowerCase().includes(q) || s.id.includes(q))
+             : g === '*' ? all : all.filter(s => s.group === g);
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
   list.forEach(s => {
@@ -56,8 +60,9 @@ function draw() {
     });
     grid.appendChild(card);
   });
-  document.getElementById('info').textContent = g ? `${list.length}명 · 오려서 코팅해 나눠주세요.` : '위에서 학년·반(또는 교직원)을 고르세요.';
-  if (!g) grid.textContent = '';
+  $('info').textContent = (g || q) ? `${list.length}명 · 오려서 코팅해 나눠주세요.` : '학년·반을 고르거나 이름으로 찾으세요.';
+  if (!g && !q) grid.textContent = '';
+  else if (!list.length) grid.textContent = '찾는 사람이 없어요.';
 }
 </script>
 </body>

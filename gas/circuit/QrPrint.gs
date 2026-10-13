@@ -8,8 +8,34 @@
  */
 const QR_CONFIG = {
   ROSTER_SHEET: '학생명단',   // A학년 B반 C번호 D이름 E이메일 F구분(학생/교직원) — 1행은 제목
-  COL: { grade: 1, cls: 2, no: 3, name: 4, email: 5, kind: 6 }
+  COL: { grade: 1, cls: 2, no: 3, name: 4, email: 5, kind: 6 },
+  WEBAPP_URL: ''              // 비워 두면 자동. 메뉴가 엉뚱한 주소를 열면 …/exec 주소를 직접 적기
 };
+
+/* ===== 시트 메뉴: 스마트스포츠실 → QR 이름표 인쇄 =====
+ * 시트를 열 때 자동으로 메뉴가 생깁니다.
+ * 다른 .gs 파일에 이미 function onOpen이 있으면, 이 onOpen을 지우고
+ * 그 onOpen 안에 addQrMenu_(); 한 줄만 넣으세요(onOpen은 프로젝트에 하나만 있어야 함). */
+function onOpen() {
+  addQrMenu_();
+}
+function addQrMenu_() {
+  SpreadsheetApp.getUi()
+    .createMenu('스마트스포츠실')
+    .addItem('QR 이름표 인쇄', 'openQrPrint')
+    .addToUi();
+}
+function openQrPrint() {
+  const url = (QR_CONFIG.WEBAPP_URL || ScriptApp.getService().getUrl()).replace(/\/dev$/, '/exec') + '?page=qr';
+  const html = HtmlService.createHtmlOutput(
+    `<div style="font:16px sans-serif;text-align:center;padding:8px">
+       <p>새 탭에서 인쇄 화면을 엽니다.</p>
+       <a href="${url}" target="_blank" onclick="setTimeout(()=>google.script.host.close(),300)"
+          style="display:inline-block;padding:12px 24px;background:#1f4e8c;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold">
+          QR 이름표 인쇄 화면 열기</a>
+     </div>`).setWidth(360).setHeight(150);
+  SpreadsheetApp.getUi().showModalDialog(html, 'QR 이름표');
+}
 
 function qrPrintPage_() {
   if (!qrIsOwner_()) {
