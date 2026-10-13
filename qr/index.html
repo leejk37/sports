@@ -86,8 +86,8 @@
 <div id="net" hidden>인터넷 연결 끊김</div>
 
 <script>
-// ① GAS 웹앱 배포 주소(…/exec)
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzV_zxlkSiqSJ_lvgv3z7WkLuFr-nOtS8pY-JDqWBduKi07cLiiX7acZiFAahxL_DtmEw/exec';
+// ① 서킷트레이닝 GAS 배포 주소(…/exec) — 운동 앱들과 같은 주소 (입퇴실 GAS에서 통합)
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec';
 
 const $ = id => document.getElementById(id);
 const msg = $('msg');
@@ -163,7 +163,7 @@ async function onCode(code) {
   seen[code] = Date.now();
   try {
     // Content-Type을 지정하지 않아야 GAS가 다른 사이트의 요청을 받아줍니다.
-    const r = await (await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ code, key }) })).json();
+    const r = await (await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ type: 'checkin', code, key }) })).json();
     if (r.status === 'in')           { beep([660, 880]);      show('in', '입실', r.name, r.kind); }
     else if (r.status === 'out')     { beep([880, 660, 523]); show('out', '퇴실', r.name, `${r.min}분 운동했어요`); }
     else if (r.status === 'tooSoon') { beep([440]);           show('warn', '이미 입실했어요', r.name, '나갈 때 다시 보여주세요'); }

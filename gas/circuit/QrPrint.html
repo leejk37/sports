@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  body { font-family: 'Noto Sans KR', sans-serif; margin: 16px; }
+  .bar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .bar button, .bar select { font-size: 16px; padding: 6px 12px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .card { border: 1px dashed #999; padding: 12px; text-align: center; break-inside: avoid; }
+  .card .q { display: flex; justify-content: center; margin-bottom: 8px; }
+  .card b { font-size: 20px; display: block; }
+  .card span { font-size: 13px; color: #555; }
+  @page { size: A4; margin: 10mm; }
+  @media print { .bar { display: none; } body { margin: 0; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <button onclick="print()">인쇄하기</button>
+  <select id="cls" onchange="draw()"><option value="">전체 반</option></select>
+  <span id="info">오려서 코팅해 나눠주세요.</span>
+</div>
+<div class="grid" id="grid">명단 불러오는 중</div>
+<script>
+let all = [];
+
+google.script.run
+  .withSuccessHandler(list => {
+    all = list;
+    const sel = document.getElementById('cls');
+    [...new Set(list.map(s => s.cls).filter(Boolean))].forEach(c => {
+      sel.add(new Option(c + '반', c));
+    });
+    draw();
+  })
+  .withFailureHandler(err => {
+    document.getElementById('grid').textContent = '불러오기 실패: ' + err.message;
+  })
+  .getQrStudents();
+
+function draw() {
+  const cls = document.getElementById('cls').value;
+  const list = all.filter(s => !cls || s.cls === cls);
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  list.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = '<div class="q"></div><b></b><span></span>';
+    card.querySelector('b').textContent = s.name;
+    card.querySelector('span').textContent = s.label;
+    new QRCode(card.querySelector('.q'), {
+      text: s.id, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M
+    });
+    grid.appendChild(card);
+  });
+  document.getElementById('info').textContent = `${list.length}명 · 오려서 코팅해 나눠주세요.`;
+}
+</script>
+</body>
+</html>

@@ -194,7 +194,7 @@ function toReady() { show('ready'); }
 function start() {
   beep(660, 60);   // 첫 터치로 소리 켜기
   clientId = crypto.randomUUID?.() || String(Date.now()) + Math.random();
-  try { navigator.wakeLock?.request('screen').then(l => wakeLock = l); } catch (e) {}
+  navigator.wakeLock?.request('screen').then(l => wakeLock = l).catch(() => {});
   if (CONFIG.READY_SEC <= 0) return run();
   show('countdown');
   let n = CONFIG.READY_SEC;
