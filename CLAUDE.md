@@ -13,6 +13,7 @@
 | 윗몸말아올리기 | …/sports/curlup/ | 윗몸말아올리기 | 카메라 |
 | 점핑잭 | …/sports/jumpingjack/ | 점핑잭 | 카메라 |
 | 런지 | …/sports/lunge/ | 런지 | 카메라 |
+| 팔굽혀펴기 | …/sports/pushup/ | 팔굽혀펴기 | 카메라 (일반·무릎 대고) |
 | 트레드밀 | …/sports/treadmill/ | 트레드밀 | 타이머 + 화면 숫자 입력 |
 | 행잉 | …/sports/hang/ | 행잉 | 타이머 |
 | 로잉머신 | …/sports/rowing/ | 로잉머신 | 방식 선택 → 끝난 뒤 시간·거리(km)·SPM 입력 |
