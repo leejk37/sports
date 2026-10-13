@@ -8,7 +8,7 @@
   body { font-family: 'Noto Sans KR', sans-serif; margin: 16px; }
   .bar { margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .bar button, .bar select { font-size: 16px; padding: 6px 12px; }
-  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
   .card { border: 1px dashed #999; padding: 12px; text-align: center; break-inside: avoid; }
   .card .q { display: flex; justify-content: center; margin-bottom: 8px; }
   .card b { font-size: 20px; display: block; }
@@ -52,7 +52,7 @@ function draw() {
     card.querySelector('b').textContent = s.name;
     card.querySelector('span').textContent = s.label;
     new QRCode(card.querySelector('.q'), {
-      text: s.id, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M
+      text: s.id, width: 110, height: 110, correctLevel: QRCode.CorrectLevel.M
     });
     grid.appendChild(card);
   });
