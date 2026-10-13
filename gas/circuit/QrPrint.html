@@ -20,7 +20,7 @@
 <body>
 <div class="bar">
   <button onclick="print()">인쇄하기</button>
-  <select id="cls" onchange="draw()"><option value="">전체 반</option></select>
+  <select id="grp" onchange="draw()"><option value="">반을 고르세요</option></select>
   <span id="info">오려서 코팅해 나눠주세요.</span>
 </div>
 <div class="grid" id="grid">명단 불러오는 중</div>
@@ -30,10 +30,9 @@ let all = [];
 google.script.run
   .withSuccessHandler(list => {
     all = list;
-    const sel = document.getElementById('cls');
-    [...new Set(list.map(s => s.cls).filter(Boolean))].forEach(c => {
-      sel.add(new Option(c + '반', c));
-    });
+    const sel = document.getElementById('grp');
+    [...new Set(list.map(s => s.group))].forEach(g => sel.add(new Option(g, g)));
+    sel.add(new Option('전체 (' + list.length + '명)', '*'));
     draw();
   })
   .withFailureHandler(err => {
@@ -42,8 +41,8 @@ google.script.run
   .getQrStudents();
 
 function draw() {
-  const cls = document.getElementById('cls').value;
-  const list = all.filter(s => !cls || s.cls === cls);
+  const g = document.getElementById('grp').value;
+  const list = g === '*' ? all : all.filter(s => s.group === g);
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
   list.forEach(s => {
@@ -57,7 +56,8 @@ function draw() {
     });
     grid.appendChild(card);
   });
-  document.getElementById('info').textContent = `${list.length}명 · 오려서 코팅해 나눠주세요.`;
+  document.getElementById('info').textContent = g ? `${list.length}명 · 오려서 코팅해 나눠주세요.` : '위에서 학년·반(또는 교직원)을 고르세요.';
+  if (!g) grid.textContent = '';
 }
 </script>
 </body>
