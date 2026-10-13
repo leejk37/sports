@@ -1,0 +1,27 @@
+{
+  "name": "플랭크 측정",
+  "short_name": "플랭크",
+  "description": "QR 이름표로 학생을 확인하고 플랭크(일반·무릎) 바른 자세로 버틴 시간을 자동으로 측정해 기록합니다.",
+  "id": "/sports/plank/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#1f4e8c",
+  "theme_color": "#1f4e8c",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

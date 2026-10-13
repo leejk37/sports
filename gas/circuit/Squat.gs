@@ -33,6 +33,7 @@ function doPost(e) {
   if (data.type === 'lunge') return saveLunge_(data);
   if (data.type === 'rowing') return saveRowing_(data);     // Rowing.gs
   if (data.type === 'pushup') return savePushup_(data);     // Pushup.gs
+  if (data.type === 'plank') return savePlank_(data);       // Plank.gs
   if (data.type === 'checkin') return checkin_(data);       // Checkin.gs (입퇴실 통합 때 추가)
 
   return squatJson_({ ok: false, error: '알 수 없는 요청' });
