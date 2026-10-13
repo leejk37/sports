@@ -6,21 +6,24 @@
  */
 const ROW_SHEET_NAME = '로잉머신';
 const ROW_HEADERS = ['측정일시', '학년', '반', '번호', '이름', '이메일',
-                     '운동시간(초)', '운동시간', '거리(m)', '500m 기록', '스트로크', '칼로리(kcal)'];
+                     '방식', '시간(초)', '시간', '거리(km)', '평균 SPM'];
 
+/* 로잉머신이 정한 시간·거리에서 스스로 멈추므로, 앱은 끝난 뒤 화면 숫자만 받습니다.
+ *  mode: 'time'(시간 정해서 타기) | 'distance'(거리 정해서 타기)
+ *  seconds: 시간(초), distanceKm: 거리(km, 소수점 셋째 자리), spm: 평균 SPM(빈칸 가능) */
 function saveRowing_(d) {
   if (d.token !== SQUAT_CONFIG.TOKEN) return squatJson_({ ok: false, error: '인증 실패' });
 
   const email = String(d.email || '').trim().toLowerCase();
   if (!email.endsWith(SQUAT_CONFIG.DOMAIN)) return squatJson_({ ok: false, error: '학교 계정이 아니에요' });
 
-  // 빈칸은 빈칸으로, 숫자는 범위 안에서만
-  const num = (v, max) => {
-    if (v === '' || v === null || v === undefined) return '';
-    const x = Math.round(Number(v));
-    return isFinite(x) && x >= 0 && x <= max ? x : '';
-  };
-  const mmss = s => s === '' ? '' : Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+  const sec = Math.round(Number(d.seconds));
+  const km = Math.round(Number(d.distanceKm) * 1000) / 1000;
+  const spm = (d.spm === '' || d.spm == null) ? '' : Math.round(Number(d.spm));
+  if (!(sec > 0 && sec <= 3600)) return squatJson_({ ok: false, error: '시간이 올바르지 않아요' });
+  if (!(km > 0 && km <= 20)) return squatJson_({ ok: false, error: '거리가 올바르지 않아요' });
+  if (spm !== '' && !(spm >= 0 && spm <= 60)) return squatJson_({ ok: false, error: 'SPM이 올바르지 않아요' });
+  const modeLabel = d.mode === 'distance' ? '거리 정해서' : '시간 정해서';
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -34,16 +37,12 @@ function saveRowing_(d) {
     const st = lookupStudent_(ss, email);
     if (!st.name) return squatJson_({ ok: false, error: '명단에 없는 학생: ' + email });
 
-    const sec = num(d.seconds, 3600);
-    const split = num(d.split500, 900);
     const sh = rowGetSheet_(ss);
-    sh.appendRow([
-      new Date(), st.grade, st.cls, st.no, st.name, email,
-      sec, mmss(sec), num(d.distance, 20000), mmss(split), num(d.strokes, 5000), num(d.calories, 2000)
-    ]);
-    // '2:05' 같은 글자가 시각으로 바뀌지 않게 글자 형식으로 고정
-    sh.getRange(sh.getLastRow(), 8).setNumberFormat('@');
-    sh.getRange(sh.getLastRow(), 10).setNumberFormat('@');
+    const mmss = Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2);
+    sh.appendRow([new Date(), st.grade, st.cls, st.no, st.name, email, modeLabel, sec, mmss, km, spm]);
+    const r = sh.getLastRow();
+    sh.getRange(r, 9).setNumberFormat('@');        // '5:30'이 시각으로 바뀌지 않게
+    sh.getRange(r, 10).setNumberFormat('0.000');   // 거리 소수점 셋째 자리
 
     if (key) cache.put(key, st.name, 21600);
     return squatJson_({ ok: true, name: st.name });
@@ -73,8 +72,8 @@ function diagRowing() {
     postData: {
       contents: JSON.stringify({
         type: 'rowing', token: SQUAT_CONFIG.TOKEN,
-        email: TEST_ID + SQUAT_CONFIG.DOMAIN, seconds: 300,
-        distance: 1000, split500: 150, strokes: 120, calories: 40,
+        email: TEST_ID + SQUAT_CONFIG.DOMAIN, mode: 'time',
+        seconds: 300, distanceKm: 1.25, spm: 24,
         clientId: 'diag-' + Date.now()
       })
     }

@@ -15,7 +15,7 @@
 | 런지 | …/sports/lunge/ | 런지 | 카메라 |
 | 트레드밀 | …/sports/treadmill/ | 트레드밀 | 타이머 + 화면 숫자 입력 |
 | 행잉 | …/sports/hang/ | 행잉 | 타이머 |
-| 로잉머신 | …/sports/rowing/ | 로잉머신 | 타이머 + 화면 숫자 입력 |
+| 로잉머신 | …/sports/rowing/ | 로잉머신 | 방식 선택 → 끝난 뒤 시간·거리(km)·SPM 입력 |
 | 입퇴실 QR | …/sports/qr/ | 기록(입퇴실) | QR 한 번 = 입실/퇴실 |
 
 공용 모드(스포츠실 태블릿): 한 번만 `…/sports/?room=gym` 으로 열면 기억됩니다.

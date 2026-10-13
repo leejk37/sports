@@ -16,7 +16,7 @@
 <style>
   :root{
     --blue:#1f4e8c; --blue-d:#173d6e; --yellow:#f5c518; --ink:#ffffff;
-    --soft:rgba(255,255,255,.82); --good:#7ee8b5; --warn:#ffb199; --red:#e03131;
+    --soft:rgba(255,255,255,.82); --good:#7ee8b5; --warn:#ffb199;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:var(--ink)}
@@ -37,31 +37,23 @@
     border:2px solid #fff;background:#fff;color:var(--blue);text-align:left}
   button.btn small{display:block;font-size:16px;font-weight:600;opacity:.75;margin-top:4px}
   button.btn.line{background:transparent;color:#fff;text-align:center;font-size:20px;padding:14px}
-  button:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+  button.btn.center{text-align:center}
+  button:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
 
-  /* 스캔 */
   #scanBox{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:16px;overflow:hidden;border:3px solid var(--yellow)}
   #scanBox video{width:100%;height:100%;object-fit:cover}
 
-  /* 큰 원형 버튼 */
-  .round{width:min(64vmin,380px);aspect-ratio:1;border-radius:50%;border:0;cursor:pointer;
-    font:inherit;font-size:min(13vmin,76px);font-weight:900;color:#fff;box-shadow:0 10px 0 rgba(0,0,0,.25)}
-  .round:active{transform:translateY(6px);box-shadow:0 4px 0 rgba(0,0,0,.25)}
-  #startBtn{background:#2b8a3e}
-  #stopBtn{background:var(--red)}
-  .clock{font-size:min(22vmin,150px);font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
-  .clock small{font-size:.3em;font-weight:700;color:var(--soft);margin-left:6px}
-  #countdown{font-size:min(40vmin,260px);font-weight:900;color:var(--yellow);line-height:1}
-
-  /* 횟수 입력 */
-  .stepper{display:flex;align-items:center;gap:18px}
-  .stepper button{width:88px;height:88px;border-radius:50%;border:2px solid #fff;background:transparent;color:#fff;font:inherit;font-size:48px;font-weight:800;cursor:pointer}
-  .stepper .val{font-size:96px;font-weight:900;min-width:150px;text-align:center;font-variant-numeric:tabular-nums}
+  .badge{font-size:18px;font-weight:800;padding:6px 16px;border-radius:999px;background:var(--yellow);color:var(--blue)}
+  .big{font-size:min(16vmin,96px);line-height:1}
 
   .field{width:100%;display:flex;align-items:center;gap:12px;font-size:22px;font-weight:800}
-  .field span{width:130px}
-  .field input{flex:1;min-width:0;font:inherit;font-size:40px;font-weight:900;padding:10px 14px;border-radius:12px;border:2px solid #fff;background:rgba(255,255,255,.12);color:#fff;text-align:right}
-  .field em{font-style:normal;width:64px;color:var(--soft)}
+  .field > span{width:120px;flex:none}
+  .field input{min-width:0;font:inherit;font-size:40px;font-weight:900;padding:10px 14px;border-radius:12px;border:2px solid #fff;background:rgba(255,255,255,.12);color:#fff;text-align:right}
+  .field input.wide{flex:1}
+  .field input.mm, .field input.ss{width:110px}
+  .field em{font-style:normal;color:var(--soft)}
+  .field input::placeholder{font-size:20px;font-weight:600}
+  .field.fixed input{border-style:dashed}
   .rows{width:100%;border-top:1px solid rgba(255,255,255,.25)}
   .row{display:flex;justify-content:space-between;font-size:21px;font-weight:700;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.25)}
   #saveState{width:100%;font-size:18px;font-weight:700;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.12);text-align:center}
@@ -88,45 +80,44 @@
       <div id="scanBox"><video id="video" playsinline muted></video></div>
     </section>
 
-    <!-- 시작 대기 -->
-    <section class="screen" id="s-ready">
-      <p class="sub">자리에 앉아 발을 묶은 뒤 ‘시작’을 눌러요</p>
-      <button class="round" id="startBtn">시작</button>
+    <!-- 방식 고르기 -->
+    <section class="screen" id="s-mode">
+      <h2>어떻게 탈까요?</h2>
+      <button class="btn" id="modeTime">시간 정해서 타기<small>로잉머신에 시간을 맞추고, 끝나면 간 거리를 적어요</small></button>
+      <button class="btn" id="modeDist">거리 정해서 타기<small>로잉머신에 거리를 맞추고, 끝나면 걸린 시간을 적어요</small></button>
       <button class="btn line" id="rescan">다른 학생</button>
     </section>
 
-    <!-- 카운트다운 -->
-    <section class="screen" id="s-countdown">
-      <div id="countdown">3</div>
-      <p class="sub">‘삐–’ 소리와 함께 시간이 시작돼요</p>
+    <!-- 타는 중 -->
+    <section class="screen" id="s-row">
+      <span class="badge" id="modeBadge"></span>
+      <h2>로잉머신에서<br><span id="rowGuide"></span></h2>
+      <p class="sub">로잉머신이 멈추면 아래 버튼을 눌러요</p>
+      <button class="btn center" id="doneBtn">다 탔어요 · 기록 적기</button>
+      <button class="btn line" id="backMode">방식 다시 고르기</button>
     </section>
 
-    <!-- 측정 중 -->
-    <section class="screen" id="s-run">
-      <div class="clock"><span id="clock">0:00</span></div>
-      <button class="round" id="stopBtn">종료</button>
-      <p class="sub">운동을 마치면 ‘종료’를 눌러요</p>
-    </section>
-
-    <!-- 로잉머신 화면의 기록 입력 -->
-    <section class="screen" id="s-count">
+    <!-- 기록 입력 -->
+    <section class="screen" id="s-input">
       <h2>로잉머신 화면의<br>기록을 적어요</h2>
-      <label class="field"><span>거리</span><input id="dist" type="number" inputmode="numeric" step="1" min="0" max="20000" placeholder="0"><em>m</em></label>
-      <label class="field"><span>500m 기록</span><input id="split" type="text" inputmode="numeric" maxlength="5" placeholder="2:30" autocomplete="off"><em>분:초</em></label>
-      <label class="field"><span>스트로크</span><input id="strokes" type="number" inputmode="numeric" step="1" min="0" max="5000" placeholder="0"><em>회</em></label>
-      <label class="field"><span>칼로리</span><input id="cal" type="number" inputmode="numeric" step="1" min="0" max="2000" placeholder="0"><em>kcal</em></label>
-      <p class="sub">모르는 칸은 비워 두어도 돼요<br>500m 기록을 비우면 시간과 거리로 계산해요</p>
-      <button class="btn" id="countDone" style="text-align:center">저장하기</button>
+      <label class="field" id="fTime"><span id="lTime">시간</span>
+        <input class="mm" id="mm" type="number" inputmode="numeric" min="0" max="60" step="1" placeholder="0"><em>분</em>
+        <input class="ss" id="ss" type="number" inputmode="numeric" min="0" max="59" step="1" placeholder="0"><em>초</em></label>
+      <label class="field" id="fDist"><span id="lDist">거리</span>
+        <input class="wide" id="km" type="number" inputmode="decimal" min="0" max="20" step="0.001" placeholder="0.000"><em>km</em></label>
+      <label class="field"><span>평균 SPM</span>
+        <input class="wide" id="spm" type="number" inputmode="numeric" min="0" max="60" step="1" placeholder="모르면 비워요"><em>회/분</em></label>
+      <p class="sub">SPM은 1분 동안 노를 당긴 횟수예요</p>
+      <button class="btn center" id="saveBtn">저장하기</button>
     </section>
 
     <!-- 결과 -->
     <section class="screen" id="s-result">
       <h2>기록 완료!</h2>
-      <div class="clock"><span id="resMain">0:00</span></div>
       <div class="rows" id="resRows"></div>
       <div id="saveState"></div>
       <button class="btn line" id="retrySave" hidden>다시 저장</button>
-      <button class="btn" id="again" style="text-align:center">한 번 더</button>
+      <button class="btn center" id="again">한 번 더</button>
       <button class="btn line" id="next">다음 학생</button>
     </section>
   </main>
@@ -140,22 +131,21 @@ const CONFIG = {
   TOKEN:   '26cp4s_squat',
   TYPE:    'rowing',
   DOMAIN:  '@cpe.es.kr',
-  READY_SEC: 3,          // 시작 버튼 후 카운트다운 (0이면 바로 시작)
-  MIN_SEC: 10,           // 이보다 짧은 기록은 잘못 누른 것으로 보고 저장하지 않음
-  MAX_SEC: 3600,
+  MAX_SEC: 3600,         // 60분
+  MAX_KM:  20,
   SAVE_TIMEOUT_MS: 30000
 };
 
 const $ = id => document.getElementById(id);
-let email = '', clientId = '';
-let startAt = 0, rafId = 0, cdTimer = 0, seconds = 0, rec = {};
-const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
-let audio, wakeLock, stream, scanTimer;
+let email = '', clientId = '', mode = '', rec = {};
+let stream, scanTimer;
+const mmss = s => Math.floor(s / 60) + '분 ' + String(s % 60).padStart(2, '0') + '초';
 
 function show(m) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === 's-' + m));
   if (m !== 'scan') stopCamera();
 }
+let audio;
 function beep(freq = 880, ms = 120) {
   try {
     audio ??= new AudioContext();
@@ -166,7 +156,7 @@ function beep(freq = 880, ms = 120) {
   } catch (e) {}
 }
 let flashT;
-function flash(t) { $('flash').textContent = t; $('flash').classList.add('on'); clearTimeout(flashT); flashT = setTimeout(() => $('flash').classList.remove('on'), 1200); }
+function flash(t) { $('flash').textContent = t; $('flash').classList.add('on'); clearTimeout(flashT); flashT = setTimeout(() => $('flash').classList.remove('on'), 1600); }
 
 /* ===== QR 스캔 (허브를 거치지 않을 때) ===== */
 async function startScan() {
@@ -185,73 +175,47 @@ async function startScan() {
       if (!/^[\w.\-]+(@[\w.\-]+)?$/.test(id)) { flash('이름표 QR이 아니에요'); return; }
       email = (id.includes('@') ? id : id + CONFIG.DOMAIN).toLowerCase();
       $('who').textContent = email.split('@')[0];
-      beep(1200, 80); show('ready');
+      beep(1200, 80); show('mode');
     }, 250);
   } catch (e) { flash('카메라를 열 수 없어요'); }
 }
 function stopCamera() { clearInterval(scanTimer); stream?.getTracks().forEach(t => t.stop()); stream = null; }
 
-/* ===== 측정 ===== */
-function toReady() { show('ready'); }
-function start() {
-  beep(660, 60);   // 첫 터치로 소리 켜기
+/* ===== 방식 → 타기 → 입력 ===== */
+function pick(m) {
+  mode = m; beep(660, 60);
   clientId = crypto.randomUUID?.() || String(Date.now()) + Math.random();
-  navigator.wakeLock?.request('screen').then(l => wakeLock = l).catch(() => {});
-  if (CONFIG.READY_SEC <= 0) return run();
-  show('countdown');
-  let n = CONFIG.READY_SEC;
-  const tick = () => {
-    if (n > 0) { $('countdown').textContent = n; beep(660, 150); n--; cdTimer = setTimeout(tick, 1000); }
-    else run();
-  };
-  tick();
+  const t = m === 'time';
+  $('modeBadge').textContent = t ? '시간 정해서 타기' : '거리 정해서 타기';
+  $('rowGuide').textContent = t ? '시간을 맞추고 타요' : '거리를 맞추고 타요';
+  show('row');
 }
-function run() {
-  beep(1000, 400);
-  startAt = performance.now();
-  show('run');
-  const draw = () => {
-    const s = (performance.now() - startAt) / 1000;
-    $('clock').textContent = mmss(s);
-    if (s >= CONFIG.MAX_SEC) return stop();
-    rafId = requestAnimationFrame(draw);
-  };
-  draw();
-}
-function stop() {
-  cancelAnimationFrame(rafId);
-  seconds = Math.round((performance.now() - startAt) / 1000);
-  beep(500, 400);
-  if (seconds < CONFIG.MIN_SEC) { flash('너무 짧아요. 다시 해요'); return toReady(); }
-  ['dist', 'split', 'strokes', 'cal'].forEach(id => $(id).value = '');
-  show('count');
-}
-/* "2:05", "2.05", "125" → 초. 읽을 수 없으면 '' */
-function toSec(v) {
-  v = String(v).trim().replace('.', ':');
-  if (!v) return '';
-  const m = v.match(/^(\d{1,2}):(\d{1,2})$/);
-  const s = m ? +m[1] * 60 + +m[2] : /^\d{1,3}$/.test(v) ? +v : NaN;
-  return s >= 60 && s <= 900 ? s : '';   // 500m 1~15분 사이만 인정
+function toInput() {
+  const t = mode === 'time';
+  $('lTime').textContent = t ? '정한 시간' : '걸린 시간';
+  $('lDist').textContent = t ? '간 거리' : '정한 거리';
+  ['mm', 'ss', 'km', 'spm'].forEach(id => $(id).value = '');
+  show('input');
+  (t ? $('km') : $('mm')).focus();
 }
 function finish() {
-  const int = (v, max) => { const x = parseInt(v, 10); return isFinite(x) && x >= 0 && x <= max ? x : ''; };
-  const distance = int($('dist').value, 20000);
-  let split = toSec($('split').value);
-  if ($('split').value.trim() && split === '') { flash('500m 기록은 2:30처럼 적어요'); return; }
-  if (split === '' && distance >= 100) {
-    const calc = Math.round(seconds / (distance / 500));
-    if (calc >= 60 && calc <= 900) split = calc;
-  }
-  rec = { distance, split500: split, strokes: int($('strokes').value, 5000), calories: int($('cal').value, 2000) };
-  show('result');
-  $('resMain').textContent = mmss(seconds);
+  const mm = parseInt($('mm').value || '0', 10), ss = parseInt($('ss').value || '0', 10);
+  const seconds = mm * 60 + ss;
+  const km = Math.round(parseFloat($('km').value) * 1000) / 1000;
+  const spmRaw = $('spm').value.trim(), spm = spmRaw === '' ? '' : parseInt(spmRaw, 10);
+
+  if (!(mm >= 0 && ss >= 0 && ss <= 59) || seconds <= 0 || seconds > CONFIG.MAX_SEC) { flash('시간을 확인해 주세요 (초는 0~59)'); return; }
+  if (!(km > 0 && km <= CONFIG.MAX_KM)) { flash('거리를 km로 적어 주세요 (예: 1.250)'); return; }
+  if (spm !== '' && !(spm >= 0 && spm <= 60)) { flash('SPM은 0~60 사이로 적어요'); return; }
+
+  rec = { mode, seconds, distanceKm: km, spm };
   const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
   $('resRows').innerHTML =
-    row('거리', rec.distance === '' ? '–' : rec.distance + ' m') +
-    row('500m 기록', rec.split500 === '' ? '–' : mmss(rec.split500)) +
-    row('스트로크', rec.strokes === '' ? '–' : rec.strokes + ' 회') +
-    row('칼로리', rec.calories === '' ? '–' : rec.calories + ' kcal');
+    row('방식', mode === 'time' ? '시간 정해서 타기' : '거리 정해서 타기') +
+    row('시간', mmss(seconds)) +
+    row('거리', km.toFixed(3) + ' km') +
+    row('평균 SPM', spm === '' ? '–' : spm + ' 회/분');
+  show('result');
   save();
 }
 
@@ -262,7 +226,7 @@ function setSave(text, cls) {
 }
 async function save() {
   setSave('저장 중…');
-  const body = { type: CONFIG.TYPE, token: CONFIG.TOKEN, email, seconds, ...rec, clientId };
+  const body = { type: CONFIG.TYPE, token: CONFIG.TOKEN, email, ...rec, clientId };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.SAVE_TIMEOUT_MS);
   try {
@@ -292,7 +256,6 @@ async function save() {
 const PARAMS = new URLSearchParams(location.search);
 const FROM_HUB = PARAMS.get('from') === 'hub';
 function backOrScan() {
-  clearTimeout(cdTimer); cancelAnimationFrame(rafId);
   if (FROM_HUB) { location.href = '../'; return; }
   email = ''; $('who').textContent = ''; startScan();
 }
@@ -303,12 +266,15 @@ if (FROM_HUB) {
 }
 
 /* ===== 버튼 ===== */
-$('startBtn').onclick = start;
-$('stopBtn').onclick = stop;
-$('countDone').onclick = finish;
-$('again').onclick = toReady;
+$('modeTime').onclick = () => pick('time');
+$('modeDist').onclick = () => pick('distance');
+$('doneBtn').onclick = toInput;
+$('backMode').onclick = () => show('mode');
+$('saveBtn').onclick = finish;
+$('again').onclick = () => show('mode');
 $('retrySave').onclick = save;
 $('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
+$('ss').addEventListener('input', () => { if (+$('ss').value > 59) $('ss').value = 59; });
 
 /* ===== 시작 ===== */
 (() => {
@@ -316,7 +282,7 @@ $('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
   if (/^[\w.\-]+@[\w.\-]+$/.test(em)) {
     email = em;
     $('who').textContent = (PARAMS.get('name') || em.split('@')[0]) + ' 학생';
-    show('ready');
+    show('mode');
   } else startScan();
 })();
 if ('serviceWorker' in navigator) {
