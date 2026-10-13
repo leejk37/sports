@@ -155,6 +155,7 @@ const ICON = {
   lunge: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="34" cy="12" r="6" fill="currentColor"/><path d="M34 20v18M34 38h12v16M34 38l-8 12-10 4M34 24l-9 9M34 24l9 8"/><path d="M8 60h56" stroke="#f5c518"/></svg>',
   treadmill: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="38" cy="10" r="6" fill="currentColor"/><path d="M36 18l-6 18 10 8-4 12M30 36l-12 6M34 22l14 8"/><path d="M8 62h44l12-14" stroke="#f5c518"/></svg>',
   rowing: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="20" r="6" fill="currentColor"/><path d="M24 50l-4-20M21 34l10 4 12-2M24 50l14-10 8 14"/><path d="M43 36l12 9" stroke-width="3"/><circle cx="58" cy="48" r="6"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  pushup: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="58" cy="30" r="6" fill="currentColor"/><path d="M52 36L12 54M48 38v20"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   hanging: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>'
 };
 const EXERCISES = [
@@ -162,6 +163,7 @@ const EXERCISES = [
   { id: 'curlup',      name: '윗몸말아올리기', desc: '자세 인식 · 횟수 측정', url: 'curlup/',      ready: true,  tag: '카메라' },
   { id: 'jumpingjack', name: '점핑잭',         desc: '자세 인식 · 횟수 측정', url: 'jumpingjack/', ready: true,  tag: '카메라' },
   { id: 'lunge',       name: '런지',           desc: '자세 인식 · 횟수 측정', url: 'lunge/',       ready: true,  tag: '카메라' },
+  { id: 'pushup',      name: '팔굽혀펴기',     desc: '일반 · 무릎 대고 · 횟수 측정', url: 'pushup/', ready: true, tag: '카메라' },
   { id: 'treadmill',   name: '트레드밀',       desc: '운동 시간 · 거리 기록', url: 'treadmill/', ready: true, tag: '타이머' },
   { id: 'hanging',     name: '행잉',           desc: '버틴 시간 기록',        url: 'hang/',      ready: true, tag: '타이머' },
   { id: 'rowing',      name: '로잉머신',       desc: '시간 · 거리 · SPM 기록', url: 'rowing/',    ready: true, tag: '입력' }
