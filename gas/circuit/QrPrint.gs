@@ -9,7 +9,8 @@
 const QR_CONFIG = {
   ROSTER_SHEET: '학생명단',   // A학년 B반 C번호 D이름 E이메일 F구분(학생/교직원) — 1행은 제목
   COL: { grade: 1, cls: 2, no: 3, name: 4, email: 5, kind: 6 },
-  WEBAPP_URL: ''              // 비워 두면 자동. 메뉴가 엉뚱한 주소를 열면 …/exec 주소를 직접 적기
+  // 학교 계정으로 열리도록 /a/macros/cpe.es.kr/ 형식 (여러 계정 로그인 시 '파일을 열 수 없습니다' 방지)
+  WEBAPP_URL: 'https://script.google.com/a/macros/cpe.es.kr/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec'
 };
 
 /* ===== 시트 메뉴: 스마트스포츠실 → QR 이름표 인쇄 =====
