@@ -6,7 +6,7 @@
  */
 const QR_CONFIG = {
   SPREADSHEET_ID: '',            // 시트에 붙은(바운드) 스크립트면 비워 두세요
-  ROSTER_SHEET: '명단',           // 학생 명단 시트 이름 — 실제 이름으로 바꾸세요
+  ROSTER_SHEET: '학생명단',       // 바인딩 시트의 명단 탭 (A학년 B반 C번호 D이름 E이메일 F구분)
   ID_HEADERS: ['구글계정', '아이디', '이메일', '계정'],
 };
 
