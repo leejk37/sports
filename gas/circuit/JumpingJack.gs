@@ -56,13 +56,15 @@ function jjGetSheet_(ss) {
   return sh;
 }
 
-/** 태블릿과 같은 요청을 doPost에 넣어 보는 진단 (확인 후 테스트 행 삭제) */
+/** 태블릿과 같은 요청을 doPost에 넣어 보는 진단 (확인 후 테스트 행 삭제)
+ *  TEST_ID에 명단에 있는 아이디를 넣고 실행하세요. 저장소에는 실제 아이디를 올리지 않습니다. */
 function diagJumpingJack() {
+  const TEST_ID = '여기에_테스트용_아이디';
   const fake = {
     postData: {
       contents: JSON.stringify({
         type: 'jumpingjack', token: SQUAT_CONFIG.TOKEN,
-        email: '1623kgb50' + SQUAT_CONFIG.DOMAIN, duration: 30,
+        email: TEST_ID + SQUAT_CONFIG.DOMAIN, duration: 30,
         good: 20, badArms: 2, badLegs: 1, clientId: 'diag-' + Date.now()
       })
     }

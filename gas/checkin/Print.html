@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  body { font-family: 'Noto Sans KR', sans-serif; margin: 16px; }
+  .bar { margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .card { border: 1px dashed #999; padding: 12px; text-align: center; break-inside: avoid; }
+  .card .q { display: flex; justify-content: center; margin-bottom: 8px; }
+  .card b { font-size: 20px; display: block; }
+  .card span { font-size: 13px; color: #555; }
+  @media print { .bar { display: none; } }
+</style>
+</head>
+<body>
+<div class="bar"><button onclick="print()">인쇄하기</button> 오려서 코팅해 나눠주세요.</div>
+<div class="grid" id="grid">명단 불러오는 중</div>
+<script>
+google.script.run.withSuccessHandler(list => {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  list.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<div class="q"></div><b></b><span></span>`;
+    card.querySelector('b').textContent = s.name;
+    card.querySelector('span').textContent = s.label;
+    new QRCode(card.querySelector('.q'), { text: s.email, width: 140, height: 140 });
+    grid.appendChild(card);
+  });
+}).getStudents();
+</script>
+</body>
+</html>
