@@ -1,6 +1,6 @@
 /**
  * 팔굽혀펴기 기록 저장 — 서킷트레이닝 GAS 프로젝트에 새 파일로 추가
- * Squat.gs의 doPost에 아래 한 줄이 있어야 작동함
+ * Main.gs의 doPost에 아래 한 줄이 있어야 작동함
  *   if (data.type === 'pushup') return savePushup_(data);
  * kind: 'full'(일반) | 'knee'(무릎 대고)
  */

@@ -1,6 +1,6 @@
 /**
  * 스마트스포츠실 입실·퇴실 기록 — 입퇴실 GAS를 서킷트레이닝 GAS로 옮긴 것
- * Squat.gs의 doPost에 아래 한 줄을 추가해야 작동함
+ * Main.gs의 doPost에 아래 한 줄을 추가해야 작동함
  *   if (data.type === 'checkin') return checkin_(data);
  * 명단은 서킷트레이닝 명단(lookupStudent_)을 함께 씀
  *

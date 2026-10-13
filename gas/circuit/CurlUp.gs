@@ -1,7 +1,7 @@
 /**
  * 윗몸말아올리기 기록 저장 — 서킷트레이닝 GAS 프로젝트
- * Squat.gs의 doPost에서 data.type === 'curlup'이면 호출됨
- * 토큰·명단 찾기는 Squat.gs의 SQUAT_CONFIG, lookupStudent_를 함께 사용
+ * Main.gs의 doPost에서 data.type === 'curlup'이면 호출됨
+ * 토큰·명단 찾기는 Main.gs의 SQUAT_CONFIG, lookupStudent_를 함께 사용
  */
 const CU_SHEET_NAME = '윗몸말아올리기';
 const CU_HEADERS = ['측정일시', '학년', '반', '번호', '이름', '이메일',

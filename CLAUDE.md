@@ -36,9 +36,10 @@
 ## 공통 규칙
 
 - **QR 이름표에는 구글 아이디만** 들어 있습니다(@cpe.es.kr 없음). 받는 쪽에서 `@` 앞부분만 비교하거나 `DOMAIN`을 붙입니다.
-- **학생 찾기는 `lookupStudent_(ss, email)`** 하나로만 합니다(명단에 아이디·이메일이 섞여 있어도 찾음).
+- **공통 부분은 `gas/circuit/Main.gs`**: 설정(`SQUAT_CONFIG`), 받는 창구(`doPost`), 명단 찾기, 응답(`squatJson_`). 운동별 파일은 저장만 맡습니다.
+- **학생 찾기는 `lookupStudent_(ss, email)`** 하나로만 합니다(명단에 아이디·이메일이 섞여 있어도 찾음, 10분 캐시).
 - **운동 앱 저장 형식**: `POST { type, token, email, clientId, …기록 }` → GAS `doPost`가 `type`으로 나눔.
-  새 운동은 ① `gas/circuit/<운동>.gs` 파일 하나 ② `doPost`에 `if (data.type === '<type>') return save<운동>_(data);` 한 줄 ③ 허브 `index.html`의 `EXERCISES`·`ICON`에 한 줄.
+  새 운동은 ① `gas/circuit/<운동>.gs` 파일 하나 ② `Main.gs`의 `doPost`에 `if (data.type === '<type>') return save<운동>_(data);` 한 줄 ③ 허브 `index.html`의 `EXERCISES`·`ICON`에 한 줄.
 - `clientId`로 같은 측정의 중복 저장을 막습니다(CacheService 6시간).
 - 저장 응답을 못 읽어도(리다이렉트 단계) 인터넷이 연결돼 있으면 "전송 완료"로 표시합니다.
 - 토큰(`26cp4s_squat`)은 화면 코드에 들어 있어 **비밀이 아닙니다**. 실제 보호는 학교 도메인 확인 + 명단 대조입니다.

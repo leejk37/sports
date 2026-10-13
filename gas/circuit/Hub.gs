@@ -41,7 +41,7 @@ function hubJsonp_(e) {
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
-/** 명단에서 학생 찾기 (Squat.gs의 lookupStudent_ 재사용) */
+/** 명단에서 학생 찾기 (Main.gs의 lookupStudent_ 재사용) */
 function hubStudent_(emailRaw) {
   const email = String(emailRaw || '').trim().toLowerCase();
   if (!email.endsWith(SQUAT_CONFIG.DOMAIN)) return { ok: false, error: '학교 계정이 아니에요' };

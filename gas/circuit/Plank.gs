@@ -1,6 +1,6 @@
 /**
  * 플랭크 기록 저장 — 서킷트레이닝 GAS 프로젝트에 새 파일로 추가
- * Squat.gs의 doPost에 아래 한 줄이 있어야 작동함
+ * Main.gs의 doPost에 아래 한 줄이 있어야 작동함
  *   if (data.type === 'plank') return savePlank_(data);
  * kind: 'full'(일반) | 'knee'(무릎 대고), goal: 0(최대한 오래) | 목표 초
  * hold: 바른 자세로 버틴 시간(초), total: 전체 시간(초), sag/pike: 엉덩이 처짐/솟음 횟수

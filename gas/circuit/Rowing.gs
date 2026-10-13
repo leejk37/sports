@@ -1,8 +1,8 @@
 /**
  * 로잉머신 기록 저장 — 서킷트레이닝 GAS 프로젝트에 새 파일로 추가
- * Squat.gs의 doPost에 아래 한 줄을 추가해야 작동함
+ * Main.gs의 doPost에 아래 한 줄을 추가해야 작동함
  *   if (data.type === 'rowing') return saveRowing_(data);
- * 토큰·명단 찾기·응답은 Squat.gs의 SQUAT_CONFIG, lookupStudent_, squatJson_을 함께 사용
+ * 토큰·명단 찾기·응답은 Main.gs의 SQUAT_CONFIG, lookupStudent_, squatJson_을 함께 사용
  */
 const ROW_SHEET_NAME = '로잉머신';
 const ROW_HEADERS = ['측정일시', '학년', '반', '번호', '이름', '이메일',
