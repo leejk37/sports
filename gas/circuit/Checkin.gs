@@ -12,13 +12,21 @@
  *   ① 허브(공용 모드 ?room=gym): QR 로그인 = 입실, 로그아웃·모두 로그아웃 = 퇴실  ← 기본
  *   ② 입퇴실 전용 화면(qr/): 이용 중이 아니면 입실, 이용 중이면 퇴실 (선택)
  * 하루 여러 번 가능
- *       아침 시간(MORNING_END 전) 입실은 '아침활동', 그 외는 '자율이용'
+ * 구분: 입실 시각으로 정함(CHECKIN.PERIODS) — 아침활동·수업·점심활동·방과후
  */
 const CHECKIN = {
   SHEET: '입퇴실',
   HEADERS: ['날짜', '학년', '반', '번호', '이름', '이메일', '입실', '퇴실', '이용(분)', '구분', '상태'],
   TZ: 'Asia/Seoul',
-  MORNING_END: '08:50',
+  // 입실 시각으로 '구분'을 정함 (위에서부터 차례로, 이 시각 '전'이면 해당 구분)
+  //   08:50 전 아침활동 · 08:50~12:10 수업 · 12:10~13:10 점심활동 · 13:10~13:50 수업 · 13:50 이후 방과후
+  PERIODS: [
+    { until: '08:50', label: '아침활동' },
+    { until: '12:10', label: '수업' },
+    { until: '13:10', label: '점심활동' },
+    { until: '13:50', label: '수업' },
+    { until: '24:00', label: '방과후' }
+  ],
   MIN_STAY_SEC: 30          // 입실 직후 같은 QR을 다시 찍으면 무시
 };
 
@@ -71,6 +79,13 @@ function checkinWriteText_(sh, row, col, values) {
   sh.getRange(row, col, 1, values.length).setNumberFormat('@').setValues([values]);
 }
 
+/** 입실 시각('HH:mm:ss') → 구분 이름 */
+function checkinPeriod_(time) {
+  const hm = String(time).slice(0, 5);
+  const p = CHECKIN.PERIODS.find(x => hm < x.until);
+  return p ? p.label : CHECKIN.PERIODS[CHECKIN.PERIODS.length - 1].label;
+}
+
 /** 오늘 이 사람의 '이용 중' 줄 → { row(시트 줄 번호), inTime, kind, sec(입실 후 지난 초) } 또는 null */
 function checkinFindOpen_(email) {
   const sh = checkinSheet_(SpreadsheetApp.getActiveSpreadsheet());
@@ -87,12 +102,12 @@ function checkinFindOpen_(email) {
   return null;
 }
 
-/** 입실 기록 (이미 '이용 중'이면 새로 쓰지 않음). 구분(아침활동/자율이용)을 돌려줌 */
+/** 입실 기록 (이미 '이용 중'이면 새로 쓰지 않음). 구분(아침활동·수업·점심활동·방과후)을 돌려줌 */
 function checkinIn_(email, st) {
   const open = checkinFindOpen_(email);
   if (open) return open.kind;
   const t = checkinNow_();
-  const kind = t.time.slice(0, 5) < CHECKIN.MORNING_END ? (st.group || '아침활동') : '자율이용';
+  const kind = checkinPeriod_(t.time);
   const sh = checkinSheet_(SpreadsheetApp.getActiveSpreadsheet());
   sh.appendRow([t.today, st.grade, st.cls, st.no, st.name, email, t.time, '', '', kind, '이용 중']);
   const r = sh.getLastRow();
