@@ -71,7 +71,7 @@ function dashBuild_() {
       if (d === today) { inToday.add(id); if (r[10] === '이용 중') inNow.add(id); }
       if (d >= monday && d <= today) {
         const st = roster[id];
-        if (st && st.grade) (weekByClass[label(st)] ||= new Set()).add(id);
+        if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(id); }
       }
     });
   }
@@ -79,7 +79,7 @@ function dashBuild_() {
   Object.values(roster).forEach(st => { if (st.grade) classSize[label(st)] = (classSize[label(st)] || 0) + 1; });
   const classes = Object.keys(classSize).map(c => ({
     cls: c, size: classSize[c], came: weekByClass[c] ? weekByClass[c].size : 0
-  })).map(x => ({ ...x, rate: x.size ? Math.round(x.came / x.size * 100) : 0 }))
+  })).map(x => Object.assign(x, { rate: x.size ? Math.round(x.came / x.size * 100) : 0 }))
     .sort((a, b) => b.rate - a.rate || a.cls.localeCompare(b.cls, 'ko'));
 
   // ---- 종목별 오늘 누적 · 누적 거리 · 축하 소식 ----
