@@ -1,279 +1,196 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>인도어라이딩 기록판</title>
+<meta name="theme-color" content="#1f4e8c">
 <link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
-<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;600;700&family=Saira+Condensed:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-  :root {
-    --page: #e9eef3;
-    --board: #ffffff;
-    --ink: #13202e;
-    --muted: #5d6b7a;
-    --rule: #d6dee6;
-    --track: #1d3557;      /* 벨로드롬 트랙 남색 */
-    --yellow: #ffd21f;
-    --green: #1fa45b;
-    --pink: #f0609e;
-    --blue: #2f6fe4;
-    --dot: #e2302f;
+  /* 스마트스포츠실 현황판(board/)과 같은 색·글꼴. 큰 화면은 화면 너비(vw)에 맞춰 커지고, 휴대폰은 기간 탭으로 봄 */
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --blue-l:#2a62ab; --yellow:#f5c518;
+    --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.35); --line:rgba(255,255,255,.12);
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--page);
-    color: var(--ink);
-    font-family: 'IBM Plex Sans KR', sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff}
 
-  /* 상단 트랙 띠 */
-  .top {
-    background: var(--track);
-    color: #fff;
-    padding: 18px 16px 16px;
-    border-bottom: 6px solid var(--yellow);
-  }
-  .top-inner {
-    max-width: 1180px; margin: 0 auto;
-    display: flex; flex-wrap: wrap; align-items: baseline;
-    justify-content: space-between; gap: 6px 20px;
-  }
-  h1 {
-    font-family: 'Do Hyeon', sans-serif; font-weight: 400;
-    font-size: clamp(26px, 4.2vw, 40px); line-height: 1.1;
-  }
-  .updated { font-size: 14px; color: #b9c7d8; }
+  header{display:flex;align-items:baseline;gap:1.4vw;padding:1vw 2vw .8vw;border-bottom:.35vw solid var(--yellow)}
+  header h1{margin:0;font-size:2.3vw;font-weight:800;letter-spacing:-.05vw;flex:1}
+  #date{font-size:1.4vw;font-weight:700;color:var(--soft)}
+  #clock{font-size:2.3vw;font-weight:800;font-variant-numeric:tabular-nums}
+  #status{font-size:1vw;color:var(--soft)}
+  #status.off{color:#ffb3a1}
 
-  main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 28px; }
+  main{display:grid;grid-template-columns:repeat(3,1fr);gap:1.4vw;padding:1vw 2vw 1.2vw}
+  .period h2{margin:0 0 .7vw;font-size:1.6vw;font-weight:800;display:flex;align-items:baseline;gap:.8vw}
+  .period h2 small{font-size:1vw;font-weight:600;color:var(--soft)}
+  .boards{display:grid;gap:1.2vw}
 
-  /* 휴대폰용 기간 탭 */
-  .tabs { display: none; gap: 6px; margin-bottom: 14px; }
-  .tabs button {
-    flex: 1; font: 700 15px 'IBM Plex Sans KR', sans-serif;
-    padding: 10px 4px; border: 2px solid var(--track); border-radius: 999px;
-    background: transparent; color: var(--track); cursor: pointer;
+  .card{background:var(--blue-d);border-radius:1.1vw;padding:.9vw 1.1vw .5vw;border-top:.4vw solid var(--c)}
+  .head{display:flex;align-items:center;gap:.6vw;margin-bottom:.3vw}
+  .head svg{width:1.9vw;height:1.65vw;flex:none}
+  .head h3{margin:0;font-size:1.25vw;font-weight:800}
+  .head p{margin:0 0 0 auto;font-size:.85vw;color:var(--soft)}
+
+  ol{list-style:none;margin:0;padding:0}
+  li{display:grid;grid-template-columns:2vw 1fr auto;align-items:center;gap:.6vw;padding:.32vw .2vw;border-top:1px solid var(--line)}
+  li:first-child{border-top:0}
+  .rank{font-size:1.25vw;font-weight:900;color:var(--soft);text-align:center;font-variant-numeric:tabular-nums}
+  .name{font-size:1.3vw;font-weight:700}
+  .cls{font-size:.85vw;color:var(--soft);margin-left:.4vw}
+  .val{text-align:right;white-space:nowrap;line-height:1.1}
+  .val b{font-size:1.5vw;font-weight:900;font-variant-numeric:tabular-nums}
+  .val .u{font-size:.85vw;font-weight:700;color:var(--soft);margin-left:.15vw}
+  .val .sub{display:block;font-size:.75vw;color:var(--soft)}
+  /* 1위: 저지 색 띠 */
+  li.leader{background:color-mix(in srgb,var(--c) var(--m,26%),transparent);border-radius:.6vw;padding:.5vw .5vw;margin:.15vw -.3vw .2vw;border-top:0}
+  li.leader + li{border-top:0}
+  li.leader .rank{color:var(--yellow);font-size:1.5vw}
+  li.leader .name{font-size:1.6vw}
+  li.leader .val b{font-size:2vw;color:var(--yellow)}
+  .empty{padding:1.4vw 0;text-align:center;color:var(--soft);font-size:1vw}
+
+  .tabs{display:none}
+
+  /* 휴대폰·좁은 화면: 기간 탭, 고정 px 크기 */
+  @media (max-width:860px){
+    header{padding:12px 16px 10px;gap:10px;border-bottom-width:4px;flex-wrap:wrap}
+    header h1{font-size:22px} #date{display:none} #clock{font-size:18px} #status{font-size:12px;width:100%}
+    .tabs{display:flex;gap:6px;padding:14px 16px 0}
+    .tabs button{flex:1;font:700 15px Pretendard,system-ui,sans-serif;padding:10px 4px;border:2px solid #fff;border-radius:999px;background:transparent;color:#fff;cursor:pointer}
+    .tabs button[aria-pressed="true"]{background:var(--yellow);border-color:var(--yellow);color:var(--blue-d)}
+    main{grid-template-columns:1fr;padding:14px 16px 24px;gap:14px}
+    .period{display:none} .period.on{display:block}
+    .period h2{font-size:20px;margin-bottom:10px;gap:8px} .period h2 small{font-size:13px}
+    .boards{gap:14px}
+    .card{border-radius:14px;padding:12px 14px 6px;border-top-width:6px}
+    .head{gap:8px;margin-bottom:4px} .head svg{width:28px;height:24px} .head h3{font-size:17px} .head p{font-size:12px}
+    li{grid-template-columns:26px 1fr auto;gap:8px;padding:8px 2px}
+    .rank{font-size:18px} .name{font-size:18px} .cls{font-size:13px;margin-left:5px}
+    .val b{font-size:22px} .val .u{font-size:12px} .val .sub{font-size:11px}
+    li.leader{border-radius:8px;padding:11px 8px;margin:2px -4px 4px}
+    li.leader .rank{font-size:22px} li.leader .name{font-size:22px} li.leader .val b{font-size:28px}
+    .empty{font-size:14px;padding:18px 0}
   }
-  .tabs button[aria-pressed="true"] { background: var(--track); color: #fff; }
-  .tabs button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
-
-  /* 기간별 3열 */
-  .periods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .period > h2 {
-    font-family: 'Do Hyeon', sans-serif; font-weight: 400;
-    font-size: 24px; color: var(--track);
-    display: flex; align-items: baseline; gap: 10px;
-    padding-bottom: 8px; margin-bottom: 12px; border-bottom: 2px solid var(--track);
-  }
-  .period > h2 small { font-family: 'IBM Plex Sans KR', sans-serif; font-size: 14px; color: var(--muted); }
-
-  .board {
-    background: var(--board);
-    border-radius: 6px;
-    border-top: 8px solid var(--c);
-    padding: 12px 14px 6px;
-    margin-bottom: 16px;
-  }
-  .board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-  .board-head svg { width: 30px; height: 26px; flex: none; }
-  .board-head h3 { font-size: 18px; font-weight: 700; }
-  .board-head p { font-size: 13px; color: var(--muted); margin-left: auto; text-align: right; }
-
-  ol { list-style: none; }
-  li {
-    display: grid; grid-template-columns: 30px 1fr auto;
-    align-items: center; gap: 10px;
-    padding: 8px 2px; border-top: 1px solid var(--rule);
-  }
-  li:first-child { border-top: none; }
-  .rank { font-family: 'Saira Condensed', sans-serif; font-weight: 800; font-size: 22px; color: var(--muted); text-align: center; }
-  .name { font-weight: 700; font-size: 20px; letter-spacing: -0.3px; }
-  .cls { font-size: 14px; color: var(--muted); margin-left: 6px; font-weight: 400; }
-  .val { text-align: right; white-space: nowrap; line-height: 1.1; }
-  .val b { font-family: 'Saira Condensed', sans-serif; font-weight: 800; font-size: 24px; }
-  .val .u { font-size: 13px; color: var(--muted); margin-left: 2px; }
-  .val .sub { display: block; font-size: 12px; color: var(--muted); }
-
-  /* 1위: 저지를 입은 줄 */
-  li.leader {
-    grid-template-columns: 30px 1fr auto;
-    background: var(--tint);
-    border-radius: 4px; padding: 12px 8px; margin: 2px -6px 4px;
-  }
-  li.leader .rank { color: var(--ink); font-size: 26px; }
-  li.leader .name { font-size: 25px; }
-  li.leader .val b { font-size: 32px; }
-  li.leader + li { border-top: none; }
-
-  .empty { padding: 20px 0 22px; text-align: center; color: var(--muted); font-size: 14px; }
-  #status { text-align: center; color: var(--muted); padding: 40px 0; }
-
-  @media (max-width: 860px) {
-    .tabs { display: flex; }
-    .periods { grid-template-columns: 1fr; }
-    .period { display: none; }
-    .period.on { display: block; }
-    .period > h2 { font-size: 20px; }
-  }
-  /* 큰 화면(?fit=1): 스크롤 없이 한 화면에 맞춤 */
-  html.fit, html.fit body { height: 100%; overflow: hidden; }
-  html.fit .tabs { display: none !important; }
-  html.fit main, html.fit .top-inner { max-width: 1560px; }
-  html.fit .periods { grid-template-columns: repeat(3, 1fr) !important; }
-  html.fit .period { display: block !important; }
-
-  @media (prefers-reduced-motion: no-preference) {
-    li.leader { animation: lead .5s ease-out both; }
-    @keyframes lead { from { opacity: 0; transform: translateX(-8px); } }
+  @media (prefers-reduced-motion:no-preference){
+    li.leader{animation:pop .6s ease both}
+    @keyframes pop{from{opacity:0;transform:translateY(.4vw)}to{opacity:1;transform:none}}
   }
 </style>
 </head>
 <body>
-<div id="wrap">
-  <div class="top">
-    <div class="top-inner">
-      <h1>청평초 인도어라이딩 기록판</h1>
-      <div class="updated" id="updated"></div>
-    </div>
-  </div>
-
-  <main>
-    <div class="tabs" role="group" aria-label="기간 선택">
-      <button type="button" data-p="season" aria-pressed="false">2026 시즌</button>
-      <button type="button" data-p="month" aria-pressed="false">이번 달</button>
-      <button type="button" data-p="week" aria-pressed="true">이번 주</button>
-    </div>
-    <div id="status">기록을 불러오는 중입니다.</div>
-    <div class="periods" id="periods"></div>
-  </main>
+<header>
+  <h1>인도어라이딩 기록판</h1>
+  <span id="date"></span>
+  <span id="clock">--:--</span>
+  <span id="status">불러오는 중…</span>
+</header>
+<div class="tabs" role="group" aria-label="기간 선택">
+  <button type="button" data-p="season" aria-pressed="false">시즌</button>
+  <button type="button" data-p="month" aria-pressed="false">이번 달</button>
+  <button type="button" data-p="week" aria-pressed="true">이번 주</button>
 </div>
+<main id="periods"></main>
 
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <defs>
-      <pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse">
-        <rect width="7" height="7" fill="#fff"/><circle cx="3.5" cy="3.5" r="2" fill="#e2302f"/>
-      </pattern>
-    </defs>
-  </svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><pattern id="dots" width="7" height="7" patternUnits="userSpaceOnUse">
+    <rect width="7" height="7" fill="#fff"/><circle cx="3.5" cy="3.5" r="2" fill="#e2302f"/></pattern></defs>
+</svg>
 
 <script>
-  // 기간 → 순위판 2개. 각 순위판은 사이클 대회의 '저지' 색을 하나씩 가짐
-  const PERIODS = [
-    { id: 'season', title: d => d.year + ' 시즌', boards: [
-      { key: 'totalDistance', title: '누적 거리',  jersey: '노란 저지', c: '#ffd21f', tint: '#fff5c7' },
-      { key: 'participation', title: '참여 일수',  jersey: '초록 저지', c: '#1fa45b', tint: '#dcf3e5' } ] },
-    { id: 'month', title: d => '이번 달', note: d => d.period.monthLabel + ', 운영 ' + d.period.monthOpDays + '일', boards: [
-      { key: 'monthDistance',   title: '거리',   jersey: '분홍 저지',   c: '#f0609e', tint: '#fde3ee' },
-      { key: 'monthAttendance', title: '출석률', jersey: '물방울 저지', c: '#e2302f', tint: '#fde4e3', dots: true } ] },
-    { id: 'week', title: d => '이번 주', note: d => d.period.weekLabel + ', 운영 ' + d.period.weekOpDays + '일', boards: [
-      { key: 'weekDistance',   title: '거리',   jersey: '파란 저지', c: '#2f6fe4', tint: '#e0eafc' },
-      { key: 'weekAttendance', title: '출석률', jersey: '흰 저지',   c: '#9aa7b4', tint: '#eef2f6', white: true } ] }
-  ];
+/* ===== 설정 ===== */
+const CONFIG = {
+  // 인도어라이딩 GAS 웹앱 (2026_인도어라이딩 시트에 붙은 스크립트, ?format=json&callback= 으로 JSONP)
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbwbHFh2YXxqtg5d99KSq32ioD1fMbCXOs9PVDrSCmJwwPq32qHURyBz85zLLIN9iPa8/exec',
+  REFRESH_MIN: 10,         // 다시 불러오는 간격(분)
+  RELOAD_HOURS: 6
+};
 
-  const JERSEY = 'M10 2 4 5 1 12 6 14 7 11V27H25V11L26 14 31 12 28 5 22 2C21 5 19 6 16 6 13 6 11 5 10 2Z';
-  function jerseySvg(b) {
-    const fill = b.dots ? 'url(#dots)' : b.white ? '#fff' : b.c;
-    const stroke = (b.dots || b.white) ? '#9aa7b4' : 'none';
-    return `<svg viewBox="0 0 32 28" aria-hidden="true"><path d="${JERSEY}" fill="${fill}" stroke="${stroke}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+/* 기간 → 순위판 2개. 순위판마다 사이클 대회 '저지' 색 하나 */
+const PERIODS = [
+  { id: 'season', title: d => d.year + ' 시즌', boards: [
+    { key: 'totalDistance', title: '누적 거리', jersey: '노란 저지', c: '#ffd21f' },
+    { key: 'participation', title: '참여 일수', jersey: '초록 저지', c: '#1fa45b' } ] },
+  { id: 'month', title: () => '이번 달', note: d => d.period.monthLabel + ' · 운영 ' + d.period.monthOpDays + '일', boards: [
+    { key: 'monthDistance',   title: '거리',   jersey: '분홍 저지',   c: '#f0609e' },
+    { key: 'monthAttendance', title: '출석률', jersey: '물방울 저지', c: '#e2302f', dots: true } ] },
+  { id: 'week', title: () => '이번 주', note: d => d.period.weekLabel + ' · 운영 ' + d.period.weekOpDays + '일', boards: [
+    { key: 'weekDistance',   title: '거리',   jersey: '파란 저지', c: '#4f8ff7' },
+    { key: 'weekAttendance', title: '출석률', jersey: '흰 저지',   c: '#ffffff', white: true } ] }
+];
+const JERSEY = 'M10 2 4 5 1 12 6 14 7 11V27H25V11L26 14 31 12 28 5 22 2C21 5 19 6 16 6 13 6 11 5 10 2Z';
+const jerseySvg = b => `<svg viewBox="0 0 32 28" aria-hidden="true"><path d="${JERSEY}" fill="${b.dots ? 'url(#dots)' : b.c}" stroke="${b.dots || b.white ? '#9aa7b4' : 'none'}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ===== 시계 ===== */
+function tick() {
+  const d = new Date();
+  $('clock').textContent = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  $('date').textContent = d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+}
+tick(); setInterval(tick, 1000);
+
+/* ===== 그리기 ===== */
+function boardHtml(d, b, emptyMsg) {
+  const list = (d.rankings && d.rankings[b.key]) || [];
+  const rows = list.length ? list.map(r => `
+    <li class="${r.rank === 1 ? 'leader' : ''}">
+      <span class="rank">${r.rank}</span>
+      <span><span class="name">${esc(r.name)}</span><span class="cls">${esc(r.grade)}${esc(r.className)}</span></span>
+      <span class="val"><b>${esc(r.value)}</b><span class="u">${esc(r.unit)}</span>${r.sub ? `<span class="sub">${esc(r.sub)}</span>` : ''}</span>
+    </li>`).join('') : `<div class="empty">${emptyMsg}</div>`;
+  return `<section class="card" style="--c:${b.c}${b.white ? ';--m:12%' : ''}">
+    <div class="head">${jerseySvg(b)}<h3>${b.title}</h3><p>1위는 ${b.jersey}</p></div>
+    <ol>${rows}</ol></section>`;
+}
+let current = 'week';
+function render(d) {
+  $('periods').innerHTML = PERIODS.map(p => `
+    <div class="period" data-p="${p.id}">
+      <h2>${esc(p.title(d))}${p.note ? `<small>${esc(p.note(d))}</small>` : ''}</h2>
+      <div class="boards">${p.boards.map(b => boardHtml(d, b, p.id === 'week' ? '이번 주 첫 기록을 기다리고 있어요' : '아직 기록이 없어요')).join('')}</div>
+    </div>`).join('');
+  select(current);
+}
+function select(id) {
+  current = id;
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === id));
+  document.querySelectorAll('.period').forEach(p => p.classList.toggle('on', p.dataset.p === id));
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => select(b.dataset.p)));
+
+/* ===== GAS 통신 (JSONP) ===== */
+function jsonp(timeout = 20000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'ridecb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { done(); reject(new Error('시간 초과')); }, timeout);
+    function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = data => { done(); resolve(data); };
+    s.onerror = () => { done(); reject(new Error('연결 실패')); };
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ format: 'json', callback: cb });
+    document.head.appendChild(s);
+  });
+}
+async function load() {
+  try {
+    const d = await jsonp();
+    if (!d || !d.rankings) throw new Error('응답 오류');
+    render(d);
+    $('status').textContent = String(d.updateTime || '').replace(/^\d{4}년\s*/, '').replace(' 업데이트', ' 기준');
+    $('status').classList.remove('off');
+  } catch (e) {
+    $('status').textContent = '연결 끊김 · 다시 시도 중';
+    $('status').classList.add('off');
   }
-
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  }
-
-  function boardHtml(d, b, emptyMsg) {
-    const list = (d.rankings && d.rankings[b.key]) || [];
-    const rows = list.length ? list.map(r => `
-      <li class="${r.rank === 1 ? 'leader' : ''}">
-        <span class="rank">${r.rank}</span>
-        <span><span class="name">${esc(r.name)}</span><span class="cls">${esc(r.grade)}${esc(r.className)}</span></span>
-        <span class="val"><b>${esc(r.value)}</b><span class="u">${esc(r.unit)}</span>${r.sub ? `<span class="sub">${esc(r.sub)}</span>` : ''}</span>
-      </li>`).join('') : `<div class="empty">${emptyMsg}</div>`;
-    return `<section class="board" style="--c:${b.c};--tint:${b.tint}">
-      <div class="board-head">${jerseySvg(b)}<h3>${b.title}</h3><p>1위는 ${b.jersey}</p></div>
-      <ol>${rows}</ol>
-    </section>`;
-  }
-
-  function render(json) {
-    const d = typeof json === 'string' ? JSON.parse(json) : json;
-    document.getElementById('status').remove();
-    document.getElementById('updated').textContent = d.updateTime || '';
-
-    document.getElementById('periods').innerHTML = PERIODS.map(p => `
-      <div class="period" data-p="${p.id}">
-        <h2>${esc(p.title(d))}${p.note ? `<small>${esc(p.note(d))}</small>` : ''}</h2>
-        ${p.boards.map(b => boardHtml(d, b, p.id === 'week' ? '이번 주 첫 기록을 기다리고 있어요.' : '아직 기록이 없어요.')).join('')}
-      </div>`).join('');
-    select('week');
-  }
-
-  function select(id) {
-    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === id));
-    document.querySelectorAll('.period').forEach(p => p.classList.toggle('on', p.dataset.p === id));
-  }
-  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => select(b.dataset.p)));
-
-  function fail(err) {
-    const st = document.getElementById('status');
-    if (st) st.textContent = '기록을 불러오지 못했습니다. 잠시 후 다시 시도합니다. (' + ((err && err.message) || err) + ')';
-  }
-
-  /* ===== 설정 ===== */
-  const CONFIG = {
-    // 인도어라이딩 GAS 웹앱 (2026_인도어라이딩 시트에 붙은 스크립트)
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbwbHFh2YXxqtg5d99KSq32ioD1fMbCXOs9PVDrSCmJwwPq32qHURyBz85zLLIN9iPa8/exec',
-    REFRESH_MIN: 10          // 다시 불러오는 간격(분)
-  };
-  const FIT = new URLSearchParams(location.search).get('fit') === '1';
-  if (FIT) document.documentElement.classList.add('fit');
-
-  /* GAS 통신 (JSONP: 다른 주소의 GAS에서 데이터 받기) */
-  function jsonp(timeout = 20000) {
-    return new Promise((resolve, reject) => {
-      const cb = 'ridecb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
-      const s = document.createElement('script');
-      const timer = setTimeout(() => { done(); reject(new Error('시간 초과')); }, timeout);
-      function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
-      window[cb] = data => { done(); resolve(data); };
-      s.onerror = () => { done(); reject(new Error('연결 실패')); };
-      s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ format: 'json', callback: cb });
-      document.head.appendChild(s);
-    });
-  }
-
-  /* 큰 화면에서 한 장에 맞추기 */
-  function fit() {
-    if (!FIT) return;
-    const w = document.getElementById('wrap');
-    w.style.zoom = 1;
-    const z = Math.min(innerWidth / w.scrollWidth, innerHeight / w.scrollHeight);
-    w.style.zoom = Math.max(0.5, Math.min(z, 2.5));
-  }
-  addEventListener('resize', fit);
-
-  let lastWeek = 'week';
-  async function load() {
-    try {
-      const d = await jsonp();
-      if (!d || !d.rankings) throw new Error('응답 오류');
-      const cur = document.querySelector('.tabs button[aria-pressed="true"]');
-      lastWeek = cur ? cur.dataset.p : 'week';
-      if (!document.getElementById('status')) {
-        const st = document.createElement('div'); st.id = 'status'; st.hidden = true;
-        document.querySelector('main').prepend(st);
-      }
-      render(d);
-      select(lastWeek);
-      fit();
-      if (document.fonts) document.fonts.ready.then(fit);
-    } catch (e) { fail(e); }
-  }
-
-  if (window.PREVIEW_DATA) render(window.PREVIEW_DATA);
-  else { load(); setInterval(load, CONFIG.REFRESH_MIN * 60000); }
+}
+load();
+setInterval(load, CONFIG.REFRESH_MIN * 60000);
+setTimeout(() => location.reload(), CONFIG.RELOAD_HOURS * 3600 * 1000);
 </script>
 </body>
 </html>
