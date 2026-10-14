@@ -160,7 +160,8 @@
         </div>
         <div id="saveState"></div>
         <button class="btn line" id="retrySave" hidden>다시 저장</button>
-        <button class="btn" id="next">다음 학생</button>
+        <button class="btn" id="again">한 번 더 측정</button>
+        <button class="btn line" id="next">다음 학생</button>
       </section>
     </aside>
   </div>
@@ -521,6 +522,7 @@ document.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => setKind(
 document.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => toReady(+b.dataset.goal));
 $('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = startCountdown;
+$('again').onclick = () => show('time');   // 같은 학생으로 바로 다시 측정 (새 측정마다 clientId 새로 만듦)
 $('retrySave').onclick = save;
 $('flip').onclick = async () => {
   facing = facing === 'user' ? 'environment' : 'user';
