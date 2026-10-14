@@ -2,7 +2,7 @@
  * 스마트스포츠실 인도어라이딩 대시보드 (2026)
  * - 데이터 원본: '2026' 시트 (학생별 날짜 칸에 거리 입력)
  * - 순위 6종, 각 6위까지
- * - 우리 학교 기록(총·이번 달·이번 주·오늘 거리)과 학급 순위(1인당 평균 거리)
+ * - 우리 학교 기록(총·이번 달·이번 주·오늘 거리 합계)과 학급 순위(반 학생들이 탄 거리 합계)
  */
 const CONFIG = {
   SHEET_NAME: '2026',
@@ -94,17 +94,17 @@ function updateDailyData() {
     school.total += r.total; school.month += r.monthDist; school.week += r.weekDist;
   }
 
-  // 학급 순위: 1인당 평균 누적 거리 (반 인원 = 시트에 이름이 있는 학생 수)
+  // 학급 순위: 그 반 학생들이 탄 누적 거리 합계 (riders = 한 번이라도 탄 학생 수)
   const byClass = {};
-  riders.forEach(r => {
+  riders.filter(r => r.total > 0).forEach(r => {
     const k = r.grade + '|' + r.className;
-    const c = byClass[k] || (byClass[k] = { grade: r.grade, className: r.className, size: 0, total: 0 });
-    c.size++; c.total += r.total;
+    const c = byClass[k] || (byClass[k] = { grade: r.grade, className: r.className, riders: 0, total: 0 });
+    c.riders++; c.total += r.total;
   });
   const classes = Object.keys(byClass).map(k => byClass[k])
-    .map(c => ({ grade: c.grade, className: c.className, size: c.size, total: round1_(c.total), avg: round1_(c.total / c.size) }))
-    .sort((a, b) => b.avg - a.avg || b.total - a.total);
-  classes.forEach((c, i) => { c.rank = i > 0 && c.avg === classes[i - 1].avg ? classes[i - 1].rank : i + 1; });
+    .map(c => ({ grade: c.grade, className: c.className, riders: c.riders, total: round1_(c.total) }))
+    .sort((a, b) => b.total - a.total);
+  classes.forEach((c, i) => { c.rank = i > 0 && c.total === classes[i - 1].total ? classes[i - 1].rank : i + 1; });
 
   const mOp = opMonth.size, wOp = opWeek.size;
 
@@ -142,7 +142,8 @@ function updateDailyData() {
     },
     rankings: rankings,
     school: { total: round1_(school.total), month: round1_(school.month), week: round1_(school.week),
-              today: round1_(school.today), todayRiders: school.todayRiders, riders: riders.length },
+              today: round1_(school.today), todayRiders: school.todayRiders,
+              riders: riders.filter(r => r.total > 0).length },
     classes: classes
   };
 

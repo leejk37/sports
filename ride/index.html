@@ -53,11 +53,12 @@
   .empty{padding:1.4vw 0;text-align:center;color:var(--soft);font-size:1vw}
 
   /* 우리 학교 열 */
-  .stats{display:grid;grid-template-columns:1fr 1fr;gap:.6vw;margin:.4vw 0 .6vw}
-  .stat{background:rgba(255,255,255,.07);border-radius:.7vw;padding:.6vw .7vw}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.6vw;margin:.4vw 0 .6vw}
+  .period{min-width:0}
+  .stat{min-width:0;background:rgba(255,255,255,.07);border-radius:.7vw;padding:.6vw .6vw}
   .stat .k{font-size:.9vw;font-weight:700;color:var(--soft)}
-  .stat .n{font-size:2.1vw;font-weight:900;line-height:1.15;font-variant-numeric:tabular-nums}
-  .stat .n small{font-size:.9vw;font-weight:800;margin-left:.15vw;color:var(--soft)}
+  .stat .n{font-size:1.45vw;font-weight:900;line-height:1.15;font-variant-numeric:tabular-nums}
+  .stat .n small{font-size:.75vw;font-weight:800;margin-left:.15vw;color:var(--soft)}
   .stat .s{font-size:.75vw;color:var(--soft)}
   .stat.big{grid-column:1/-1;background:rgba(245,197,24,.16)}
   .stat.big .n{color:var(--yellow);font-size:2.8vw}
@@ -170,16 +171,16 @@ function schoolHtml(d) {
   if (!s) return `<div class="period" data-p="school"><h2>우리 학교</h2>
     <div class="boards"><section class="card" style="--c:var(--yellow)"><div class="empty">인도어라이딩 GAS를 새 버전으로 배포하면 나와요</div></section></div></div>`;
   const stat = (k, v, sub, big) => `<div class="stat${big ? ' big' : ''}"><div class="k">${k}</div><div class="n">${km(v)}<small>km</small></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
-  const max = Math.max(1, ...cl.map(c => c.avg));
+  const max = Math.max(1, ...cl.map(c => c.total));
   const rows = cl.length ? cl.map(c => `
     <li class="${c.rank === 1 ? 'leader' : ''}">
       <span class="rank">${c.rank}</span>
-      <span><span class="name">${esc(String(c.grade).replace(/학년$/, ''))}학년 ${esc(String(c.className).replace(/반$/, ''))}반</span><span class="cls">${c.size}명</span>
-        <span class="cbar"><i style="width:${Math.round(c.avg / max * 100)}%"></i></span></span>
-      <span class="val"><b>${km(c.avg)}</b><span class="u">km</span><span class="sub">반 합계 ${km(c.total)}km</span></span>
+      <span><span class="name">${esc(String(c.grade).replace(/학년$/, ''))}학년 ${esc(String(c.className).replace(/반$/, ''))}반</span><span class="cls">${c.riders}명</span>
+        <span class="cbar"><i style="width:${Math.round(c.total / max * 100)}%"></i></span></span>
+      <span class="val"><b>${km(c.total)}</b><span class="u">km</span></span>
     </li>`).join('') : '<div class="empty">아직 기록이 없어요</div>';
   return `<div class="period" data-p="school">
-    <h2>우리 학교<small>${s.riders}명 참가</small></h2>
+    <h2>우리 학교<small>${s.riders}명이 함께 달렸어요</small></h2>
     <div class="boards">
       <section class="card" style="--c:var(--yellow)">
         <div class="head"><h3>우리 학교 기록</h3><p>모두 함께 달린 거리</p></div>
@@ -188,11 +189,10 @@ function schoolHtml(d) {
           ${stat(d.period.monthLabel, s.month)}
           ${stat('이번 주', s.week)}
           ${stat('오늘', s.today, s.todayRiders ? s.todayRiders + '명이 달렸어요' : '아직 기록 전')}
-          ${stat('1인당 평균', s.riders ? s.total / s.riders : 0, '시즌 총거리 ÷ 참가 학생')}
         </div>
       </section>
       <section class="card" style="--c:#7fb0f0">
-        <div class="head"><h3>학급 순위</h3><p>1인당 평균 누적 거리</p></div>
+        <div class="head"><h3>학급 순위</h3><p>반 학생들이 탄 거리 합계</p></div>
         <ol>${rows}</ol>
       </section>
     </div></div>`;
