@@ -20,8 +20,8 @@ const DASH = {
   CACHE_SEC: 60,
   SHOW_NAMES: false,                    // true면 축하 소식에 이름(성 빼고)을 보여 줌
   START_DATE: '2026-10-01',             // 누적 거리 도전을 세기 시작한 날
-  DISTANCE_GOAL_KM: 100,                // 누적 거리 목표
-  DISTANCE_GOAL_NAME: '학교 전체 100km 도전',
+  DISTANCE_GOAL_KM: 100,                // 누적 거리 목표 (스크립트 속성 GOAL_KM 이 있으면 그 값)
+  DISTANCE_GOAL_NAME: '',               // 제목 (스크립트 속성 GOAL_NAME 이 있으면 그 값, 없으면 '학교 전체 ○km 도전')
   FEED_MAX: 8,
   RIDE_TAB: '2026',                     // 인도어라이딩 시트의 탭 이름
   RIDE_HEAD_ROW: 3,                     // 날짜가 적힌 줄
@@ -166,7 +166,7 @@ function dashBuild_() {
     today, weekFrom: monday,
     now: inNow.size, todayIn: inToday.size,
     totals, classes,
-    distance: { km: dashRound_(distanceKm, 1), goal: DASH.DISTANCE_GOAL_KM, name: DASH.DISTANCE_GOAL_NAME, from: DASH.START_DATE },
+    distance: dashGoal_(dashRound_(distanceKm, 1)),
     feed: feed.slice(0, DASH.FEED_MAX).map(f => f.text)
   };
 }
@@ -203,6 +203,14 @@ function dashRide_(today) {
   } catch (e) {
     return null;                                           // 권한·주소 문제면 '기록' 탭으로 대신
   }
+}
+
+/** 거리 목표: 스크립트 속성 GOAL_KM · GOAL_NAME 으로 바꿀 수 있음 (배포 다시 안 해도 1분 뒤 반영) */
+function dashGoal_(km) {
+  const pr = PropertiesService.getScriptProperties();
+  const goal = Number(pr.getProperty('GOAL_KM')) || DASH.DISTANCE_GOAL_KM;
+  const name = pr.getProperty('GOAL_NAME') || DASH.DISTANCE_GOAL_NAME || `학교 전체 ${goal.toLocaleString()}km 도전`;
+  return { km, goal, name, from: DASH.START_DATE };
 }
 
 function dashRound_(v, d) { const f = Math.pow(10, d || 0); return Math.round(v * f) / f; }
