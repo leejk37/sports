@@ -8,6 +8,11 @@
  *   - 종목별 오늘 누적 (운동별 탭 + 체력 기록장 '기록' 탭의 줄넘기·실내자전거)
  *   - 반별 이번 주 참여율 (이번 주 입실한 학생 수 ÷ 반 인원, '학생명단'의 학생만)
  *   - 학교 누적 거리 도전 (트레드밀·로잉머신·실내자전거 km, START_DATE부터)
+ *
+ *  실내자전거는 '2026_인도어라이딩' 스프레드시트의 '2026' 시트에서 읽음
+ *   스크립트 속성 RIDE_SHEET_ID 에 그 시트 주소의 /d/ 와 /edit 사이 글자를 넣어 둠 (저장소에는 올리지 않음)
+ *   3번째 줄: 학년 | 반 | 번 | 이름 | 3 / 9 | 3 / 10 | … (날짜 칸), 4번째 줄부터 학생, 칸 값 = km
+ *   RIDE_SHEET_ID가 없으면 체력 기록장 '기록' 탭의 실내자전거를 대신 씀
  *   - 축하 소식 (오늘 개인 최고 기록 · 처음 해 본 종목) — 이름은 SHOW_NAMES가 true일 때만
  */
 const DASH = {
@@ -17,7 +22,10 @@ const DASH = {
   START_DATE: '2026-10-01',             // 누적 거리 도전을 세기 시작한 날
   DISTANCE_GOAL_KM: 100,                // 누적 거리 목표
   DISTANCE_GOAL_NAME: '학교 전체 100km 도전',
-  FEED_MAX: 8
+  FEED_MAX: 8,
+  RIDE_TAB: '2026',                     // 인도어라이딩 시트의 탭 이름
+  RIDE_HEAD_ROW: 3,                     // 날짜가 적힌 줄
+  RIDE_YEAR: 2026
 };
 
 /* 운동별 탭 읽는 법: 날짜·이메일·값이 몇 번째 칸인지 (0부터) */
@@ -131,13 +139,20 @@ function dashBuild_() {
   const log = ss.getSheetByName('기록');
   const logTotals = {};
   DASH_LOG.forEach(it => logTotals[it.key] = { total: 0, people: new Set() });
+  const ride = dashRide_(today);                         // 인도어라이딩 시트 (없으면 null)
   if (log) {
     log.getDataRange().getValues().slice(1).forEach(r => {
       const it = DASH_LOG.find(x => x.code === String(r[5])); if (!it) return;
+      if (it.key === 'bike' && ride) return;               // 실내자전거는 인도어라이딩 시트로
       const d = asDay(r[1]), v = num(r[7]), id = idOf(r[2]);
       if (d === today) { logTotals[it.key].total += v; logTotals[it.key].people.add(id); }
       if (it.distance && d >= DASH.START_DATE) distanceKm += v;
     });
+  }
+  if (ride) {
+    logTotals.bike.total = ride.todayKm;
+    logTotals.bike.people = { size: ride.todayPeople };
+    distanceKm += ride.sinceKm;
   }
   DASH_LOG.forEach(it => totals.push({
     key: it.key, name: it.name, unit: it.unit,
@@ -154,6 +169,40 @@ function dashBuild_() {
     distance: { km: dashRound_(distanceKm, 1), goal: DASH.DISTANCE_GOAL_KM, name: DASH.DISTANCE_GOAL_NAME, from: DASH.START_DATE },
     feed: feed.slice(0, DASH.FEED_MAX).map(f => f.text)
   };
+}
+
+/** 인도어라이딩 '2026' 탭 → { todayKm, todayPeople, sinceKm(START_DATE부터) } 또는 null */
+function dashRide_(today) {
+  const id = PropertiesService.getScriptProperties().getProperty('RIDE_SHEET_ID');
+  if (!id) return null;
+  try {
+    const sh = SpreadsheetApp.openById(id).getSheetByName(DASH.RIDE_TAB);
+    if (!sh) return null;
+    const rows = sh.getDataRange().getValues();
+    const head = rows[DASH.RIDE_HEAD_ROW - 1] || [];
+    // 날짜 칸 찾기: '3 / 9' 같은 글자 또는 날짜 값
+    const cols = [];
+    head.forEach((h, c) => {
+      let m, d = '';
+      if (h instanceof Date) d = Utilities.formatDate(h, DASH.TZ, 'yyyy-MM-dd');
+      else if ((m = String(h).match(/^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/)))
+        d = DASH.RIDE_YEAR + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2);
+      if (d) cols.push({ c, d });
+    });
+    const out = { todayKm: 0, todayPeople: 0, sinceKm: 0 };
+    rows.slice(DASH.RIDE_HEAD_ROW).forEach(r => {
+      if (!String(r[3] || '').trim()) return;               // 이름 없는 줄(합계 등)은 건너뜀
+      cols.forEach(({ c, d }) => {
+        const v = Number(r[c]);
+        if (!isFinite(v) || v <= 0) return;
+        if (d === today) { out.todayKm += v; out.todayPeople++; }
+        if (d >= DASH.START_DATE && d <= today) out.sinceKm += v;
+      });
+    });
+    return out;
+  } catch (e) {
+    return null;                                           // 권한·주소 문제면 '기록' 탭으로 대신
+  }
 }
 
 function dashRound_(v, d) { const f = Math.pow(10, d || 0); return Math.round(v * f) / f; }
