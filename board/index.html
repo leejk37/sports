@@ -96,7 +96,7 @@
       <div class="card" id="goal">
         <div class="top"><b id="goalName">학교 전체 거리 도전</b><span><em id="goalKm">0</em> / <span id="goalMax">100</span> km</span></div>
         <div class="bar"><i id="goalBar"></i></div>
-        <div class="sub" id="goalSub">트레드밀 · 로잉머신 · 실내자전거 거리를 모두 더해요</div>
+        <div class="sub" id="goalSub">10월부터 실내자전거로 달린 거리를 모두 더해요</div>
       </div>
       <div id="tiles"></div>
       <div class="card" id="classes">
@@ -177,7 +177,7 @@ function render(d) {
   $('goalMax').textContent = fmt(g.goal);
   $('goalBar').style.width = Math.min(100, g.goal ? g.km / g.goal * 100 : 0) + '%';
   $('goalSub').textContent = (g.km >= g.goal ? '🎉 목표 달성! ' : `목표까지 ${fmt(Math.max(0, g.goal - g.km).toFixed(1))}km · `) +
-    '트레드밀 · 로잉머신 · 실내자전거 거리를 모두 더해요';
+    '10월부터 실내자전거로 달린 거리를 모두 더해요';
 
   // 종목별 오늘 누적 (11칸 + 오늘 기록 수 1칸 = 6×2)
   const by = Object.fromEntries((d.totals || []).map(t => [t.key, t]));

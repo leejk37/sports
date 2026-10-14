@@ -7,7 +7,7 @@
  *   - 지금 운동 중 · 오늘 입실 인원 ('입퇴실' 탭)
  *   - 종목별 오늘 누적 (운동별 탭 + 체력 기록장 '기록' 탭의 줄넘기·실내자전거)
  *   - 반별 이번 주 참여율 (이번 주 입실한 학생 수 ÷ 반 인원, '학생명단'의 학생만)
- *   - 학교 누적 거리 도전 (트레드밀·로잉머신·실내자전거 km, START_DATE부터)
+ *   - 학교 누적 거리 도전 (실내자전거 km만, START_DATE부터 — 트레드밀·로잉머신은 각자 카드에)
  *
  *  실내자전거는 '2026_인도어라이딩' 스프레드시트의 '2026' 시트에서 읽음
  *   스크립트 속성 RIDE_SHEET_ID 에 그 시트 주소의 /d/ 와 /edit 사이 글자를 넣어 둠 (저장소에는 올리지 않음)
@@ -107,7 +107,6 @@ function dashBuild_() {
         const id = idOf(r[ex.email]); if (!id) return;
         const v = num(r[ex.value]);
         if (d === today) { total += v; people.add(id); }
-        if (ex.distance && d >= DASH.START_DATE) distanceKm += v;
         if (d < today) {
           tried.add(id);
           const k = id + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]);
