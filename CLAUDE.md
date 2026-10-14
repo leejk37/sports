@@ -19,6 +19,8 @@
 | 행잉 | …/sports/hang/ | 행잉 | 타이머 |
 | 로잉머신 | …/sports/rowing/ | 로잉머신 | 방식 선택 → 끝난 뒤 시간·거리(km)·SPM 입력 |
 | 현황판 | …/sports/board/ | (읽기만) | 스포츠실 TV용. `Dashboard.gs` → 허브 JSONP `action=dash` |
+| 인도어라이딩 기록판 | …/sports/ride/ (TV: `?fit=1`) | (읽기만) | 인도어라이딩 GAS(`gas/ride/`) JSONP `?format=json&callback=` |
+| TV 돌려보기 | …/sports/tv/ | — | 현황판 ↔ 인도어라이딩 30초마다 번갈아(`?sec=`), ←/→·F 키 |
 | 입퇴실 QR(선택) | …/sports/qr/ | 입퇴실 | QR 한 번 = 입실/퇴실. 기본은 허브에서 입퇴실 |
 
 공용 모드(스포츠실 태블릿): 한 번만 `…/sports/?room=gym` 으로 열면 기억됩니다.
@@ -28,6 +30,7 @@
 | 프로젝트 | 배포 주소(/exec) | 코드 위치 |
 |---|---|---|
 | 서킷트레이닝(운동 기록·허브) | `AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw` | `gas/circuit/` |
+| 인도어라이딩 기록판 (`2026_인도어라이딩` 시트) | `AKfycbwbHFh2YXxqtg5d99KSq32ioD1fMbCXOs9PVDrSCmJwwPq32qHURyBz85zLLIN9iPa8` | `gas/ride/` |
 | 옛 입퇴실(통합 완료, 보관용) | `AKfycbzV_zxlkSiqSJ_lvgv3z7WkLuFr-nOtS8pY-JDqWBduKi07cLiiX7acZiFAahxL_DtmEw` | `gas/checkin/` |
 
 - 스프레드시트: `26_청평_스마트스포츠실` (옛 이름 `26_4해_서킷트레이닝`). 이름을 바꿔도 GAS 연결은 그대로입니다.
