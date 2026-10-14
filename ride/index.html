@@ -176,7 +176,7 @@ function schoolHtml(d) {
   const rows = cl.length ? cl.map(c => `
     <li class="${c.rank === 1 ? 'leader' : ''}">
       <span class="rank">${c.rank}</span>
-      <span><span class="name">${esc(String(c.grade).replace(/학년$/, ''))}학년 ${esc(String(c.className).replace(/반$/, ''))}반</span><span class="cls">${c.riders}명</span>
+      <span><span class="name">${esc(String(c.grade).replace(/학년$/, ''))}${esc(String(c.className).replace(/반$/, ''))}</span><span class="cls">${c.riders}명</span>
         <span class="cbar"><i style="width:${Math.round(c.total / max * 100)}%"></i></span></span>
       <span class="val"><b>${km(c.total)}</b><span class="u">km</span></span>
     </li>`).join('') : '<div class="empty">아직 기록이 없어요</div>';
