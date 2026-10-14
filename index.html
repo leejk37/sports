@@ -342,16 +342,62 @@ const video = $('video'), canvas = $('view'), ctx = canvas.getContext('2d');
 const qc = document.createElement('canvas'), qctx = qc.getContext('2d', { willReadFrequently: true });
 let stream, facing = localStorage.getItem('hubFacing') || 'user', lastScan = 0, paused = false;
 
+let camStarting = false, camFails = 0;
 async function startCamera() {
+  if (camStarting) return;
+  camStarting = true;
   stream?.getTracks().forEach(t => t.stop());
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     video.srcObject = stream; await video.play();
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    camFails = 0; lastFrameTime = -1; frozenFor = 0;
   } catch (e) {
+    camFails++;
     $('camHint').textContent = '카메라를 켤 수 없어요 · 권한을 확인해 주세요';
+  } finally {
+    camStarting = false;
   }
 }
+function stopCamera() { stream?.getTracks().forEach(t => t.stop()); stream = null; }
+
+/* 카메라 멈춤 감시: 3초마다 확인해서 멈췄으면 다시 켭니다.
+ * - 스트림이 끊김(ended) / 영상 시간이 15초 넘게 그대로 → 카메라 다시 켜기
+ * - 다시 켜기가 3번 연속 실패 → 화면 새로고침 */
+let lastFrameTime = -1, frozenFor = 0;
+setInterval(() => {
+  if (document.hidden || camStarting) return;
+  const track = stream?.getVideoTracks()[0];
+  const ended = !track || track.readyState === 'ended';
+  if (!ended && video.currentTime !== lastFrameTime) { lastFrameTime = video.currentTime; frozenFor = 0; return; }
+  frozenFor += 3;
+  if (ended || frozenFor >= 15) {
+    if (camFails >= 3) { location.reload(); return; }
+    console.log('카메라 멈춤 감지 → 다시 켜기', { ended, frozenFor });
+    frozenFor = 0;
+    startCamera();
+  }
+}, 3000);
+
+/* 화면 꺼짐 방지(Wake Lock): 화면이 다시 보일 때마다 새로 요청합니다. */
+let wakeLock = null;
+async function keepAwake() {
+  if (document.hidden || wakeLock) return;
+  try {
+    wakeLock = await navigator.wakeLock?.request('screen');
+    wakeLock?.addEventListener('release', () => { wakeLock = null; });
+  } catch (e) { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  keepAwake();
+  const track = stream?.getVideoTracks()[0];
+  if (!track || track.readyState === 'ended') startCamera();   // 돌아왔는데 카메라가 꺼져 있으면 다시 켜기
+});
+addEventListener('pointerdown', keepAwake);   // 처음 요청이 거절된 기기 대비: 화면을 한 번 만지면 다시 요청
+// 운동 앱으로 넘어갈 때 카메라를 놓아 주고, 뒤로 가기로 돌아오면 다시 켭니다.
+addEventListener('pagehide', stopCamera);
+addEventListener('pageshow', e => { if (e.persisted) startCamera(); keepAwake(); });
 function loop(now) {
   requestAnimationFrame(loop);
   if (!video.videoWidth || paused) return;
@@ -414,7 +460,12 @@ function tick() {
 /* ===== 시작 ===== */
 applyModeText(); renderStudents(); renderMenu(); tick(); setInterval(tick, 10000);
 refresh();
-startCamera(); requestAnimationFrame(loop);
+startCamera(); requestAnimationFrame(loop); keepAwake();
+// 하루 종일 켜 두는 태블릿: 4시간마다 새로고침해 메모리·발열 누적을 줄임(이름 고르는 중이면 미룸)
+const bootAt = Date.now();
+setInterval(() => {
+  if (Date.now() - bootAt > 4 * 3600 * 1000 && !busy && !$('picker').classList.contains('on')) location.reload();
+}, 60 * 1000);
 // 공용 모드: 다른 태블릿의 로그인·로그아웃을 주기적으로 반영
 setInterval(() => {
   if (SHARED && !document.hidden && !$('picker').classList.contains('on')) refresh();

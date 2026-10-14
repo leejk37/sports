@@ -136,9 +136,10 @@ async function keepAwake() {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && started) keepAwake(); });
 
 /* ---------- 카메라 ---------- */
+let cam, camBusy = false;
 function startCam() {
-  const cam = new Html5Qrcode('cam');
-  Html5Qrcode.getCameras()
+  cam = cam || new Html5Qrcode('cam');
+  return Html5Qrcode.getCameras()
     .then(cams => {
       if (!cams.length) throw new Error('연결된 카메라가 없습니다');
       const front = cams.find(c => /front|user|전면|integrated|webcam/i.test(c.label)) || cams[0];
@@ -156,6 +157,30 @@ function startCam() {
     })
     .catch(err => show('stop', '카메라를 열 수 없어요', '', String(err && err.message || err), 0));
 }
+
+/* 카메라 멈춤 감시: 스트림이 끊기거나 영상이 15초 넘게 멈추면 카메라만 다시 켭니다.
+ * (새로고침하면 '시작하기'를 다시 눌러야 해서 카메라만 다시 켬) */
+async function restartCam() {
+  if (camBusy) return;
+  camBusy = true;
+  try { if (cam?.isScanning) await cam.stop(); } catch (e) {}
+  try { await startCam(); } finally { camBusy = false; lastT = -1; frozen = 0; }
+}
+let lastT = -1, frozen = 0;
+setInterval(() => {
+  if (!started || document.hidden || camBusy) return;
+  const v = document.querySelector('#cam video');
+  const track = v?.srcObject?.getVideoTracks?.()[0];
+  const ended = !track || track.readyState === 'ended';
+  if (!ended && v.currentTime !== lastT) { lastT = v.currentTime; frozen = 0; return; }
+  frozen += 3;
+  if (ended || frozen >= 15) { console.log('카메라 멈춤 감지 → 다시 켜기'); restartCam(); }
+}, 3000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !started) return;
+  const track = document.querySelector('#cam video')?.srcObject?.getVideoTracks?.()[0];
+  if (!track || track.readyState === 'ended') restartCam();
+});
 
 async function onCode(code) {
   code = String(code).trim();
