@@ -157,12 +157,14 @@ const ICON = {
   rowing: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="20" r="6" fill="currentColor"/><path d="M24 50l-4-20M21 34l10 4 12-2M24 50l14-10 8 14"/><path d="M43 36l12 9" stroke-width="3"/><circle cx="58" cy="48" r="6"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   pushup: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="58" cy="30" r="6" fill="currentColor"/><path d="M52 36L12 54M48 38v20"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   plank: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="58" cy="40" r="6" fill="currentColor"/><path d="M52 46L10 56M50 48v8h8"/><circle cx="30" cy="20" r="9" stroke-width="4"/><path d="M30 14v6l4 3" stroke-width="4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  jumprope: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="12" r="6" fill="currentColor"/><path d="M36 20v22M36 26l-12 10M36 26l12 10M36 42l-6 14M36 42l6 14"/><path d="M24 36C14 52 20 66 36 66s22-14 12-30" stroke="#f5c518" stroke-width="3"/></svg>',
   hanging: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>'
 };
 const EXERCISES = [
   { id: 'squat',       name: '스쿼트',         desc: '자세 인식 · 횟수 측정', url: 'squat/',       ready: true,  tag: '카메라 · 옆에서' },
   { id: 'curlup',      name: '윗몸말아올리기', desc: '자세 인식 · 횟수 측정', url: 'curlup/',      ready: true,  tag: '카메라 · 옆에서' },
   { id: 'jumpingjack', name: '점핑잭',         desc: '자세 인식 · 횟수 측정', url: 'jumpingjack/', ready: true,  tag: '카메라 · 앞에서' },
+  { id: 'jumprope',    name: '줄넘기',         desc: '뛴 횟수 · 1분 빠르기',   url: 'jumprope/',    ready: true,  tag: '카메라 · 앞에서' },
   { id: 'lunge',       name: '런지',           desc: '자세 인식 · 횟수 측정', url: 'lunge/',       ready: true,  tag: '카메라 · 옆에서' },
   { id: 'pushup',      name: '팔굽혀펴기',     desc: '일반 · 무릎 대고 · 횟수 측정', url: 'pushup/', ready: true, tag: '카메라 · 옆에서' },
   { id: 'plank',       name: '플랭크',         desc: '바른 자세로 버틴 시간',   url: 'plank/',  ready: true, tag: '카메라 · 옆에서' },

@@ -13,6 +13,7 @@
 | 윗몸말아올리기 | …/sports/curlup/ | 윗몸말아올리기 | 카메라 |
 | 점핑잭 | …/sports/jumpingjack/ | 점핑잭 | 카메라 |
 | 런지 | …/sports/lunge/ | 런지 | 카메라 |
+| 줄넘기 | …/sports/jumprope/ | 줄넘기 | 카메라 정면 (몸 높이 오르내림으로 뛴 횟수). 예민도 `?jump=0.05` |
 | 팔굽혀펴기 | …/sports/pushup/ | 팔굽혀펴기 | 카메라 (일반·무릎 대고) |
 | 플랭크 | …/sports/plank/ | 플랭크 | 카메라 (바른 자세로 버틴 시간) |
 | 트레드밀 | …/sports/treadmill/ | 트레드밀 | 타이머 + 화면 숫자 입력 |

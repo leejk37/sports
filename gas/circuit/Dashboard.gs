@@ -38,6 +38,7 @@ const DASH_EX = [
   { key: 'plank',       name: '플랭크',         sheet: '플랭크',         email: 5, value: 8, unit: '초', sum: true, pbBy: null, decimals: 1 },
   { key: 'hanging',     name: '행잉',           sheet: '행잉',           email: 10, value: 8, unit: '초', sum: true, pbBy: null, decimals: 1 },
   { key: 'treadmill',   name: '트레드밀',       sheet: '트레드밀',       email: 9, value: 7, unit: 'km', sum: true, pbBy: null, decimals: 2, distance: true, noPb: true },
+  { key: 'jumprope',    name: '줄넘기',         sheet: '줄넘기',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, mergeInto: 'rope' },
   { key: 'rowing',      name: '로잉머신',       sheet: '로잉머신',       email: 5, value: 9, unit: 'km', sum: true, pbBy: null, decimals: 2, distance: true, noPb: true }
 ];
 /* 체력 기록장 '기록' 탭: 기록시각 | 날짜 | 이메일 | 이름 | 영역 | 항목코드 | 항목 | 값 | 단위 | 힘든정도 */
@@ -91,7 +92,7 @@ function dashBuild_() {
     .sort((a, b) => b.rate - a.rate || a.cls.localeCompare(b.cls, 'ko'));
 
   // ---- 종목별 오늘 누적 · 누적 거리 · 축하 소식 ----
-  const totals = [], feed = [];
+  const totals = [], feed = [], exSets = {};
   let distanceKm = 0;
   const feedPush = (time, text) => feed.push({ t: time, text });
 
@@ -132,7 +133,8 @@ function dashBuild_() {
         }
       });
     }
-    totals.push({ key: ex.key, name: ex.name, unit: ex.unit, value: dashRound_(total, ex.decimals), people: people.size });
+    exSets[ex.key] = { total, people };
+    if (!ex.mergeInto) totals.push({ key: ex.key, name: ex.name, unit: ex.unit, value: dashRound_(total, ex.decimals), people: people.size });
   });
 
   const log = ss.getSheetByName('기록');
@@ -153,6 +155,12 @@ function dashBuild_() {
     logTotals.bike.people = { size: ride.todayPeople };
     distanceKm += ride.sinceKm;
   }
+  // 카메라 줄넘기 앱('줄넘기' 탭) 기록을 체력 기록장 줄넘기와 합침
+  DASH_EX.filter(ex => ex.mergeInto && exSets[ex.key]).forEach(ex => {
+    const t = logTotals[ex.mergeInto]; if (!t) return;
+    t.total += exSets[ex.key].total;
+    exSets[ex.key].people.forEach(id => t.people.add(id));
+  });
   DASH_LOG.forEach(it => totals.push({
     key: it.key, name: it.name, unit: it.unit,
     value: dashRound_(logTotals[it.key].total, it.decimals), people: logTotals[it.key].people.size
