@@ -56,17 +56,32 @@ const checkinNow_ = () => {
   const now = new Date(), f = p => Utilities.formatDate(now, CHECKIN.TZ, p);
   return { now, today: f('yyyy-MM-dd'), time: f('HH:mm:ss') };
 };
+/* 시트가 날짜·시각 칸을 자동으로 '날짜/시각 형식'으로 바꿔도 읽을 수 있게 맞춤 */
+function checkinDate_(v) {
+  return v instanceof Date ? Utilities.formatDate(v, CHECKIN.TZ, 'yyyy-MM-dd') : String(v).trim();
+}
+function checkinTime_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, CHECKIN.TZ, 'HH:mm:ss');
+  const m = String(v).trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  return m ? ('0' + m[1]).slice(-2) + ':' + m[2] + ':' + (m[3] || '00') : '';
+}
+const checkinSec_ = t => { const m = String(t).match(/^(\d{2}):(\d{2}):(\d{2})$/); return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : NaN; };
+/* 시각을 '글자'로 고정해서 씀(06:56:30 그대로 보이게) */
+function checkinWriteText_(sh, row, col, values) {
+  sh.getRange(row, col, 1, values.length).setNumberFormat('@').setValues([values]);
+}
 
 /** 오늘 이 사람의 '이용 중' 줄 → { row(시트 줄 번호), inTime, kind, sec(입실 후 지난 초) } 또는 null */
 function checkinFindOpen_(email) {
   const sh = checkinSheet_(SpreadsheetApp.getActiveSpreadsheet());
-  const rows = sh.getDataRange().getDisplayValues();
+  const rows = sh.getDataRange().getValues();
   const t = checkinNow_();
   for (let i = rows.length - 1; i > 0; i--) {
-    if (rows[i][0] !== t.today) break;
-    if (rows[i][5] === email && rows[i][10] === '이용 중') {
-      const sec = Math.round((t.now - new Date(`${t.today}T${rows[i][6]}+09:00`)) / 1000);
-      return { row: i + 1, inTime: rows[i][6], kind: rows[i][9], sec };
+    if (checkinDate_(rows[i][0]) !== t.today) break;
+    if (String(rows[i][5]).toLowerCase() === email && rows[i][10] === '이용 중') {
+      const inTime = checkinTime_(rows[i][6]);
+      const sec = checkinSec_(t.time) - checkinSec_(inTime);
+      return { row: i + 1, inTime, kind: rows[i][9], sec: isFinite(sec) ? sec : 0 };
     }
   }
   return null;
@@ -78,8 +93,11 @@ function checkinIn_(email, st) {
   if (open) return open.kind;
   const t = checkinNow_();
   const kind = t.time.slice(0, 5) < CHECKIN.MORNING_END ? (st.group || '아침활동') : '자율이용';
-  checkinSheet_(SpreadsheetApp.getActiveSpreadsheet())
-    .appendRow([t.today, st.grade, st.cls, st.no, st.name, email, t.time, '', '', kind, '이용 중']);
+  const sh = checkinSheet_(SpreadsheetApp.getActiveSpreadsheet());
+  sh.appendRow([t.today, st.grade, st.cls, st.no, st.name, email, t.time, '', '', kind, '이용 중']);
+  const r = sh.getLastRow();
+  checkinWriteText_(sh, r, 1, [t.today]);
+  checkinWriteText_(sh, r, 7, [t.time]);
   return kind;
 }
 
@@ -89,9 +107,26 @@ function checkinOut_(email) {
   if (!open) return null;
   const t = checkinNow_();
   const min = Math.max(0, Math.round(open.sec / 60));
-  checkinSheet_(SpreadsheetApp.getActiveSpreadsheet())
-    .getRange(open.row, 8, 1, 4).setValues([[t.time, min, open.kind, '완료']]);
+  const sh = checkinSheet_(SpreadsheetApp.getActiveSpreadsheet());
+  checkinWriteText_(sh, open.row, 7, [open.inTime, t.time]);
+  sh.getRange(open.row, 9, 1, 3).setValues([[min, open.kind, '완료']]);
   return min;
+}
+
+/** 한 번만 실행: 이미 #NUM!·빈칸으로 남은 '이용(분)'을 입실·퇴실 시각으로 다시 계산 */
+function fixCheckinMinutes() {
+  const sh = checkinSheet_(SpreadsheetApp.getActiveSpreadsheet());
+  const rows = sh.getDataRange().getValues();
+  let fixed = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const inT = checkinTime_(rows[i][6]), outT = checkinTime_(rows[i][7]);
+    if (!inT || !outT) continue;
+    const min = Math.max(0, Math.round((checkinSec_(outT) - checkinSec_(inT)) / 60));
+    checkinWriteText_(sh, i + 1, 7, [inT, outT]);
+    sh.getRange(i + 1, 9).setValue(min);
+    fixed++;
+  }
+  Logger.log('이용(분)을 다시 계산한 줄: ' + fixed);
 }
 
 function checkinSheet_(ss) {
