@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스마트스포츠실 현황판</title>
+<meta name="theme-color" content="#1f4e8c">
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  /* 큰 TV(가로 16:9)에 맞춘 화면. 글자 크기는 화면 너비(vw)에 따라 커짐 */
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --blue-l:#2a62ab; --yellow:#f5c518;
+    --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.35); --line:rgba(255,255,255,.18);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;overflow:hidden}
+  #app{display:grid;grid-template-rows:auto 1fr;height:100%}
+
+  header{display:flex;align-items:baseline;gap:1.4vw;padding:1vw 2vw .8vw;border-bottom:.35vw solid var(--yellow)}
+  header h1{margin:0;font-size:2.3vw;font-weight:800;letter-spacing:-.05vw;flex:1}
+  #date{font-size:1.4vw;font-weight:700;color:var(--soft)}
+  #clock{font-size:2.3vw;font-weight:800;font-variant-numeric:tabular-nums}
+  #status{font-size:1vw;color:var(--soft)}
+  #status.off{color:#ffb3a1}
+
+  #main{display:grid;grid-template-columns:27vw 1fr;gap:1.4vw;padding:1.4vw 2vw 1.6vw;min-height:0}
+  .card{background:var(--blue-d);border-radius:1.1vw;padding:1.1vw 1.3vw;min-height:0}
+  .label{font-size:1.15vw;font-weight:700;color:var(--soft)}
+
+  /* 왼쪽: 큰 숫자 + 축하 소식 */
+  #left{display:grid;grid-template-rows:auto auto 1fr;gap:1.4vw;min-height:0}
+  .big b{display:block;font-size:6vw;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+  .big b small{font-size:2vw;font-weight:800;margin-left:.3vw}
+  .big.now b{color:var(--yellow)}
+  #feedBox{display:flex;flex-direction:column;overflow:hidden}
+  #feed{list-style:none;margin:.7vw 0 0;padding:0;display:flex;flex-direction:column;gap:.6vw;overflow:hidden}
+  #feed li{font-size:1.15vw;font-weight:600;line-height:1.35;padding:.7vw .9vw;border-radius:.7vw;background:rgba(255,255,255,.08);
+    border-left:.35vw solid var(--yellow);animation:pop .6s ease both}
+  #feed li.empty{border-left-color:var(--dim);color:var(--soft)}
+  @keyframes pop{from{opacity:0;transform:translateY(.6vw)}to{opacity:1;transform:none}}
+
+  /* 오른쪽: 거리 도전 · 종목 · 반별 참여 */
+  #right{display:grid;grid-template-rows:auto 1fr auto;gap:1.4vw;min-height:0}
+  #goal .top{display:flex;align-items:baseline;gap:1vw}
+  #goal .top b{font-size:1.5vw;font-weight:800;flex:1}
+  #goal .top span{font-size:1.5vw;font-weight:800;font-variant-numeric:tabular-nums}
+  #goal .top span em{font-style:normal;color:var(--yellow);font-size:2.2vw}
+  .bar{position:relative;height:2.2vw;margin-top:.7vw;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .bar i{position:absolute;inset:0 auto 0 0;width:0;border-radius:999px;background:linear-gradient(90deg,#f5c518,#ffd84d);transition:width 1.2s ease}
+  #goal .sub{margin-top:.5vw;font-size:1vw;color:var(--soft)}
+
+  #tiles{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:1fr;gap:1vw;min-height:0}
+  .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25vw;padding:.6vw;
+    border-radius:1vw;background:var(--blue-l);text-align:center;min-height:0;transition:opacity .4s}
+  .tile svg{width:3.6vw;height:3.6vw;color:#fff}
+  .tile .n{font-size:1.1vw;font-weight:700;color:var(--soft)}
+  .tile .v{font-size:2.6vw;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+  .tile .v small{font-size:1.1vw;font-weight:800;margin-left:.15vw}
+  .tile .p{font-size:.95vw;color:var(--soft)}
+  .tile.zero{opacity:.45}
+  .tile.zero .v{color:var(--soft)}
+  .tile.sum{background:var(--yellow);color:var(--blue-d)}
+  .tile.sum .n,.tile.sum .p{color:var(--blue-d)}
+
+  #classes .head{display:flex;align-items:baseline;gap:1vw}
+  #classes .head .label{flex:1}
+  #classes .head span{font-size:1vw;color:var(--soft)}
+  #cbars{display:flex;align-items:flex-end;gap:.6vw;height:9vw;margin-top:.7vw}
+  .cb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+  .cb .r{font-size:1vw;font-weight:800;font-variant-numeric:tabular-nums}
+  .cb .well{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-height:0}
+  .cb .col{width:100%;max-width:4vw;height:0;margin-top:.25vw;border-radius:.5vw .5vw 0 0;background:#7fb0f0;transition:height 1.2s ease}
+  .cb.top .col{background:var(--yellow)}
+  .cb .c{margin-top:.35vw;font-size:.9vw;font-weight:700;color:var(--soft);white-space:nowrap}
+  .none{font-size:1.1vw;color:var(--soft)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>스마트스포츠실 오늘</h1>
+    <span id="date"></span>
+    <span id="clock">--:--</span>
+    <span id="status">불러오는 중…</span>
+  </header>
+
+  <div id="main">
+    <section id="left">
+      <div class="card big now"><div class="label">지금 운동 중</div><b><span id="now">-</span><small>명</small></b></div>
+      <div class="card big"><div class="label">오늘 다녀간 친구</div><b><span id="todayIn">-</span><small>명</small></b></div>
+      <div class="card" id="feedBox"><div class="label">🎉 축하해요</div><ul id="feed"></ul></div>
+    </section>
+
+    <section id="right">
+      <div class="card" id="goal">
+        <div class="top"><b id="goalName">학교 전체 거리 도전</b><span><em id="goalKm">0</em> / <span id="goalMax">100</span> km</span></div>
+        <div class="bar"><i id="goalBar"></i></div>
+        <div class="sub" id="goalSub">트레드밀 · 로잉머신 · 실내자전거 거리를 모두 더해요</div>
+      </div>
+      <div id="tiles"></div>
+      <div class="card" id="classes">
+        <div class="head"><div class="label">이번 주 반별 참여율</div><span id="weekFrom"></span></div>
+        <div id="cbars"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ===== 설정 ===== */
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
+  TOKEN: '26cp4s_squat',
+  REFRESH_SEC: 60,          // 새로 불러오는 간격(초). GAS도 60초 캐시
+  RELOAD_HOURS: 6           // 오래 켜 두는 화면이라 가끔 페이지를 새로 고침
+};
+
+/* 종목 아이콘 (허브와 같은 그림 + 줄넘기·실내자전거) */
+const S = '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">';
+const ICON = {
+  squat: S + '<circle cx="30" cy="12" r="6" fill="currentColor"/><path d="M30 20l-4 18 16 4 -4 18M26 38l-12 2M30 26l20-2"/><path d="M8 66h56" stroke="#f5c518"/></svg>',
+  curlup: S + '<circle cx="16" cy="28" r="6" fill="currentColor"/><path d="M22 36l14 18 14-16 10 16M24 38l14-4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  jumpingjack: S + '<circle cx="36" cy="14" r="6" fill="currentColor"/><path d="M36 22v20M36 28l-16-14M36 28l16-14M36 42l-12 18M36 42l12 18"/><path d="M12 66h48" stroke="#f5c518"/></svg>',
+  lunge: S + '<circle cx="34" cy="12" r="6" fill="currentColor"/><path d="M34 20v18M34 38h12v16M34 38l-8 12-10 4M34 24l-9 9M34 24l9 8"/><path d="M8 60h56" stroke="#f5c518"/></svg>',
+  treadmill: S + '<circle cx="38" cy="10" r="6" fill="currentColor"/><path d="M36 18l-6 18 10 8-4 12M30 36l-12 6M34 22l14 8"/><path d="M8 62h44l12-14" stroke="#f5c518"/></svg>',
+  rowing: S + '<circle cx="18" cy="20" r="6" fill="currentColor"/><path d="M24 50l-4-20M21 34l10 4 12-2M24 50l14-10 8 14"/><path d="M43 36l12 9" stroke-width="3"/><circle cx="58" cy="48" r="6"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  pushup: S + '<circle cx="58" cy="30" r="6" fill="currentColor"/><path d="M52 36L12 54M48 38v20"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  plank: S + '<circle cx="58" cy="40" r="6" fill="currentColor"/><path d="M52 46L10 56M50 48v8h8"/><circle cx="30" cy="20" r="9" stroke-width="4"/><path d="M30 14v6l4 3" stroke-width="4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  hanging: S + '<path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>',
+  rope: S + '<circle cx="36" cy="12" r="6" fill="currentColor"/><path d="M36 20v22M36 26l-12 10M36 26l12 10M36 42l-6 14M36 42l6 14"/><path d="M24 36C14 52 20 66 36 66s22-14 12-30" stroke="#f5c518" stroke-width="3"/></svg>',
+  bike: S + '<circle cx="18" cy="50" r="10"/><circle cx="56" cy="50" r="10" stroke="#f5c518"/><path d="M18 50l12-20h18l8 20M30 30l8 20h-20M44 22h8"/></svg>'
+};
+/* 화면에 놓는 순서 */
+const ORDER = ['squat', 'lunge', 'jumpingjack', 'curlup', 'pushup', 'plank', 'hanging', 'rope', 'treadmill', 'rowing', 'bike'];
+
+const $ = id => document.getElementById(id);
+const fmt = v => Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+/* 60초가 넘으면 '14분 5초'처럼 */
+const val = t => t.unit === '초' && t.value >= 60
+  ? `${Math.floor(t.value / 60)}<small>분</small> ${Math.round(t.value % 60)}<small>초</small>`
+  : `${fmt(t.value)}<small>${esc(t.unit)}</small>`;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ===== 시계 ===== */
+function tick() {
+  const d = new Date();
+  $('clock').textContent = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  $('date').textContent = d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+}
+tick(); setInterval(tick, 1000);
+
+/* ===== GAS 통신 (JSONP) ===== */
+function jsonp(params, timeout = 20000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'dashcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { done(); reject(new Error('시간 초과')); }, timeout);
+    function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = data => { done(); resolve(data); };
+    s.onerror = () => { done(); reject(new Error('연결 실패')); };
+    s.crossOrigin = 'anonymous';
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ ...params, token: CONFIG.TOKEN, callback: cb });
+    document.head.appendChild(s);
+  });
+}
+
+/* ===== 그리기 ===== */
+function render(d) {
+  $('now').textContent = d.now;
+  $('todayIn').textContent = d.todayIn;
+
+  // 거리 도전
+  const g = d.distance || { km: 0, goal: 100 };
+  $('goalName').textContent = g.name || '학교 전체 거리 도전';
+  $('goalKm').textContent = fmt(g.km);
+  $('goalMax').textContent = fmt(g.goal);
+  $('goalBar').style.width = Math.min(100, g.goal ? g.km / g.goal * 100 : 0) + '%';
+  $('goalSub').textContent = (g.km >= g.goal ? '🎉 목표 달성! ' : `목표까지 ${fmt(Math.max(0, g.goal - g.km).toFixed(1))}km · `) +
+    '트레드밀 · 로잉머신 · 실내자전거 거리를 모두 더해요';
+
+  // 종목별 오늘 누적 (11칸 + 오늘 기록 수 1칸 = 6×2)
+  const by = Object.fromEntries((d.totals || []).map(t => [t.key, t]));
+  const tiles = ORDER.filter(k => by[k]).map(k => {
+    const t = by[k];
+    return `<div class="tile${t.value ? '' : ' zero'}">${ICON[k] || ''}<div class="n">${esc(t.name)}</div>
+      <div class="v">${val(t)}</div><div class="p">${t.people ? t.people + '명 참여' : '아직 없어요'}</div></div>`;
+  });
+  const kinds = (d.totals || []).filter(t => t.people).length;
+  tiles.push(`<div class="tile sum"><div class="n">오늘 해 본 종목</div><div class="v">${kinds}<small>종목</small></div><div class="p">모두 ${ORDER.length}종목</div></div>`);
+  $('tiles').innerHTML = tiles.join('');
+
+  // 반별 참여율
+  const cls = (d.classes || []).slice().sort((a, b) => a.cls.localeCompare(b.cls, 'ko', { numeric: true }));
+  const max = Math.max(0, ...cls.map(c => c.rate));
+  $('cbars').innerHTML = cls.length ? cls.map(c => `<div class="cb${c.rate && c.rate === max ? ' top' : ''}" title="${c.came}/${c.size}명">
+      <div class="well"><span class="r">${c.rate}%</span><div class="col" data-h="${c.rate}"></div></div><span class="c">${esc(c.cls.replace('학년 ', '-').replace('반', ''))}</span></div>`).join('')
+    : '<div class="none">명단을 불러오지 못했어요</div>';
+  requestAnimationFrame(() => document.querySelectorAll('.cb .col').forEach(el => el.style.height = `calc((100% - 1.6vw) * ${Math.max(2, el.dataset.h) / 100})`));
+  $('weekFrom').textContent = d.weekFrom ? `${d.weekFrom.slice(5).replace('-', '/')}(월)부터 · 이번 주 한 번이라도 온 친구 ÷ 반 인원` : '';
+
+  // 축하 소식
+  const feed = d.feed || [];
+  const html = feed.length ? feed.map(f => `<li>${esc(f)}</li>`).join('') : '<li class="empty">오늘 첫 기록을 기다리고 있어요</li>';
+  if ($('feed').dataset.last !== html) { $('feed').innerHTML = html; $('feed').dataset.last = html; }
+}
+
+async function load() {
+  try {
+    const d = await jsonp({ action: 'dash' });
+    if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류');
+    render(d);
+    $('status').textContent = d.updated + ' 기준';
+    $('status').classList.remove('off');
+  } catch (e) {
+    $('status').textContent = '연결 끊김 · 다시 시도 중';
+    $('status').classList.add('off');
+  }
+}
+load();
+setInterval(load, CONFIG.REFRESH_SEC * 1000);
+setTimeout(() => location.reload(), CONFIG.RELOAD_HOURS * 3600 * 1000);
+
+/* 화면을 누르면 전체 화면 */
+document.addEventListener('click', () => {
+  if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+});
+</script>
+</body>
+</html>
