@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>인도어라이딩 기록판</title>
+<title>청평 인도어사이클 챌린지</title>
 <meta name="theme-color" content="#1f4e8c">
 <link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
@@ -23,7 +23,7 @@
   #status{font-size:1vw;color:var(--soft)}
   #status.off{color:#ffb3a1}
 
-  main{display:grid;grid-template-columns:repeat(3,1fr);gap:1.4vw;padding:1vw 2vw 1.2vw}
+  main{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.05fr);gap:1.1vw;padding:1vw 1.6vw 1.2vw}
   .period h2{margin:0 0 .7vw;font-size:1.6vw;font-weight:800;display:flex;align-items:baseline;gap:.8vw}
   .period h2 small{font-size:1vw;font-weight:600;color:var(--soft)}
   .boards{display:grid;gap:1.2vw}
@@ -52,6 +52,18 @@
   li.leader .val b{font-size:2vw;color:var(--yellow)}
   .empty{padding:1.4vw 0;text-align:center;color:var(--soft);font-size:1vw}
 
+  /* 우리 학교 열 */
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:.6vw;margin:.4vw 0 .6vw}
+  .stat{background:rgba(255,255,255,.07);border-radius:.7vw;padding:.6vw .7vw}
+  .stat .k{font-size:.9vw;font-weight:700;color:var(--soft)}
+  .stat .n{font-size:2.1vw;font-weight:900;line-height:1.15;font-variant-numeric:tabular-nums}
+  .stat .n small{font-size:.9vw;font-weight:800;margin-left:.15vw;color:var(--soft)}
+  .stat .s{font-size:.75vw;color:var(--soft)}
+  .stat.big{grid-column:1/-1;background:rgba(245,197,24,.16)}
+  .stat.big .n{color:var(--yellow);font-size:2.8vw}
+  .cbar{display:block;height:.35vw;margin-top:.25vw;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .cbar i{display:block;height:100%;background:var(--c);border-radius:999px}
+
   .tabs{display:none}
 
   /* 휴대폰·좁은 화면: 기간 탭, 고정 px 크기 */
@@ -73,6 +85,9 @@
     li.leader{border-radius:8px;padding:11px 8px;margin:2px -4px 4px}
     li.leader .rank{font-size:22px} li.leader .name{font-size:22px} li.leader .val b{font-size:28px}
     .empty{font-size:14px;padding:18px 0}
+    .stats{gap:8px;margin:6px 0 10px} .stat{border-radius:10px;padding:10px 12px}
+    .stat .k{font-size:13px} .stat .n{font-size:26px} .stat .n small{font-size:13px} .stat .s{font-size:11px}
+    .stat.big .n{font-size:34px} .cbar{height:5px;margin-top:4px}
   }
   @media (prefers-reduced-motion:no-preference){
     li.leader{animation:pop .6s ease both}
@@ -82,7 +97,7 @@
 </head>
 <body>
 <header>
-  <h1>인도어라이딩 기록판</h1>
+  <h1>청평 인도어사이클 챌린지</h1>
   <span id="date"></span>
   <span id="clock">--:--</span>
   <span id="status">불러오는 중…</span>
@@ -91,6 +106,7 @@
   <button type="button" data-p="season" aria-pressed="false">시즌</button>
   <button type="button" data-p="month" aria-pressed="false">이번 달</button>
   <button type="button" data-p="week" aria-pressed="true">이번 주</button>
+  <button type="button" data-p="school" aria-pressed="false">우리 학교</button>
 </div>
 <main id="periods"></main>
 
@@ -147,13 +163,47 @@ function boardHtml(d, b, emptyMsg) {
     <div class="head">${jerseySvg(b)}<h3>${b.title}</h3><p>1위는 ${b.jersey}</p></div>
     <ol>${rows}</ol></section>`;
 }
+/* 마지막 열: 우리 학교 기록 + 학급 순위 */
+const km = v => Number(v || 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+function schoolHtml(d) {
+  const s = d.school, cl = d.classes || [];
+  if (!s) return `<div class="period" data-p="school"><h2>우리 학교</h2>
+    <div class="boards"><section class="card" style="--c:var(--yellow)"><div class="empty">인도어라이딩 GAS를 새 버전으로 배포하면 나와요</div></section></div></div>`;
+  const stat = (k, v, sub, big) => `<div class="stat${big ? ' big' : ''}"><div class="k">${k}</div><div class="n">${km(v)}<small>km</small></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const max = Math.max(1, ...cl.map(c => c.avg));
+  const rows = cl.length ? cl.map(c => `
+    <li class="${c.rank === 1 ? 'leader' : ''}">
+      <span class="rank">${c.rank}</span>
+      <span><span class="name">${esc(String(c.grade).replace(/학년$/, ''))}학년 ${esc(String(c.className).replace(/반$/, ''))}반</span><span class="cls">${c.size}명</span>
+        <span class="cbar"><i style="width:${Math.round(c.avg / max * 100)}%"></i></span></span>
+      <span class="val"><b>${km(c.avg)}</b><span class="u">km</span><span class="sub">반 합계 ${km(c.total)}km</span></span>
+    </li>`).join('') : '<div class="empty">아직 기록이 없어요</div>';
+  return `<div class="period" data-p="school">
+    <h2>우리 학교<small>${s.riders}명 참가</small></h2>
+    <div class="boards">
+      <section class="card" style="--c:var(--yellow)">
+        <div class="head"><h3>우리 학교 기록</h3><p>모두 함께 달린 거리</p></div>
+        <div class="stats">
+          ${stat('시즌 총거리', s.total, '공유학교 거리 포함', true)}
+          ${stat(d.period.monthLabel, s.month)}
+          ${stat('이번 주', s.week)}
+          ${stat('오늘', s.today, s.todayRiders ? s.todayRiders + '명이 달렸어요' : '아직 기록 전')}
+          ${stat('1인당 평균', s.riders ? s.total / s.riders : 0, '시즌 총거리 ÷ 참가 학생')}
+        </div>
+      </section>
+      <section class="card" style="--c:#7fb0f0">
+        <div class="head"><h3>학급 순위</h3><p>1인당 평균 누적 거리</p></div>
+        <ol>${rows}</ol>
+      </section>
+    </div></div>`;
+}
 let current = 'week';
 function render(d) {
   $('periods').innerHTML = PERIODS.map(p => `
     <div class="period" data-p="${p.id}">
       <h2>${esc(p.title(d))}${p.note ? `<small>${esc(p.note(d))}</small>` : ''}</h2>
       <div class="boards">${p.boards.map(b => boardHtml(d, b, p.id === 'week' ? '이번 주 첫 기록을 기다리고 있어요' : '아직 기록이 없어요')).join('')}</div>
-    </div>`).join('');
+    </div>`).join('') + schoolHtml(d);
   select(current);
 }
 function select(id) {
