@@ -20,6 +20,11 @@
  *   - 지난 날짜: 기록이 더 바뀌지 않으므로 6시간 캐시, '지금 운동 중'은 없음(null)
  *   - 반별 참여율은 그 주 월요일 ~ 그날, 거리 도전은 START_DATE ~ 그날
  *   - 오늘보다 뒤 날짜나 형식이 틀린 날짜는 오늘로 봄
+ *
+ *  다녀간 친구 명단(이름): 선생님 기기에서만
+ *   - 스크립트 속성 DASH_KEY 에 비밀 열쇠를 넣어 둠 (저장소에는 올리지 않음)
+ *   - 현황판 주소에 ?key=열쇠 를 한 번 붙여 열면 그 기기에 기억 → 요청에 key 가 붙으면 visitors 를 함께 보냄
+ *   - 열쇠가 없거나 틀리면 이름은 절대 보내지 않음 (TV·학생 태블릿은 지금처럼 숫자만)
  */
 const DASH = {
   TZ: 'Asia/Seoul',
@@ -54,18 +59,29 @@ const DASH_LOG = [
   { key: 'bike', name: '실내자전거', code: 'bike', unit: 'km', decimals: 1, distance: true }
 ];
 
-function dashSummary_(dateParam) {
+function dashSummary_(dateParam, key) {
   const realToday = Utilities.formatDate(new Date(), DASH.TZ, 'yyyy-MM-dd');
   let target = String(dateParam || '').trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(target) || target > realToday) target = realToday;
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const key = past ? 'dash_d_' + target : 'dash_v1';
-  const hit = cache.get(key);
-  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
-  const out = dashBuild_(past ? target : null);
-  try { cache.put(key, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {}
+  const cacheKey = past ? 'dash_d_' + target : 'dash_v2';
+  let out = null;
+  const hit = cache.get(cacheKey);
+  if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
+  if (!out) {
+    out = dashBuild_(past ? target : null);
+    try { cache.put(cacheKey, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {}
+  }
+  // 이름 명단은 열쇠가 맞을 때만 내보냄
+  const visitors = out.visitors;
+  delete out.visitors;
+  if (key) {
+    const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
+    out.keyOk = !!real && String(key) === real;
+    if (out.keyOk) out.visitors = visitors || [];
+  }
   return out;
 }
 
@@ -88,12 +104,23 @@ function dashBuild_(pastDay) {
 
   // ---- 입퇴실: 지금 운동 중, 오늘 입실, 이번 주 반별 참여 ----
   const inNow = new Set(), inToday = new Set(), weekByClass = {};
+  const visit = {};                                      // 아이디 → {첫 입실, 마지막 퇴실, 횟수, 지금 이용 중}
+  const hm = v => v instanceof Date ? Utilities.formatDate(v, DASH.TZ, 'HH:mm') : String(v || '').trim().slice(0, 5).replace(/^(\d):/, '0$1:');
   const ck = ss.getSheetByName('입퇴실');
   if (ck) {
     ck.getDataRange().getValues().slice(1).forEach(r => {
       const d = asDay(r[0]), id = idOf(r[5]);
       if (!id) return;
-      if (d === today) { inToday.add(id); if (!past && r[10] === '이용 중') inNow.add(id); }
+      if (d === today) {
+        inToday.add(id);
+        const using = !past && r[10] === '이용 중';
+        if (using) inNow.add(id);
+        const v = visit[id] || (visit[id] = { id, name: String(r[4] || '').trim(), first: '', last: '', n: 0, now: false });
+        const a = hm(r[6]), b = hm(r[7]);
+        v.n++; v.now = v.now || using;
+        if (a && (!v.first || a < v.first)) v.first = a;
+        if (b && /^\d\d:\d\d$/.test(b) && b > v.last) v.last = b;
+      }
       if (d >= monday && d <= today) {
         const st = roster[id];
         if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(id); }
@@ -190,7 +217,16 @@ function dashBuild_(pastDay) {
     now: past ? null : inNow.size, todayIn: inToday.size,
     totals, classes,
     distance: dashGoal_(dashRound_(distanceKm, 1)),
-    feed: feed.slice(0, DASH.FEED_MAX).map(f => f.text)
+    feed: feed.slice(0, DASH.FEED_MAX).map(f => f.text),
+    visitors: Object.values(visit).map(v => {             // dashSummary_가 열쇠 확인 후에만 내보냄
+      const st = roster[v.id] || {};
+      return {
+        grade: st.grade || '', cls: st.cls || '', no: st.no || '',
+        name: st.name || v.name || v.id,
+        first: v.first, last: v.now ? '' : v.last, n: v.n, now: v.now
+      };
+    }).sort((a, b) => (a.grade === '') - (b.grade === '') || String(a.grade).localeCompare(String(b.grade), 'ko', { numeric: true })
+      || String(a.cls).localeCompare(String(b.cls), 'ko', { numeric: true }) || (Number(a.no) || 0) - (Number(b.no) || 0))
   };
 }
 
@@ -241,7 +277,7 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v1');
+  CacheService.getScriptCache().remove('dash_v2');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 

@@ -91,6 +91,29 @@
   body.past #left{grid-template-rows:auto 1fr}
   body:not(.past) #goToday{display:none}
 
+  /* 다녀간 친구 명단 (선생님 기기에서만) */
+  .card.big .hint{display:none;font-size:.9vw;font-weight:700;color:var(--yellow);margin-left:.5vw}
+  body.names .card.big{cursor:pointer;transition:background .2s}
+  body.names .card.big:hover,body.names .card.big.open{background:#20508f}
+  body.names .card.big .hint{display:inline}
+  #who{position:fixed;top:6.2vw;left:30.8vw;right:2vw;bottom:1.6vw;z-index:5;display:none;flex-direction:column;
+    background:#102f57;border:.2vw solid var(--yellow);border-radius:1.1vw;padding:1.1vw 1.4vw;box-shadow:0 1vw 3vw rgba(0,0,0,.35)}
+  #who.on{display:flex}
+  #who .top{display:flex;align-items:baseline;gap:1vw;margin-bottom:.8vw}
+  #who .top b{font-size:1.5vw;font-weight:800;flex:1}
+  #who .top span{font-size:1vw;color:var(--soft)}
+  #who .top button{font:inherit;font-size:1.1vw;font-weight:800;color:#fff;background:rgba(255,255,255,.12);border:0;border-radius:.6vw;padding:.3vw .8vw;cursor:pointer}
+  #whoList{overflow:auto;column-width:17vw;column-gap:1.4vw}
+  .wg{break-inside:avoid;margin-bottom:1vw}
+  .wg h3{margin:0 0 .35vw;font-size:1.05vw;font-weight:800;color:var(--yellow)}
+  .wp{display:flex;align-items:baseline;gap:.5vw;padding:.3vw .5vw;border-radius:.4vw;font-size:1.05vw}
+  .wp:nth-child(even){background:rgba(255,255,255,.05)}
+  .wp .no{width:2.2vw;color:var(--soft);font-variant-numeric:tabular-nums;text-align:right}
+  .wp .nm{font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wp .tm{font-size:.9vw;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wp .now{font-size:.8vw;font-weight:800;color:var(--blue-d);background:var(--yellow);border-radius:999px;padding:.05vw .5vw}
+  #who .empty{font-size:1.1vw;color:var(--soft)}
+
   /* 현황판 ↔ 라이딩 이동 단추 (TV 돌려보기 안에서는 숨김) */
   .pageSwitch{align-self:center;font-size:1.05vw;font-weight:800;color:#173d6e;background:#f5c518;
     padding:.35vw .9vw;border-radius:999px;text-decoration:none;white-space:nowrap}
@@ -119,8 +142,8 @@
 
   <div id="main">
     <section id="left">
-      <div class="card big now"><div class="label">지금 운동 중</div><b><span id="now">-</span><small>명</small></b></div>
-      <div class="card big"><div class="label" id="inLabel">오늘 다녀간 친구</div><b><span id="todayIn">-</span><small>명</small></b></div>
+      <div class="card big now" data-list="now"><div class="label">지금 운동 중<span class="hint">명단 ▸</span></div><b><span id="now">-</span><small>명</small></b></div>
+      <div class="card big" data-list="all"><div class="label"><span id="inLabel">오늘 다녀간 친구</span><span class="hint">명단 ▸</span></div><b><span id="todayIn">-</span><small>명</small></b></div>
       <div class="card" id="feedBox"><div class="label">🎉 축하해요</div><ul id="feed"></ul></div>
     </section>
 
@@ -139,6 +162,11 @@
   </div>
 </div>
 
+<div id="who" role="dialog" aria-label="다녀간 친구 명단">
+  <div class="top"><b id="whoTitle">오늘 다녀간 친구</b><span id="whoSub"></span><button id="whoClose" title="닫기 (Esc)">닫기 ✕</button></div>
+  <div id="whoList"></div>
+</div>
+
 <script>
 /* ===== 설정 ===== */
 const CONFIG = {
@@ -148,6 +176,23 @@ const CONFIG = {
   RELOAD_HOURS: 6,          // 오래 켜 두는 화면이라 가끔 페이지를 새로 고침
   BACK_TO_TODAY_MIN: 3      // 지난 날짜를 보다가 이 시간(분) 동안 손대지 않으면 오늘로 돌아감
 };
+
+/* ===== 선생님 열쇠 (이 기기에만 저장) =====
+ *  주소 뒤에 ?key=열쇠 를 붙여 한 번 열면 기억하고 주소에서 지움. ?key= (빈칸)으로 열면 지움.
+ *  열쇠는 GAS 스크립트 속성 DASH_KEY 와 같아야 이름 명단이 옴 */
+let DASH_KEY = '';
+(() => {
+  const u = new URL(location.href);
+  try {
+    if (u.searchParams.has('key')) {
+      const k = u.searchParams.get('key').trim();
+      if (k) localStorage.setItem('dashKey', k); else localStorage.removeItem('dashKey');
+      u.searchParams.delete('key');
+      history.replaceState(null, '', u);
+    }
+    DASH_KEY = localStorage.getItem('dashKey') || '';
+  } catch (e) {}
+})();
 
 /* 종목 아이콘 (허브와 같은 그림 + 줄넘기·실내자전거) */
 const S = '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">';
@@ -260,21 +305,67 @@ function render(d) {
     ? `${d.weekFrom.slice(5).replace('-', '/')}(월)~${d.today.slice(5).replace('-', '/')} · 그 주 한 번이라도 온 친구 ÷ 반 인원`
     : `${d.weekFrom.slice(5).replace('-', '/')}(월)부터 · 이번 주 한 번이라도 온 친구 ÷ 반 인원`;
 
+  // 다녀간 친구 명단 (열쇠가 맞을 때만 visitors 가 옴)
+  lastData = d;
+  document.body.classList.toggle('names', Array.isArray(d.visitors));
+  if (!Array.isArray(d.visitors)) closeWho(); else if (whoMode) drawWho();
+
   // 축하 소식
   const feed = d.feed || [];
   const html = feed.length ? feed.map(f => `<li>${esc(f)}</li>`).join('') : (past ? '<li class="empty">이날은 축하 소식이 없어요</li>' : '<li class="empty">오늘 첫 기록을 기다리고 있어요</li>');
   if ($('feed').dataset.last !== html) { $('feed').innerHTML = html; $('feed').dataset.last = html; }
 }
 
+/* ===== 다녀간 친구 명단 ===== */
+let lastData = null, whoMode = null, hoverTimer = null;
+function drawWho() {
+  const d = lastData; if (!d || !Array.isArray(d.visitors)) return;
+  const list = whoMode === 'now' ? d.visitors.filter(v => v.now) : d.visitors;
+  const W = d.past ? longDate(d.today) : '오늘';
+  $('whoTitle').textContent = whoMode === 'now' ? '지금 운동 중인 친구' : `${W} 다녀간 친구`;
+  $('whoSub').textContent = `${list.length}명` + (whoMode === 'now' ? '' : ` · 그중 ${d.visitors.filter(v => v.now).length}명 운동 중`);
+  const groups = {};
+  list.forEach(v => { const g = v.grade ? `${v.grade}학년 ${v.cls}반` : '교직원'; (groups[g] = groups[g] || []).push(v); });
+  const names = Object.keys(groups);
+  $('whoList').innerHTML = names.length ? names.map(g => `<div class="wg"><h3>${esc(g)} · ${groups[g].length}명</h3>` +
+    groups[g].map(v => `<div class="wp"><span class="no">${v.no ? esc(v.no) : ''}</span><span class="nm">${esc(v.name)}</span>` +
+      (v.now ? '<span class="now">운동 중</span>' : '') +
+      `<span class="tm">${esc(v.first)}${v.last ? '~' + esc(v.last) : (v.now ? '~' : '')}${v.n > 1 ? ' · ' + v.n + '회 방문' : ''}</span></div>`).join('') +
+    '</div>').join('') : `<div class="empty">${whoMode === 'now' ? '지금 운동 중인 친구가 없어요' : '아직 다녀간 친구가 없어요'}</div>`;
+}
+function openWho(mode) {
+  if (!document.body.classList.contains('names')) return;
+  whoMode = mode; drawWho();
+  $('who').classList.add('on');
+  document.querySelectorAll('.card.big').forEach(c => c.classList.toggle('open', c.dataset.list === mode));
+}
+function closeWho() {
+  whoMode = null; $('who').classList.remove('on');
+  document.querySelectorAll('.card.big').forEach(c => c.classList.remove('open'));
+}
+document.querySelectorAll('.card.big[data-list]').forEach(c => {
+  c.addEventListener('click', e => { e.stopPropagation(); clearTimeout(hoverTimer); openWho(c.dataset.list); });   // 닫기는 ✕·바깥·Esc
+  // 마우스가 있는 컴퓨터에서는 올리기만 해도 열림
+  c.addEventListener('mouseenter', e => { if (e.pointerType !== 'touch' && matchMedia('(hover:hover)').matches) { clearTimeout(hoverTimer); openWho(c.dataset.list); } });
+  c.addEventListener('mouseleave', () => { if (matchMedia('(hover:hover)').matches) hoverTimer = setTimeout(closeWho, 400); });
+});
+$('who').addEventListener('mouseenter', () => clearTimeout(hoverTimer));
+$('who').addEventListener('mouseleave', () => { if (matchMedia('(hover:hover)').matches) hoverTimer = setTimeout(closeWho, 400); });
+$('who').addEventListener('click', e => e.stopPropagation());
+$('whoClose').onclick = e => { e.stopPropagation(); closeWho(); };
+addEventListener('keydown', e => { if (e.key === 'Escape') closeWho(); });
+
 let loadSeq = 0;           // 버튼을 빨리 여러 번 눌러도 마지막 날짜만 그림
 async function load() {
   const want = viewDate, seq = ++loadSeq;
   try {
-    const d = await jsonp(want ? { action: 'dash', date: want } : { action: 'dash' });
+    const q = want ? { action: 'dash', date: want } : { action: 'dash' };
+    if (DASH_KEY) q.key = DASH_KEY;
+    const d = await jsonp(q);
     if (seq !== loadSeq) return;
     if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류');
     render(d);
-    $('status').textContent = d.past ? '지난 기록 · 하루 마감' : d.updated + ' 기준';
+    $('status').textContent = (d.past ? '지난 기록 · 하루 마감' : d.updated + ' 기준') + (d.keyOk === false ? ' · 열쇠가 맞지 않아요' : '');
     $('status').classList.remove('off');
   } catch (e) {
     if (seq !== loadSeq) return;
@@ -321,6 +412,7 @@ setTimeout(() => location.reload(), CONFIG.RELOAD_HOURS * 3600 * 1000);
 
 /* 화면을 누르면 전체 화면 */
 document.addEventListener('click', e => {
+  if (whoMode) { closeWho(); return; }   // 명단이 열려 있으면 바깥을 눌러 닫기
   if (e.target.closest('#dnav')) return;
   if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
 });
