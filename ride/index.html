@@ -95,11 +95,20 @@
     li.leader{animation:pop .6s ease both}
     @keyframes pop{from{opacity:0;transform:translateY(.4vw)}to{opacity:1;transform:none}}
   }
+
+  /* 현황판 ↔ 라이딩 이동 단추 (TV 돌려보기 안에서는 숨김) */
+  .pageSwitch{align-self:center;font-size:1.05vw;font-weight:800;color:#173d6e;background:#f5c518;
+    padding:.35vw .9vw;border-radius:999px;text-decoration:none;white-space:nowrap}
+  .pageSwitch:hover{filter:brightness(1.08)}
+  html.inFrame .pageSwitch{display:none}
+  @media (max-width:900px){.pageSwitch{font-size:13px;padding:5px 12px}}
 </style>
+<script>try { if (window.top !== window) document.documentElement.classList.add('inFrame'); } catch (e) { document.documentElement.classList.add('inFrame'); }</script>
 </head>
 <body>
 <header>
   <h1>청평 인도어사이클 챌린지</h1>
+    <a class="pageSwitch" href="../board/" title="스마트스포츠실 현황판으로">📊 현황판 ›</a>
   <span id="date"></span>
   <span id="clock">--:--</span>
   <span id="status">불러오는 중…</span>

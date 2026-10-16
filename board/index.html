@@ -90,12 +90,21 @@
   body.past .card.now{display:none}
   body.past #left{grid-template-rows:auto 1fr}
   body:not(.past) #goToday{display:none}
+
+  /* 현황판 ↔ 라이딩 이동 단추 (TV 돌려보기 안에서는 숨김) */
+  .pageSwitch{align-self:center;font-size:1.05vw;font-weight:800;color:#173d6e;background:#f5c518;
+    padding:.35vw .9vw;border-radius:999px;text-decoration:none;white-space:nowrap}
+  .pageSwitch:hover{filter:brightness(1.08)}
+  html.inFrame .pageSwitch{display:none}
+  @media (max-width:900px){.pageSwitch{font-size:13px;padding:5px 12px}}
 </style>
+<script>try { if (window.top !== window) document.documentElement.classList.add('inFrame'); } catch (e) { document.documentElement.classList.add('inFrame'); }</script>
 </head>
 <body>
 <div id="app">
   <header>
     <h1 id="title">스마트스포츠실 오늘</h1>
+    <a class="pageSwitch" href="../ride/" title="청평 인도어사이클 챌린지로">🚴 라이딩 ›</a>
     <span id="pastBadge">지난 기록</span>
     <span id="date"></span>
     <div id="dnav">
