@@ -14,10 +14,17 @@
  *   3번째 줄: 학년 | 반 | 번 | 이름 | 3 / 9 | 3 / 10 | … (날짜 칸), 4번째 줄부터 학생, 칸 값 = km
  *   RIDE_SHEET_ID가 없으면 체력 기록장 '기록' 탭의 실내자전거를 대신 씀
  *   - 축하 소식 (오늘 개인 최고 기록 · 처음 해 본 종목) — 이름은 SHOW_NAMES가 true일 때만
+ *
+ *  지난 날짜 보기: action=dash&date=2026-10-15 처럼 날짜를 주면 그날 기준으로 계산
+ *   - 오늘(또는 date 없음): 60초 캐시, '지금 운동 중' 포함
+ *   - 지난 날짜: 기록이 더 바뀌지 않으므로 6시간 캐시, '지금 운동 중'은 없음(null)
+ *   - 반별 참여율은 그 주 월요일 ~ 그날, 거리 도전은 START_DATE ~ 그날
+ *   - 오늘보다 뒤 날짜나 형식이 틀린 날짜는 오늘로 봄
  */
 const DASH = {
   TZ: 'Asia/Seoul',
   CACHE_SEC: 60,
+  PAST_CACHE_SEC: 21600,                // 지난 날짜 캐시(6시간, CacheService 최대)
   SHOW_NAMES: false,                    // true면 축하 소식에 이름(성 빼고)을 보여 줌
   START_DATE: '2026-10-01',             // 누적 거리 도전을 세기 시작한 날
   DISTANCE_GOAL_KM: 100,                // 누적 거리 목표 (스크립트 속성 GOAL_KM 이 있으면 그 값)
@@ -47,22 +54,31 @@ const DASH_LOG = [
   { key: 'bike', name: '실내자전거', code: 'bike', unit: 'km', decimals: 1, distance: true }
 ];
 
-function dashSummary_() {
+function dashSummary_(dateParam) {
+  const realToday = Utilities.formatDate(new Date(), DASH.TZ, 'yyyy-MM-dd');
+  let target = String(dateParam || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(target) || target > realToday) target = realToday;
+  const past = target < realToday;
+
   const cache = CacheService.getScriptCache();
-  const hit = cache.get('dash_v1');
+  const key = past ? 'dash_d_' + target : 'dash_v1';
+  const hit = cache.get(key);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
-  const out = dashBuild_();
-  try { cache.put('dash_v1', JSON.stringify(out), DASH.CACHE_SEC); } catch (e) {}
+  const out = dashBuild_(past ? target : null);
+  try { cache.put(key, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {}
   return out;
 }
 
-function dashBuild_() {
+/** pastDay: 'yyyy-MM-dd'(지난 날짜) 또는 null(오늘·실시간) */
+function dashBuild_(pastDay) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const now = new Date();
   const day = d => Utilities.formatDate(d, DASH.TZ, 'yyyy-MM-dd');
-  const today = day(now);
-  const dow = Number(Utilities.formatDate(now, DASH.TZ, 'u'));       // 1=월 … 7=일
-  const monday = day(new Date(now.getTime() - (dow - 1) * 864e5));
+  const past = !!pastDay;
+  const base = past ? new Date(pastDay + 'T12:00:00+09:00') : now;   // 기준 날짜(지난 날은 그날 정오)
+  const today = day(base);                                            // 아래 코드에서 '오늘' = 기준 날짜
+  const dow = Number(Utilities.formatDate(base, DASH.TZ, 'u'));      // 1=월 … 7=일
+  const monday = day(new Date(base.getTime() - (dow - 1) * 864e5));
   const asDay = v => v instanceof Date ? day(v) : String(v).trim().slice(0, 10);
   const num = v => { const x = Number(v); return isFinite(x) ? x : 0; };
   const roster = rosterMap_(ss);                                        // Main.gs: 아이디 → {grade, cls, no, name}
@@ -77,7 +93,7 @@ function dashBuild_() {
     ck.getDataRange().getValues().slice(1).forEach(r => {
       const d = asDay(r[0]), id = idOf(r[5]);
       if (!id) return;
-      if (d === today) { inToday.add(id); if (r[10] === '이용 중') inNow.add(id); }
+      if (d === today) { inToday.add(id); if (!past && r[10] === '이용 중') inNow.add(id); }
       if (d >= monday && d <= today) {
         const st = roster[id];
         if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(id); }
@@ -147,7 +163,7 @@ function dashBuild_() {
       if (it.key === 'bike' && ride) return;               // 실내자전거는 인도어라이딩 시트로
       const d = asDay(r[1]), v = num(r[7]), id = idOf(r[2]);
       if (d === today) { logTotals[it.key].total += v; logTotals[it.key].people.add(id); }
-      if (it.distance && d >= DASH.START_DATE) distanceKm += v;
+      if (it.distance && d >= DASH.START_DATE && d <= today) distanceKm += v;
     });
   }
   if (ride) {
@@ -170,8 +186,8 @@ function dashBuild_() {
   return {
     ok: true,
     updated: Utilities.formatDate(now, DASH.TZ, 'HH:mm'),
-    today, weekFrom: monday,
-    now: inNow.size, todayIn: inToday.size,
+    past, today, weekFrom: monday,
+    now: past ? null : inNow.size, todayIn: inToday.size,
     totals, classes,
     distance: dashGoal_(dashRound_(distanceKm, 1)),
     feed: feed.slice(0, DASH.FEED_MAX).map(f => f.text)
@@ -227,4 +243,11 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 function diagDashboard() {
   CacheService.getScriptCache().remove('dash_v1');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
+}
+
+/** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
+function diagDashboardYesterday() {
+  const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
+  CacheService.getScriptCache().remove('dash_d_' + y);
+  Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }

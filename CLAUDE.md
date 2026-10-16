@@ -19,7 +19,7 @@
 | 트레드밀 | …/sports/treadmill/ | 트레드밀 | 타이머 + 화면 숫자 입력 |
 | 행잉 | …/sports/hang/ | 행잉 | 타이머 |
 | 로잉머신 | …/sports/rowing/ | 로잉머신 | 방식 선택 → 끝난 뒤 시간·거리(km)·SPM 입력 |
-| 현황판 | …/sports/board/ | (읽기만) | 스포츠실 TV용. `Dashboard.gs` → 허브 JSONP `action=dash` |
+| 현황판 | …/sports/board/ | (읽기만) | 스포츠실 TV용. `Dashboard.gs` → 허브 JSONP `action=dash`. 지난 날짜는 ◀▶ 또는 `?date=2026-10-15` (3분 뒤 오늘로 복귀) |
 | 청평 인도어사이클 챌린지 | …/sports/ride/ | (읽기만) | 인도어라이딩 GAS(`gas/ride/`) JSONP `?format=json&callback=` |
 | TV 돌려보기 | …/sports/tv/ | — | 현황판 ↔ 인도어라이딩 30초마다 번갈아(`?sec=`), ←/→·F 키 |
 | 입퇴실 QR(선택) | …/sports/qr/ | 입퇴실 | QR 한 번 = 입실/퇴실. 기본은 허브에서 입퇴실 |

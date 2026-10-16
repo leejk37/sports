@@ -74,13 +74,36 @@
   .cb.top .col{background:var(--yellow)}
   .cb .c{margin-top:.35vw;font-size:.9vw;font-weight:700;color:var(--soft);white-space:nowrap}
   .none{font-size:1.1vw;color:var(--soft)}
+
+  /* 날짜 이동 (◀ 날짜 ▶ 오늘) */
+  #dnav{display:flex;align-items:center;gap:.4vw;align-self:center}
+  #dnav button,#dpick{font:inherit;font-size:1.05vw;font-weight:700;color:#fff;background:rgba(255,255,255,.12);
+    border:0;border-radius:.6vw;padding:.35vw .7vw;cursor:pointer;line-height:1.2}
+  #dnav button:disabled{opacity:.3;cursor:default}
+  #dpick{color-scheme:dark;font-variant-numeric:tabular-nums;width:10.5vw}
+  #goToday{background:var(--yellow)!important;color:var(--blue-d)!important}
+  #pastBadge{display:none;font-size:1vw;font-weight:800;color:var(--blue-d);background:var(--yellow);
+    padding:.2vw .7vw;border-radius:999px;align-self:center}
+  body.past #pastBadge{display:inline-block}
+  body.past #clock{display:none}
+  body.past header{border-bottom-color:#9fc3f5}
+  body.past .card.now{display:none}
+  body.past #left{grid-template-rows:auto 1fr}
+  body:not(.past) #goToday{display:none}
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <h1>스마트스포츠실 오늘</h1>
+    <h1 id="title">스마트스포츠실 오늘</h1>
+    <span id="pastBadge">지난 기록</span>
     <span id="date"></span>
+    <div id="dnav">
+      <button id="prevDay" title="이전 날">◀</button>
+      <input type="date" id="dpick" title="날짜 고르기">
+      <button id="nextDay" title="다음 날">▶</button>
+      <button id="goToday" title="오늘(실시간)로 돌아가기">오늘</button>
+    </div>
     <span id="clock">--:--</span>
     <span id="status">불러오는 중…</span>
   </header>
@@ -88,7 +111,7 @@
   <div id="main">
     <section id="left">
       <div class="card big now"><div class="label">지금 운동 중</div><b><span id="now">-</span><small>명</small></b></div>
-      <div class="card big"><div class="label">오늘 다녀간 친구</div><b><span id="todayIn">-</span><small>명</small></b></div>
+      <div class="card big"><div class="label" id="inLabel">오늘 다녀간 친구</div><b><span id="todayIn">-</span><small>명</small></b></div>
       <div class="card" id="feedBox"><div class="label">🎉 축하해요</div><ul id="feed"></ul></div>
     </section>
 
@@ -100,7 +123,7 @@
       </div>
       <div id="tiles"></div>
       <div class="card" id="classes">
-        <div class="head"><div class="label">이번 주 반별 참여율</div><span id="weekFrom"></span></div>
+        <div class="head"><div class="label" id="classLabel">이번 주 반별 참여율</div><span id="weekFrom"></span></div>
         <div id="cbars"></div>
       </div>
     </section>
@@ -113,7 +136,8 @@ const CONFIG = {
   GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
   TOKEN: '26cp4s_squat',
   REFRESH_SEC: 60,          // 새로 불러오는 간격(초). GAS도 60초 캐시
-  RELOAD_HOURS: 6           // 오래 켜 두는 화면이라 가끔 페이지를 새로 고침
+  RELOAD_HOURS: 6,          // 오래 켜 두는 화면이라 가끔 페이지를 새로 고침
+  BACK_TO_TODAY_MIN: 3      // 지난 날짜를 보다가 이 시간(분) 동안 손대지 않으면 오늘로 돌아감
 };
 
 /* 종목 아이콘 (허브와 같은 그림 + 줄넘기·실내자전거) */
@@ -146,8 +170,28 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 function tick() {
   const d = new Date();
   $('clock').textContent = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-  $('date').textContent = d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+  if (!viewDate) $('date').textContent = d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
+  $('dpick').max = todayStr();
+  $('nextDay').disabled = !viewDate;
+  if (!viewDate && $('dpick').value !== todayStr()) $('dpick').value = todayStr();   // 자정이 지나면 날짜칸도 넘어감
 }
+
+/* ===== 날짜 (yyyy-MM-dd, 한국 시간) ===== */
+const todayStr = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });   // sv-SE = 2026-10-16 형식
+function addDays(s, n) {
+  const d = new Date(s + 'T12:00:00+09:00');
+  d.setTime(d.getTime() + n * 864e5);
+  return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+}
+function longDate(s) {
+  return new Date(s + 'T12:00:00+09:00').toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' });
+}
+let viewDate = null;      // null = 오늘(실시간), 'yyyy-MM-dd' = 지난 날짜
+(() => {                  // 주소에 ?date=2026-10-15 가 있으면 그날로 시작
+  const q = new URLSearchParams(location.search).get('date');
+  if (q && /^\d{4}-\d{2}-\d{2}$/.test(q) && q < todayStr()) viewDate = q;
+})();
+
 tick(); setInterval(tick, 1000);
 
 /* ===== GAS 통신 (JSONP) ===== */
@@ -167,8 +211,13 @@ function jsonp(params, timeout = 20000) {
 
 /* ===== 그리기 ===== */
 function render(d) {
-  $('now').textContent = d.now;
+  const past = !!d.past;
+  const W = past ? '이날' : '오늘';
+  $('now').textContent = d.now == null ? '-' : d.now;
   $('todayIn').textContent = d.todayIn;
+  $('inLabel').textContent = `${W} 다녀간 친구`;
+  $('title').textContent = past ? '스마트스포츠실 그날의 기록' : '스마트스포츠실 오늘';
+  if (past) $('date').textContent = longDate(d.today);
 
   // 거리 도전
   const g = d.distance || { km: 0, goal: 100 };
@@ -177,17 +226,17 @@ function render(d) {
   $('goalMax').textContent = fmt(g.goal);
   $('goalBar').style.width = Math.min(100, g.goal ? g.km / g.goal * 100 : 0) + '%';
   $('goalSub').textContent = (g.km >= g.goal ? '🎉 목표 달성! ' : `목표까지 ${fmt(Math.max(0, g.goal - g.km).toFixed(1))}km · `) +
-    '10월부터 실내자전거로 달린 거리를 모두 더해요';
+    (past ? `10월부터 ${longDate(d.today)}까지 실내자전거로 달린 거리` : '10월부터 실내자전거로 달린 거리를 모두 더해요');
 
   // 종목별 오늘 누적 (11칸 + 오늘 기록 수 1칸 = 6×2)
   const by = Object.fromEntries((d.totals || []).map(t => [t.key, t]));
   const tiles = ORDER.filter(k => by[k]).map(k => {
     const t = by[k];
     return `<div class="tile${t.value ? '' : ' zero'}">${ICON[k] || ''}<div class="n">${esc(t.name)}</div>
-      <div class="v">${val(t)}</div><div class="p">${t.people ? t.people + '명 참여' : '아직 없어요'}</div></div>`;
+      <div class="v">${val(t)}</div><div class="p">${t.people ? t.people + '명 참여' : (past ? '기록 없음' : '아직 없어요')}</div></div>`;
   });
   const kinds = (d.totals || []).filter(t => t.people).length;
-  tiles.push(`<div class="tile sum"><div class="n">오늘 해 본 종목</div><div class="v">${kinds}<small>종목</small></div><div class="p">모두 ${ORDER.length}종목</div></div>`);
+  tiles.push(`<div class="tile sum"><div class="n">${W} 해 본 종목</div><div class="v">${kinds}<small>종목</small></div><div class="p">모두 ${ORDER.length}종목</div></div>`);
   $('tiles').innerHTML = tiles.join('');
 
   // 반별 참여율
@@ -197,32 +246,73 @@ function render(d) {
       <div class="well"><span class="r">${c.rate}%</span><div class="col" data-h="${c.rate}"></div></div><span class="c">${esc(c.cls.replace('학년 ', '-').replace('반', ''))}</span></div>`).join('')
     : '<div class="none">명단을 불러오지 못했어요</div>';
   requestAnimationFrame(() => document.querySelectorAll('.cb .col').forEach(el => el.style.height = `calc((100% - 1.6vw) * ${Math.max(2, el.dataset.h) / 100})`));
-  $('weekFrom').textContent = d.weekFrom ? `${d.weekFrom.slice(5).replace('-', '/')}(월)부터 · 이번 주 한 번이라도 온 친구 ÷ 반 인원` : '';
+  $('classLabel').textContent = past ? '그 주 반별 참여율' : '이번 주 반별 참여율';
+  $('weekFrom').textContent = !d.weekFrom ? '' : past
+    ? `${d.weekFrom.slice(5).replace('-', '/')}(월)~${d.today.slice(5).replace('-', '/')} · 그 주 한 번이라도 온 친구 ÷ 반 인원`
+    : `${d.weekFrom.slice(5).replace('-', '/')}(월)부터 · 이번 주 한 번이라도 온 친구 ÷ 반 인원`;
 
   // 축하 소식
   const feed = d.feed || [];
-  const html = feed.length ? feed.map(f => `<li>${esc(f)}</li>`).join('') : '<li class="empty">오늘 첫 기록을 기다리고 있어요</li>';
+  const html = feed.length ? feed.map(f => `<li>${esc(f)}</li>`).join('') : (past ? '<li class="empty">이날은 축하 소식이 없어요</li>' : '<li class="empty">오늘 첫 기록을 기다리고 있어요</li>');
   if ($('feed').dataset.last !== html) { $('feed').innerHTML = html; $('feed').dataset.last = html; }
 }
 
+let loadSeq = 0;           // 버튼을 빨리 여러 번 눌러도 마지막 날짜만 그림
 async function load() {
+  const want = viewDate, seq = ++loadSeq;
   try {
-    const d = await jsonp({ action: 'dash' });
+    const d = await jsonp(want ? { action: 'dash', date: want } : { action: 'dash' });
+    if (seq !== loadSeq) return;
     if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류');
     render(d);
-    $('status').textContent = d.updated + ' 기준';
+    $('status').textContent = d.past ? '지난 기록 · 하루 마감' : d.updated + ' 기준';
     $('status').classList.remove('off');
   } catch (e) {
+    if (seq !== loadSeq) return;
     $('status').textContent = '연결 끊김 · 다시 시도 중';
     $('status').classList.add('off');
   }
 }
-load();
-setInterval(load, CONFIG.REFRESH_SEC * 1000);
+
+/* ===== 날짜 이동 ===== */
+let refreshTimer = null, backTimer = null;
+function setDate(s) {
+  const t = todayStr();
+  viewDate = (!s || s >= t) ? null : s;
+  document.body.classList.toggle('past', !!viewDate);
+  $('dpick').value = viewDate || t;
+  $('nextDay').disabled = !viewDate;
+  if (viewDate) $('date').textContent = longDate(viewDate);
+  else tick();
+  // 주소에도 날짜를 남겨 두면 그 화면을 그대로 공유·즐겨찾기 가능
+  const u = new URL(location.href);
+  if (viewDate) u.searchParams.set('date', viewDate); else u.searchParams.delete('date');
+  history.replaceState(null, '', u);
+  // 오늘만 1분마다 새로 고침 (지난 날은 기록이 바뀌지 않음)
+  clearInterval(refreshTimer);
+  if (!viewDate) refreshTimer = setInterval(load, CONFIG.REFRESH_SEC * 1000);
+  armBack();
+  $('status').textContent = '불러오는 중…';
+  load();
+}
+/* 지난 날짜를 켜 둔 채 잊어도 TV가 오늘로 돌아오게 */
+function armBack() {
+  clearTimeout(backTimer);
+  if (viewDate) backTimer = setTimeout(() => setDate(null), CONFIG.BACK_TO_TODAY_MIN * 60 * 1000);
+}
+$('prevDay').onclick = e => { e.stopPropagation(); setDate(addDays(viewDate || todayStr(), -1)); };
+$('nextDay').onclick = e => { e.stopPropagation(); if (viewDate) setDate(addDays(viewDate, 1)); };
+$('goToday').onclick = e => { e.stopPropagation(); setDate(null); };
+$('dpick').onclick = e => e.stopPropagation();
+$('dpick').onchange = () => setDate($('dpick').value);
+['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, armBack));
+
+setDate(viewDate);
 setTimeout(() => location.reload(), CONFIG.RELOAD_HOURS * 3600 * 1000);
 
 /* 화면을 누르면 전체 화면 */
-document.addEventListener('click', () => {
+document.addEventListener('click', e => {
+  if (e.target.closest('#dnav')) return;
   if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
 });
 </script>
