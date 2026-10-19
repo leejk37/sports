@@ -181,6 +181,9 @@ const CONFIG = {
   // 몸 각도 = 어깨–엉덩이–발목(일반) / 어깨–엉덩이–무릎(무릎 대고). 180°에 가까울수록 일자
   BODY_MIN: 155,     // 이 이상이어야 바른 자세 → 시간이 올라감
   FLAT_MAX: 40,      // 어깨–발(무릎) 선이 바닥과 이루는 각도가 이보다 크면 엎드린 자세가 아님
+  // ---- 몸이 바닥에서 떠 있는지 (위팔 길이를 1로 본 비율) ----
+  LIFT_MIN: 0.6,     // 어깨가 바닥 지지점(팔꿈치·손목 중 아래쪽)보다 이만큼 높아야 함 → 배 대고 엎드림 걸러냄
+  HIP_MIN: 0.35,     // 엉덩이가 바닥선(지지점–발목/무릎)보다 이만큼 높아야 함 → 상체만 세우고 배 댄 자세 걸러냄
   GRACE_MS: 400,     // 자세가 이만큼 무너져야 '처짐/솟음'으로 셈(순간 흔들림 무시)
   GIVEUP_SEC: 3,     // 자세가 이만큼 계속 무너지면 측정 끝
   VIS_MIN: 0.5,
@@ -201,7 +204,7 @@ let mode = 'loading', kind = 'full', goal = 0;
 let pose, stream, facing = localStorage.getItem('plankFacing') || 'user';
 let email = '', runStart = 0, runEnd = 0, lastTick = 0;
 let hold = 0, sag = 0, pike = 0, badSince = null, badKind = '', counted = false, lastSeen = 0;
-let sBody = null, sFlat = null, sDir = 0, readySince = null, isGood = true;
+let sBody = null, sFlat = null, sLift = null, sHip = null, sDir = 0, readySince = null, isGood = true;
 let lastQr = 0, lastVideoTime = -1, clientId = '';
 let audio;
 
@@ -227,8 +230,10 @@ function setGauge() {
   if (!['ready', 'measure'].includes(mode) || sBody == null) { fill.style.height = '0'; fill.classList.remove('reached'); return; }
   const r = Math.max(0, Math.min(1, (sBody - G0) / (G1 - G0)));
   fill.style.height = (r * 100) + '%';
-  fill.classList.toggle('reached', sBody >= CONFIG.BODY_MIN);
+  fill.classList.toggle('reached', sBody >= CONFIG.BODY_MIN && isLifted());
 }
+/* 몸이 바닥에서 떠 있는가 */
+const isLifted = () => sLift != null && sHip != null && sLift >= CONFIG.LIFT_MIN && sHip >= CONFIG.HIP_MIN;
 
 /* ===== 소리 ===== */
 function beep(freq = 880, ms = 120) {
@@ -280,7 +285,17 @@ function analyze(lm) {
   // 엉덩이가 어깨–끝점 선보다 아래(+)인지 위(-)인지 → 처짐/솟음 구분
   const t = (Hp.x - S.x) / ((E.x - S.x) || 1);
   const dir = Hp.y - (S.y + t * (E.y - S.y));
-  return { ok, body, flat, dir, side: s, end, P };
+
+  // ---- 바닥에서 떠 있는지 ----
+  // 화면 y는 아래로 갈수록 커짐. 바닥 지지점 = 팔꿈치와 손목 중 더 아래쪽(팔꿈치 플랭크·손 플랭크 모두 대응)
+  const El = P[s + 'e'], Wr = P[s + 'w'];
+  const F = (Wr.v > CONFIG.VIS_MIN && Wr.y > El.y) ? Wr : El;
+  const arm = Math.hypot(S.x - El.x, S.y - El.y) || 1;          // 위팔 길이(학생 크기·카메라 거리 보정용 자)
+  const lift = (F.y - S.y) / arm;                               // 어깨가 지지점보다 얼마나 높은가
+  const u = (Hp.x - F.x) / ((E.x - F.x) || 1);
+  const floorY = F.y + u * (E.y - F.y);                         // 엉덩이 바로 아래의 바닥선 높이
+  const hipUp = (floorY - Hp.y) / arm;                          // 엉덩이가 바닥선보다 얼마나 높은가
+  return { ok, body, flat, dir, lift, hipUp, F, side: s, end, P };
 }
 
 /* ===== 그리기 ===== */
@@ -298,19 +313,28 @@ function drawPose(r) {
     ctx.strokeStyle = color; ctx.beginPath();
     ctx.moveTo(X(P[a].x), P[a].y); ctx.lineTo(X(P[b].x), P[b].y); ctx.stroke();
   };
+  // 바닥선(지지점–발목/무릎): 엉덩이 높이를 재는 기준
+  ctx.lineWidth = 3; ctx.setLineDash([12, 10]); ctx.strokeStyle = 'rgba(255,255,255,.6)';
+  ctx.beginPath(); ctx.moveTo(X(r.F.x), r.F.y); ctx.lineTo(X(P[s + r.end].x), P[s + r.end].y); ctx.stroke();
+  ctx.setLineDash([]);
+
   ctx.lineWidth = 9;
-  const good = sBody != null && sBody >= CONFIG.BODY_MIN;
+  const good = sBody != null && sBody >= CONFIG.BODY_MIN && isLifted();
   const c = good ? '#5fd3a6' : '#ff6b6b';
   line(s + 's', s + 'h', c); line(s + 'h', s + r.end, c);
   if (r.end === 'k') line(s + 'k', s + 'a', 'rgba(255,255,255,.5)');
   line(s + 's', s + 'e', '#f5c518');
+  if (r.F !== P[s + 'e']) line(s + 'e', s + 'w', '#f5c518');
   const h = P[s + 'h'];
   ctx.fillStyle = c; ctx.beginPath(); ctx.arc(X(h.x), h.y, 14, 0, Math.PI * 2); ctx.fill();
   // 교사용 확인 수치(기준값 조정할 때 참고)
-  ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 300, 84);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 28px Pretendard, sans-serif';
-  ctx.fillText('몸 일자 ' + Math.round(sBody) + '°', 24, 48);
-  ctx.fillText('바닥과 ' + Math.round(sFlat) + '°', 24, 84);
+  ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 320, 156);
+  ctx.font = 'bold 28px Pretendard, sans-serif';
+  const txt = (label, ok, y) => { ctx.fillStyle = ok ? '#fff' : '#ff8787'; ctx.fillText(label, 24, y); };
+  txt('몸 일자 ' + Math.round(sBody) + '°', sBody >= CONFIG.BODY_MIN, 48);
+  txt('바닥과 ' + Math.round(sFlat) + '°', sFlat <= CONFIG.FLAT_MAX, 84);
+  txt('어깨 높이 ' + sLift.toFixed(2), sLift >= CONFIG.LIFT_MIN, 120);
+  txt('엉덩이 높이 ' + sHip.toFixed(2), sHip >= CONFIG.HIP_MIN, 156);
 }
 
 /* ===== 메인 루프 ===== */
@@ -332,19 +356,25 @@ function loop() {
   const r = analyze(lm);
   const ease = (s, v) => s == null ? v : s + CONFIG.SMOOTH * (v - s);
   sBody = ease(sBody, r.body); sFlat = ease(sFlat, r.flat); sDir = r.dir;
+  sLift = ease(sLift, r.lift); sHip = ease(sHip, r.hipUp);
   if (r.ok) lastSeen = now;
   drawPose(r);
-  setHint(r.ok ? '' : '어깨·엉덩이·' + (kind === 'knee' ? '무릎' : '발목') + '이 잘 보이게 해 주세요');
+  setHint(r.ok ? '' : '어깨·팔꿈치·엉덩이·' + (kind === 'knee' ? '무릎' : '발목') + '이 잘 보이게 해 주세요');
   setGauge();
 
-  const goodNow = r.ok && sBody >= CONFIG.BODY_MIN && sFlat <= CONFIG.FLAT_MAX;
+  const lifted = isLifted();
+  const goodNow = r.ok && sBody >= CONFIG.BODY_MIN && sFlat <= CONFIG.FLAT_MAX && lifted;
   if (mode === 'ready') {
-    if (!goodNow) { readySince = null; $('readyState').textContent = '몸을 일자로 하고 엎드려요…'; return; }
+    if (!goodNow) {
+      readySince = null;
+      $('readyState').textContent = r.ok && !lifted ? '배를 바닥에서 떼고 몸을 들어요…' : '몸을 일자로 하고 엎드려요…';
+      return;
+    }
     readySince ??= now;
     $('readyState').textContent = now - readySince > 300 ? '✓ 그대로 가만히…' : '좋아요, 그대로…';
     if (now - readySince > CONFIG.STABLE_MS) startCountdown();
   } else if (mode === 'measure') {
-    judge(now, goodNow, r);
+    judge(now, goodNow, r, lifted);
   }
 }
 
@@ -371,7 +401,7 @@ function setKind(k) {
 function toReady(g) {
   goal = g;                       // 0이면 최대한 오래, 숫자면 목표 초
   hold = 0; sag = 0; pike = 0; badSince = null; counted = false;
-  sBody = sFlat = null; readySince = null;
+  sBody = sFlat = sLift = sHip = null; readySince = null;
   $('readyText').innerHTML = kind === 'knee'
     ? '몸 옆면이 카메라에 보이게 엎드려요.<br>무릎을 바닥에 대고, 어깨–엉덩이–무릎을 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.'
     : '몸 옆면이 카메라에 보이게 엎드려요.<br>팔꿈치(또는 손)와 발끝으로 버티고, 머리부터 발끝까지 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.';
@@ -413,7 +443,7 @@ function tickTime(now) {
   }
   updateNums();
 }
-function judge(now, goodNow, r) {
+function judge(now, goodNow, r, lifted) {
   if (goodNow) {
     isGood = true; badSince = null; counted = false;
     $('stateNow').textContent = '좋아요 ✓';
@@ -421,12 +451,18 @@ function judge(now, goodNow, r) {
   }
   isGood = false;
   badSince ??= now;
-  const kindNow = !r.ok ? '' : (sDir > 0 ? 'sag' : 'pike');
-  $('stateNow').textContent = kindNow === 'sag' ? '엉덩이가 처졌어요' : kindNow === 'pike' ? '엉덩이가 솟았어요' : '자세를 확인해요';
+  // 'down' = 배가 바닥에 닿음(기록은 '처짐'으로 셈 → 시트 열은 그대로)
+  const kindNow = !r.ok ? '' : !lifted ? 'down' : (sDir > 0 ? 'sag' : 'pike');
+  $('stateNow').textContent =
+    kindNow === 'down' ? '배가 바닥에 닿았어요' :
+    kindNow === 'sag' ? '엉덩이가 처졌어요' :
+    kindNow === 'pike' ? '엉덩이가 솟았어요' : '자세를 확인해요';
   // 잠깐 흔들린 건 무시, 무너진 채 GRACE_MS가 지나면 한 번만 셈
   if (!counted && kindNow && now - badSince > CONFIG.GRACE_MS) {
     counted = true;
-    if (kindNow === 'sag') { sag++; flash('엉덩이를 올려요!'); } else { pike++; flash('엉덩이를 내려요!'); }
+    if (kindNow === 'down') { sag++; flash('몸을 들어 올려요!'); }
+    else if (kindNow === 'sag') { sag++; flash('엉덩이를 올려요!'); }
+    else { pike++; flash('엉덩이를 내려요!'); }
     beep(220, 150);
   }
   if (now - badSince > CONFIG.GIVEUP_SEC * 1000) finish('자세가 3초 넘게 무너졌어요');
