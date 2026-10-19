@@ -141,6 +141,7 @@
         <div class="count"><span id="goodNum">0</span><small id="goalLabel">회</small></div>
         <div class="rows">
           <div class="row"><span>지금 빠르기</span><span id="paceNum">-</span></div>
+          <div class="row"><span>줄 없이 뜀 (안 셈)</span><b id="nopeNum">0</b></div>
         </div>
       </section>
 
@@ -150,6 +151,7 @@
         <div class="rows">
           <div class="row" id="resTimeRow" style="display:none"><span>걸린 시간</span><span id="resTime"></span></div>
           <div class="row"><span>1분에 몇 번 빠르기</span><span id="resPace">0회</span></div>
+          <div class="row"><span>줄 없이 뜀 (안 셈)</span><b id="resNope">0</b></div>
         </div>
         <div id="saveState"></div>
         <button class="btn line" id="retrySave" hidden>다시 저장</button>
@@ -180,7 +182,14 @@ const CONFIG = {
   SMOOTH: 0.7,       // 1에 가까울수록 흔들림을 덜 걸러 냄 (줄넘기는 빨라서 높게)
   STABLE_MS: 1000,
   SAVE_TIMEOUT_MS: 30000,
-  MAX_SEC: 300       // 횟수 모드에서 이 시간이 지나면 자동 종료
+  MAX_SEC: 300,      // 횟수 모드에서 이 시간이 지나면 자동 종료
+
+  // ---- 줄을 돌렸는지 확인 (손목 움직임) ----
+  // 줄을 돌리면 한 번 뛸 때마다 손목이 작은 원을 그림. 손목 위치를 '엉덩이 기준'으로 재서 몸이 오르내리는 건 빼고 봄
+  ROPE_CHECK: true,  // false면 확인 안 함(예전처럼 뛰기만 하면 셈)
+  TURN_MIN: 0.08,    // 한 번 뛰는 동안 손목이 몸통 길이의 8% 넘게 움직여야 줄을 돌린 것으로 봄
+                     // 현장에서 조정: 주소 뒤에 ?turn=0.06 (느슨하게) / ?turn=0.1 (엄격하게)
+  TURN_WINDOW_MS: 700 // 손목 움직임을 살펴보는 시간(직전 뛰기부터, 최대 이만큼)
 };
 
 /* 주소로 예민도 조정 (선생님용) */
@@ -189,6 +198,12 @@ const CONFIG = {
   try { if (q === '0') localStorage.removeItem('ropeJump'); else if (q) localStorage.setItem('ropeJump', q); } catch (e) {}
   let j = 0; try { j = Number(localStorage.getItem('ropeJump')); } catch (e) {}
   if (j >= 0.02 && j <= 0.2) CONFIG.JUMP = j;
+  // ?turn=0.06 처럼 줄 돌림 기준도 기억 (?turn=0 이면 기본값, ?turn=off 면 확인 끔)
+  const tq = new URLSearchParams(location.search).get('turn');
+  try { if (tq === '0') localStorage.removeItem('ropeTurn'); else if (tq) localStorage.setItem('ropeTurn', tq); } catch (e) {}
+  let tv = ''; try { tv = localStorage.getItem('ropeTurn') || ''; } catch (e) {}
+  if (tv === 'off') CONFIG.ROPE_CHECK = false;
+  else if (Number(tv) >= 0.02 && Number(tv) <= 0.4) CONFIG.TURN_MIN = Number(tv);
 }
 
 /* COUNTER START — 뛴 횟수 세기 (높이 신호의 오르내림을 따라감) */
@@ -223,7 +238,8 @@ const qrCanvas = document.createElement('canvas'), qrCtx = qrCanvas.getContext('
 let mode = 'loading';
 let pose, stream, facing = localStorage.getItem('ropeFacing') || 'user';
 let email = '', duration = 30, endAt = 0, target = 0, runStart = 0, runEnd = 0;
-let counts = { good: 0 };
+let counts = { good: 0, nope: 0 };
+let wristBuf = [], lastTurn = null, lastNopeFlash = 0;
 const counter = makeCounter(CONFIG);
 let sH = null, torsoS = null, readySince = null, stillMin = null, stillMax = null, jumpTimes = [], lastH = 0;
 let fpsN = 0, fpsT = 0, fps = 0;
@@ -297,7 +313,11 @@ function analyze(lm) {
   // 몸통 길이는 천천히 따라가게 해서(흔들림 제거) 나누는 값이 출렁이지 않게 함
   torsoS = torsoS == null ? torso : torsoS + 0.03 * (torso - torsoS);
   const h = -((sy + hy) / 2) / torsoS;     // 화면 위쪽일수록 큰 값, 몸통 길이 단위
-  return { ok, h, P };
+  // 손목 위치: 엉덩이 가운데를 0으로, 몸통 길이 단위 → 몸 전체가 뛰어오르는 움직임은 빠지고 손목만의 움직임이 남음
+  const hx = (P.lh.x + P.rh.x) / 2;
+  const wr = ['lw', 'rw'].map(k => P[k].v > CONFIG.VIS_MIN ? { x: (P[k].x - hx) / torsoS, y: (P[k].y - hy) / torsoS } : null);
+  const handsUp = ['lw', 'rw'].some(k => P[k].v > CONFIG.VIS_MIN && P[k].y < sy);   // 손이 어깨보다 위 → 줄넘기 자세 아님
+  return { ok, h, P, wr, handsUp };
 }
 
 /* ===== 그리기 ===== */
@@ -317,9 +337,15 @@ function drawPose(r) {
   BONES.forEach(([a, b]) => { ctx.moveTo(X(r.P[a].x), r.P[a].y); ctx.lineTo(X(r.P[b].x), r.P[b].y); });
   ctx.stroke();
   // 교사용 확인 수치: 1초에 분석하는 장면 수(높을수록 빠른 줄넘기도 셈)
-  ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 230, 48);
+  ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 300, CONFIG.ROPE_CHECK ? 86 : 48);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 28px Pretendard, sans-serif';
   ctx.fillText('분석 ' + fps + '장/초', 24, 48);
+  if (CONFIG.ROPE_CHECK) {   // 마지막으로 뛸 때 손목이 움직인 폭 (기준 이상이면 흰색)
+    ctx.fillStyle = lastTurn == null || lastTurn >= CONFIG.TURN_MIN ? '#fff' : '#ff8787';
+    ctx.fillText('손 돌림 ' + (lastTurn == null ? '-' : lastTurn.toFixed(2)) + ' / ' + CONFIG.TURN_MIN, 24, 84);
+  }
+  // 손목 표시: 줄을 돌리는 손을 크게 찍어 줌
+  ['lw', 'rw'].forEach(k => { if (r.P[k].v > CONFIG.VIS_MIN) { ctx.fillStyle = '#f5c518'; ctx.beginPath(); ctx.arc(X(r.P[k].x), r.P[k].y, 11, 0, Math.PI * 2); ctx.fill(); } });
 }
 
 /* ===== 메인 루프 ===== */
@@ -343,6 +369,10 @@ function loop() {
   drawPose(r);
   setHint(r.ok ? '' : '어깨·엉덩이·발목까지 잘 보이게 해 주세요');
   setGauge();
+  if (mode === 'measure') {
+    wristBuf.push({ t: now, wr: r.wr, up: r.handsUp });
+    while (wristBuf.length && now - wristBuf[0].t > 1500) wristBuf.shift();
+  }
   if (!r.ok) return;
 
   if (mode === 'ready') {
@@ -379,7 +409,7 @@ function toReady(sec, reps = 0) {
   target = reps;                 // 0이면 시간 모드, 숫자면 횟수 모드
   duration = reps ? CONFIG.MAX_SEC : sec;
   goalText = reps ? reps + '회' : (sec >= 60 ? sec / 60 + '분' : sec + '초');
-  counts = { good: 0 };
+  counts = { good: 0, nope: 0 };
   sH = null; readySince = null;
   beep(660, 60);
   show('ready');
@@ -395,7 +425,7 @@ function startCountdown() {
   tick();
 }
 function startMeasure() {
-  counter.reset(); jumpTimes = []; gaugeLow = null;
+  counter.reset(); jumpTimes = []; gaugeLow = null; wristBuf = []; lastTurn = null; counts.nope = 0;
   endAt = performance.now() + duration * 1000;
   runStart = performance.now();
   $('goalLabel').textContent = target ? '/ ' + target + '회' : '회';
@@ -408,14 +438,37 @@ function startMeasure() {
 function measure(now) {
   if (tickGoal(now)) return;
   if (counter.push(sH, now)) {
-    counts.good++; jumpTimes.push(now);
-    beep(1320, 40);
+    if (ropeTurned(now)) {
+      counts.good++; jumpTimes.push(now);
+      beep(1320, 40);
+    } else {
+      counts.nope++;
+      if (now - lastNopeFlash > 1500) { lastNopeFlash = now; flash('줄을 돌려요!'); beep(260, 80); }
+    }
   }
   updateCounts(now);
+}
+/* 줄을 돌렸는가: 직전 뛰기 이후(최대 TURN_WINDOW_MS) 손목이 얼마나 움직였는지
+ *  두 손목 중 더 많이 움직인 쪽의 가로·세로 움직임 폭(몸통 길이 단위)을 봄 */
+function ropeTurned(now) {
+  const from = Math.max(now - CONFIG.TURN_WINDOW_MS, (jumpTimes.at(-1) ?? -1e9) - 50);
+  const win = wristBuf.filter(s => s.t >= from);
+  let best = 0, up = false;
+  for (const i of [0, 1]) {
+    const pts = win.map(s => s.wr[i]).filter(Boolean);
+    if (pts.length < 3) continue;
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    best = Math.max(best, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+  }
+  up = win.some(s => s.up);
+  lastTurn = best;
+  if (!CONFIG.ROPE_CHECK) return true;
+  return !up && best >= CONFIG.TURN_MIN;
 }
 /* 지금 빠르기: 최근 5초 동안 뛴 횟수 → 1분에 몇 번 */
 function updateCounts(now) {
   $('goodNum').textContent = counts.good;
+  $('nopeNum').textContent = counts.nope;
   const recent = jumpTimes.filter(t => now - t <= 5000);
   $('paceNum').textContent = recent.length >= 3 ? Math.round(recent.length / 5 * 60) + '회/분' : '-';
 }
@@ -440,6 +493,7 @@ function finish() {
   beep(500, 500);
   show('result');
   $('resGood').textContent = counts.good;
+  $('resNope').textContent = counts.nope;
   $('resPace').textContent = pace() + '회';
   save();
 }
