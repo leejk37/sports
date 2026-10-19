@@ -181,7 +181,7 @@ const CONFIG = {
   // 일직선 = 어깨–엉덩이–무릎–발목 4점. 엉덩이 각·무릎 각이 모두 180°에 가까울수록 일자
   // (무릎 대고: 어깨–엉덩이–무릎 3점)
   BODY_MIN: 160,     // 엉덩이 각(어깨–엉덩이–무릎)이 이 이상이어야 바른 자세 → 처짐/솟음 판정
-  KNEE_ANG_MIN: 145, // 무릎 각(엉덩이–무릎–발목) 기준. 무릎은 살짝 굽기 쉽고 인식도 흔들려 느슨하게
+  KNEE_ANG_MIN: 0,   // 무릎 각(엉덩이–무릎–발목) 기준. 0이면 검사 안 함(무릎 닿음은 KNEE_MIN이 따로 잡음). 다시 켜려면 140~150
   // 직각삼각형 = 어깨–팔꿈치(지지점)–발목(무릎). 팔꿈치 각이 90°에 가까워야 함
   ELBOW_TOL: 15,     // 90° ± 이 값 안이면 팔꿈치가 어깨 바로 아래
   FLAT_MAX: 40,      // 어깨–발(무릎) 선이 바닥과 이루는 각도가 이보다 크면 엎드린 자세가 아님
@@ -355,7 +355,7 @@ function drawPose(r) {
   // 교사용 확인 수치(기준값 조정할 때 참고) — 기준에 못 미치면 빨간 글씨
   const rows = [
     ['엉덩이 각 ' + Math.round(sHipA) + '°', sHipA >= CONFIG.BODY_MIN],
-    ...(r.end === 'a' ? [['무릎 각 ' + Math.round(sKneeA) + '°', sKneeA >= CONFIG.KNEE_ANG_MIN]] : []),
+    ...(r.end === 'a' && CONFIG.KNEE_ANG_MIN > 0 ? [['무릎 각 ' + Math.round(sKneeA) + '°', sKneeA >= CONFIG.KNEE_ANG_MIN]] : []),
     ['팔꿈치 각 ' + Math.round(sElbow) + '°', isRight()],
     ['어깨 높이 ' + sLift.toFixed(2), sLift >= CONFIG.LIFT_MIN],
     ['엉덩이 높이 ' + sHip.toFixed(2), sHip >= CONFIG.HIP_MIN],
@@ -440,7 +440,7 @@ function toReady(g) {
   sBody = sFlat = sLift = sHip = sHipA = sKneeA = sElbow = sKneeUp = null; readySince = null;
   $('readyText').innerHTML = kind === 'knee'
     ? '몸 옆면이 카메라에 보이게 엎드려요.<br>무릎을 바닥에 대고, 어깨–엉덩이–무릎을 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.'
-    : '몸 옆면이 카메라에 보이게 엎드려요.<br>팔꿈치를 어깨 바로 아래에 두고 발끝으로 버텨요.<br>어깨–엉덩이–무릎–발목을 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.';
+    : '몸 옆면이 카메라에 보이게 엎드려요.<br>팔꿈치를 어깨 바로 아래에 두고 발끝으로 버텨요.<br>어깨–엉덩이–무릎을 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.';
   beep(660, 60);
   show('ready');
 }
