@@ -17,47 +17,47 @@
   html,body{margin:0;height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;overflow:hidden}
   #app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
 
-  header{display:flex;align-items:baseline;gap:1.4vw;padding:1vw 2vw .8vw;border-bottom:.35vw solid var(--yellow)}
-  header h1{margin:0;font-size:2.3vw;font-weight:800;letter-spacing:-.05vw;flex:1}
+  header{display:flex;align-items:baseline;gap:1.4vw;padding:.7vw 2vw .6vw;border-bottom:.35vw solid var(--yellow)}
+  header h1{margin:0;font-size:2.1vw;font-weight:800;letter-spacing:-.05vw;flex:1}
   #date{font-size:1.4vw;font-weight:700;color:var(--soft)}
-  #clock{font-size:2.3vw;font-weight:800;font-variant-numeric:tabular-nums}
+  #clock{font-size:2.1vw;font-weight:800;font-variant-numeric:tabular-nums}
   #status{font-size:1vw;color:var(--soft)}
   #status.off{color:#ffb3a1}
 
-  #main{display:grid;grid-template-columns:27vw 1fr;gap:1.4vw;padding:1.4vw 2vw 1.6vw;min-height:0}
-  .card{background:var(--blue-d);border-radius:1.1vw;padding:1.1vw 1.3vw;min-height:0}
-  .label{font-size:1.15vw;font-weight:700;color:var(--soft)}
+  #main{display:grid;grid-template-columns:27vw 1fr;gap:1.1vw;padding:1.1vw 2vw 1.1vw;min-height:0}
+  .card{background:var(--blue-d);border-radius:1.1vw;padding:.8vw 1.2vw;min-height:0}
+  .label{font-size:1.05vw;font-weight:700;color:var(--soft)}
 
   /* 왼쪽: 큰 숫자 + 축하 소식 */
-  #left{display:grid;grid-template-rows:auto auto 1fr;gap:1.4vw;min-height:0}
-  .big b{display:block;font-size:6vw;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
-  .big b small{font-size:2vw;font-weight:800;margin-left:.3vw}
+  #left{display:grid;grid-template-rows:auto auto 1fr;gap:1.1vw;min-height:0}
+  .big b{display:block;font-size:4.8vw;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+  .big b small{font-size:1.7vw;font-weight:800;margin-left:.3vw}
   .big.now b{color:var(--yellow)}
   #feedBox{display:flex;flex-direction:column;overflow:hidden}
-  #feed{list-style:none;margin:.7vw 0 0;padding:0;display:flex;flex-direction:column;gap:.6vw;overflow:hidden}
-  #feed li{font-size:1.15vw;font-weight:600;line-height:1.35;padding:.7vw .9vw;border-radius:.7vw;background:rgba(255,255,255,.08);
+  #feed{list-style:none;margin:.5vw 0 0;padding:0;display:flex;flex-direction:column;gap:.45vw;overflow:hidden}
+  #feed li{font-size:1.05vw;font-weight:600;line-height:1.3;padding:.5vw .8vw;border-radius:.7vw;background:rgba(255,255,255,.08);
     border-left:.35vw solid var(--yellow);animation:pop .6s ease both}
   #feed li.empty{border-left-color:var(--dim);color:var(--soft)}
   @keyframes pop{from{opacity:0;transform:translateY(.6vw)}to{opacity:1;transform:none}}
 
   /* 오른쪽: 거리 도전 · 종목 · 반별 참여 */
-  #right{display:grid;grid-template-rows:auto 1fr auto;gap:1.4vw;min-height:0}
+  #right{display:grid;grid-template-rows:auto 1fr auto;gap:1.1vw;min-height:0}
   #goal .top{display:flex;align-items:baseline;gap:1vw}
-  #goal .top b{font-size:1.5vw;font-weight:800;flex:1}
-  #goal .top span{font-size:1.5vw;font-weight:800;font-variant-numeric:tabular-nums}
-  #goal .top span em{font-style:normal;color:var(--yellow);font-size:2.2vw}
-  .bar{position:relative;height:2.2vw;margin-top:.7vw;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  #goal .top b{font-size:1.35vw;font-weight:800;flex:1}
+  #goal .top span{font-size:1.35vw;font-weight:800;font-variant-numeric:tabular-nums}
+  #goal .top span em{font-style:normal;color:var(--yellow);font-size:1.9vw}
+  .bar{position:relative;height:1.6vw;margin-top:.5vw;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
   .bar i{position:absolute;inset:0 auto 0 0;width:0;border-radius:999px;background:linear-gradient(90deg,#f5c518,#ffd84d);transition:width 1.2s ease}
-  #goal .sub{margin-top:.5vw;font-size:1vw;color:var(--soft)}
+  #goal .sub{margin-top:.4vw;font-size:.9vw;color:var(--soft)}
 
-  #tiles{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:1fr;gap:1vw;min-height:0}
-  .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25vw;padding:.6vw;
+  #tiles{display:grid;grid-template-columns:repeat(6,1fr);grid-auto-rows:1fr;gap:.8vw;min-height:0}
+  .tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15vw;padding:.4vw;overflow:hidden;
     border-radius:1vw;background:var(--blue-l);text-align:center;min-height:0;transition:opacity .4s}
-  .tile svg{width:3.6vw;height:3.6vw;color:#fff}
-  .tile .n{font-size:1.1vw;font-weight:700;color:var(--soft)}
-  .tile .v{font-size:2.6vw;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
-  .tile .v small{font-size:1.1vw;font-weight:800;margin-left:.15vw}
-  .tile .p{font-size:.95vw;color:var(--soft)}
+  .tile svg{width:2.8vw;height:2.8vw;flex:none;color:#fff}
+  .tile .n{font-size:.95vw;font-weight:700;color:var(--soft)}
+  .tile .v{font-size:2.1vw;white-space:nowrap;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+  .tile .v small{font-size:.95vw;font-weight:800;margin-left:.15vw}
+  .tile .p{font-size:.85vw;color:var(--soft)}
   .tile.zero{opacity:.45}
   .tile.zero .v{color:var(--soft)}
   .tile.sum{background:var(--yellow);color:var(--blue-d)}
@@ -66,13 +66,13 @@
   #classes .head{display:flex;align-items:baseline;gap:1vw}
   #classes .head .label{flex:1}
   #classes .head span{font-size:1vw;color:var(--soft)}
-  #cbars{display:flex;align-items:flex-end;gap:.6vw;height:9vw;margin-top:.7vw}
+  #cbars{display:flex;align-items:flex-end;gap:.6vw;height:6.8vw;margin-top:.5vw}
   .cb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
-  .cb .r{font-size:1vw;font-weight:800;font-variant-numeric:tabular-nums}
+  .cb .r{font-size:.9vw;font-weight:800;font-variant-numeric:tabular-nums}
   .cb .well{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-height:0}
   .cb .col{width:100%;max-width:4vw;height:0;margin-top:.25vw;border-radius:.5vw .5vw 0 0;background:#7fb0f0;transition:height 1.2s ease}
   .cb.top .col{background:var(--yellow)}
-  .cb .c{margin-top:.35vw;font-size:.9vw;font-weight:700;color:var(--soft);white-space:nowrap}
+  .cb .c{margin-top:.25vw;font-size:.8vw;font-weight:700;color:var(--soft);white-space:nowrap}
   .none{font-size:1.1vw;color:var(--soft)}
 
   /* 날짜 이동 (◀ 날짜 ▶ 오늘) */
@@ -96,7 +96,7 @@
   body.names .card.big{cursor:pointer;transition:background .2s}
   body.names .card.big:hover,body.names .card.big.open{background:#20508f}
   body.names .card.big .hint{display:inline}
-  #who{position:fixed;top:6.2vw;left:30.8vw;right:2vw;bottom:1.6vw;z-index:5;display:none;flex-direction:column;
+  #who{position:fixed;top:5.4vw;left:30.8vw;right:2vw;bottom:4.6vw;z-index:5;display:none;flex-direction:column;
     background:#102f57;border:.2vw solid var(--yellow);border-radius:1.1vw;padding:1.1vw 1.4vw;box-shadow:0 1vw 3vw rgba(0,0,0,.35)}
   #who.on{display:flex}
   #who .top{display:flex;align-items:baseline;gap:1vw;margin-bottom:.8vw}
@@ -115,9 +115,9 @@
   #who .empty{font-size:1.1vw;color:var(--soft)}
 
   /* 맨 아래: 지금 운동 중인 친구 이름이 흘러감 */
-  #ticker{display:flex;align-items:stretch;height:3.6vw;background:var(--blue-d);border-top:.3vw solid var(--yellow);overflow:hidden}
+  #ticker{display:flex;align-items:stretch;height:3.2vw;background:var(--blue-d);border-top:.3vw solid var(--yellow);overflow:hidden}
   #ticker .tag{flex:none;display:flex;align-items:center;gap:.5vw;padding:0 1.4vw;background:var(--yellow);color:var(--blue-d);
-    font-size:1.35vw;font-weight:900;white-space:nowrap;z-index:1}
+    font-size:1.25vw;font-weight:900;white-space:nowrap;z-index:1}
   #ticker .tag i{width:.8vw;height:.8vw;border-radius:50%;background:#d9480f;animation:blink 1.2s ease-in-out infinite}
   @keyframes blink{50%{opacity:.25}}
   #tickWrap{flex:1;position:relative;overflow:hidden;
@@ -125,7 +125,7 @@
   #tickTrack{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;will-change:transform}
   #tickTrack.run{animation:flow var(--dur,30s) linear infinite}
   @keyframes flow{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-  .tk{display:inline-flex;align-items:baseline;gap:.4vw;padding:0 1.6vw;font-size:1.6vw;font-weight:800}
+  .tk{display:inline-flex;align-items:baseline;gap:.4vw;padding:0 1.6vw;font-size:1.45vw;font-weight:800}
   .tk small{font-size:1vw;font-weight:700;color:var(--soft)}
   .tk::after{content:'·';margin-left:1.6vw;color:var(--yellow)}
   #tickTrack .msg{padding:0 1.6vw;font-size:1.3vw;font-weight:700;color:var(--soft)}
