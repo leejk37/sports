@@ -1,1 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스마트스포츠실 종목 순위</title>
+<meta name="theme-color" content="#1f4e8c">
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  /* 큰 TV(가로 16:9)에 맞춘 종목별 대시보드. 현황판(board/)과 같은 색·크기 단위(vw) */
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --blue-dd:#102f57; --blue-l:#2a62ab; --yellow:#f5c518;
+    --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.35); --line:rgba(255,255,255,.14);
+    --gold:#f5c518; --silver:#cfd8e3; --bronze:#e0a271;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;overflow:hidden}
+  #app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
 
+  /* 머리글 */
+  header{display:flex;align-items:center;gap:1vw;white-space:nowrap;padding:.7vw 2vw .6vw;border-bottom:.35vw solid var(--yellow)}
+  #exIcon svg{width:3vw;height:3vw;display:block}
+  header h1{margin:0;font-size:2.1vw;font-weight:800;letter-spacing:-.05vw}
+  #exTag{font-size:1vw;font-weight:800;padding:.25vw .8vw;border-radius:999px;background:rgba(255,255,255,.14);color:var(--soft)}
+  .grow{flex:1}
+  #period{display:flex;gap:.3vw;background:rgba(255,255,255,.1);padding:.25vw;border-radius:999px}
+  #period button{font:inherit;font-size:1vw;font-weight:800;color:var(--soft);background:transparent;border:0;border-radius:999px;padding:.3vw .9vw;cursor:pointer}
+  #period button.on{background:var(--yellow);color:var(--blue-d)}
+  #demo{display:none;font-size:.95vw;font-weight:800;color:var(--blue-d);background:#ffb3a1;padding:.2vw .7vw;border-radius:999px}
+  body.demo #demo{display:inline-block}
+  #clock{font-size:2.1vw;font-weight:800;font-variant-numeric:tabular-nums}
+  #status{font-size:.9vw;color:var(--soft);text-align:right}
+  #status.off{color:#ffb3a1}
+  .pageSwitch{font-size:1vw;font-weight:800;color:var(--blue-d);background:var(--yellow);padding:.3vw .9vw;border-radius:999px;text-decoration:none;white-space:nowrap}
+  html.inFrame .pageSwitch, html.inFrame #period{display:none}
+
+  #main{display:grid;grid-template-columns:24vw minmax(0,1fr) 22vw;gap:1.1vw;padding:1.1vw 2vw;min-height:0}
+  .card{background:var(--blue-d);border-radius:1.1vw;padding:.9vw 1.2vw;min-height:0}
+  .label{font-size:1.05vw;font-weight:700;color:var(--soft)}
+
+  /* 왼쪽: 큰 숫자 */
+  #left{display:grid;grid-template-rows:auto auto 1fr;gap:1.1vw;min-height:0}
+  .big b{display:block;font-size:4.4vw;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .big b small{font-size:1.6vw;font-weight:800;margin-left:.3vw}
+  .big.sum b{color:var(--yellow)}
+  .big .sub{font-size:.95vw;color:var(--soft);margin-top:.2vw}
+  #goal{display:flex;flex-direction:column;gap:.5vw}
+  #goal .top{display:flex;align-items:baseline;gap:.5vw;flex-wrap:wrap}
+  #goal .top em{font-style:normal;font-size:2.2vw;font-weight:900;color:var(--yellow);font-variant-numeric:tabular-nums}
+  #goal .top span{font-size:1.1vw;font-weight:800;color:var(--soft)}
+  .bar{position:relative;height:1.5vw;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .bar i{position:absolute;inset:0 auto 0 0;width:0;border-radius:999px;background:linear-gradient(90deg,#f5c518,#ffd84d);transition:width 1.2s ease}
+  #goal .sub{font-size:.9vw;color:var(--soft);line-height:1.4}
+  #goal .spacer{flex:1}
+  #goal .note{font-size:.9vw;color:var(--soft);line-height:1.45;border-top:1px solid var(--line);padding-top:.6vw}
+
+  /* 가운데: 순위 */
+  #rankCard{display:flex;flex-direction:column;gap:.8vw}
+  #tabs{display:flex;align-items:center;gap:.5vw}
+  #tabs .t{font-size:1.15vw;font-weight:800;padding:.35vw 1vw;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);cursor:pointer;border:0;font-family:inherit}
+  #tabs .t.on{background:#fff;color:var(--blue-d)}
+  #tabs .why{margin-left:auto;font-size:.95vw;color:var(--soft)}
+  #tabBar{height:.25vw;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+  #tabBar i{display:block;height:100%;width:0;background:var(--yellow)}
+  #bands{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9vw;min-height:0}
+  .band{display:flex;flex-direction:column;gap:.45vw;background:var(--blue-dd);border-radius:.9vw;padding:.8vw;min-height:0;animation:pop .5s ease both}
+  .band h3{margin:0 0 .2vw;font-size:1.2vw;font-weight:800;color:var(--yellow)}
+  .rk{flex:1;max-height:4.6vw;display:flex;align-items:center;gap:.5vw;padding:.45vw .6vw;border-radius:.6vw;background:rgba(255,255,255,.06)}
+  .rk .no{flex:none;width:2.1vw;height:2.1vw;border-radius:50%;display:grid;place-items:center;font-size:1.05vw;font-weight:900;background:rgba(255,255,255,.12)}
+  .rk:nth-of-type(1) .no{background:var(--gold);color:var(--blue-d)}
+  .rk:nth-of-type(2) .no{background:var(--silver);color:var(--blue-d)}
+  .rk:nth-of-type(3) .no{background:var(--bronze);color:var(--blue-d)}
+  .rk .nm{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15;font-size:1.3vw;font-weight:800;white-space:nowrap;overflow:hidden}
+  .rk .nm small{font-size:.8vw;font-weight:700;color:var(--soft)}
+  .rk .v{font-size:1.4vw;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rk .v small{font-size:.85vw;font-weight:800;margin-left:.1vw;color:var(--soft)}
+  .band .none{font-size:1vw;color:var(--soft);padding:.6vw .2vw;line-height:1.5}
+  @keyframes pop{from{opacity:0;transform:translateY(.5vw)}to{opacity:1;transform:none}}
+
+  /* 오른쪽: 반별 */
+  #classes{display:flex;flex-direction:column;gap:.6vw}
+  #classes .head{display:flex;align-items:baseline;gap:.5vw}
+  #classes .head span{margin-left:auto;font-size:.85vw;color:var(--soft)}
+  #cls{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;gap:.25vw;min-height:0}
+  .cr{display:grid;grid-template-columns:2.6vw minmax(0,1fr) 6.4vw;align-items:center;gap:.5vw}
+  .cr .c{font-size:.95vw;font-weight:800;color:var(--soft);font-variant-numeric:tabular-nums}
+  .cr .w{height:1.1vw;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+  .cr .w i{display:block;height:100%;width:0;border-radius:999px;background:#7fb0f0;transition:width 1.2s ease}
+  .cr.top .w i{background:var(--yellow)}
+  .cr .n{font-size:1vw;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  /* 아래: 개인 최고 기록 갱신 소식이 흐름 */
+  #ticker{display:flex;align-items:stretch;height:3.2vw;background:var(--blue-d);border-top:.3vw solid var(--yellow);overflow:hidden}
+  #ticker .tag{flex:none;display:flex;align-items:center;padding:0 1.4vw;background:var(--yellow);color:var(--blue-d);font-size:1.25vw;font-weight:900;white-space:nowrap}
+  #tickWrap{flex:1;position:relative;overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent)}
+  #tickTrack{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap}
+  #tickTrack.run{animation:flow var(--dur,30s) linear infinite}
+  @keyframes flow{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .tk{display:inline-flex;align-items:baseline;gap:.45vw;padding:0 1.6vw;font-size:1.35vw;font-weight:800}
+  .tk small{font-size:.95vw;font-weight:700;color:var(--soft)}
+  .tk em{font-style:normal;color:var(--yellow)}
+  .tk::after{content:'·';margin-left:1.6vw;color:var(--yellow)}
+  #tickTrack .msg{padding:0 1.6vw;font-size:1.2vw;font-weight:700;color:var(--soft)}
+</style>
+<script>try { if (window.top !== window) document.documentElement.classList.add('inFrame'); } catch (e) { document.documentElement.classList.add('inFrame'); }</script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span id="exIcon"></span>
+    <h1 id="exName">종목</h1>
+    <span id="exTag"></span>
+    <span class="grow"></span>
+    <span id="demo" title="GAS에 순위 기능이 아직 없어 견본 숫자를 보여 주는 중">견본 데이터</span>
+    <div id="period">
+      <button data-p="today">오늘</button>
+      <button data-p="week">이번 주</button>
+      <button data-p="month">이번 달</button>
+    </div>
+    <a class="pageSwitch" href="../board/">현황판 ›</a>
+    <span id="clock">--:--</span>
+    <span id="status">불러오는 중…</span>
+  </header>
+
+  <div id="main">
+    <section id="left">
+      <div class="card big sum"><div class="label" id="sumLabel">이번 주 모두 합치면</div><b id="sum">-</b><div class="sub" id="sumSub"></div></div>
+      <div class="card big"><div class="label" id="pplLabel">이번 주 참여한 친구</div><b><span id="ppl">-</span><small>명</small></b><div class="sub" id="pplSub"></div></div>
+      <div class="card" id="goal">
+        <div class="label" id="goalName">학교 전체 도전</div>
+        <div class="top"><em id="goalNow">0</em><span id="goalMax">/ -</span></div>
+        <div class="bar"><i id="goalBar"></i></div>
+        <div class="sub" id="goalSub"></div>
+        <div class="spacer"></div>
+        <div class="note" id="note"></div>
+      </div>
+    </section>
+
+    <section class="card" id="rankCard">
+      <div id="tabs">
+        <button class="t" data-k="best">🏆 최고 기록</button>
+        <button class="t" data-k="growth">📈 성장</button>
+        <button class="t" data-k="streak">🔥 꾸준함</button>
+        <span class="why" id="why"></span>
+      </div>
+      <div id="tabBar"><i></i></div>
+      <div id="bands"></div>
+    </section>
+
+    <section class="card" id="classes">
+      <div class="head"><div class="label" id="clsLabel">반별 1인 평균</div><span id="clsSub"></span></div>
+      <div id="cls"></div>
+    </section>
+  </div>
+
+  <div id="ticker">
+    <div class="tag">🏅 개인 최고 기록</div>
+    <div id="tickWrap"><div id="tickTrack"></div></div>
+  </div>
+</div>
+
+<script>
+/* ===== 설정 ===== */
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
+  TOKEN: '26cp4s_squat',
+  REFRESH_SEC: 60,       // 데이터 새로 불러오는 간격(초)
+  TAB_SEC: 10,           // 최고 기록 → 성장 → 꾸준함 넘기는 간격(초)
+  AUTO_SEC: 40,          // ?ex=auto 일 때 종목을 넘기는 간격(초)
+  TOP_N: 7,              // 학년 묶음마다 보여 줄 인원
+  MASK: true,            // 이름 가운데 글자 가리기 (김응서 → 김*서)
+  PERIOD: 'week',        // 처음 보여 줄 기간: today | week | month
+  RELOAD_HOURS: 6,
+  BANDS: [               // 학년 묶음 (체력 차이가 커서 따로 순위)
+    { key: '1-2', name: '1·2학년', grades: [1, 2] },
+    { key: '3-4', name: '3·4학년', grades: [3, 4] },
+    { key: '5-6', name: '5·6학년', grades: [5, 6] }
+  ]
+};
+
+/* ===== 종목 목록: 새 종목은 한 줄 추가 =====
+ *  kind: count(회) | time(초 → 분·초로 표시) | dist(거리)
+ *  goal: 학교 전체 누적 목표(기간과 상관없이 10월부터 합친 값과 비교)
+ *  tag: 머리글에 보이는 측정 방식 / form: 자세 지표 이름(있으면 왼쪽 아래에 안내) */
+const EX = [
+  { id: 'squat',       name: '스쿼트',         kind: 'count', unit: '회', goal: 20000,  tag: '카메라 · 자세 인식' },
+  { id: 'lunge',       name: '런지',           kind: 'count', unit: '회', goal: 10000,  tag: '카메라 · 자세 인식' },
+  { id: 'jumpingjack', name: '점핑잭',         kind: 'count', unit: '회', goal: 20000,  tag: '카메라 · 자세 인식' },
+  { id: 'curlup',      name: '윗몸말아올리기', kind: 'count', unit: '회', goal: 10000,  tag: '카메라 · 자세 인식' },
+  { id: 'pushup',      name: '팔굽혀펴기',     kind: 'count', unit: '회', goal: 5000,   tag: '카메라 · 자세 인식' },
+  { id: 'plank',       name: '플랭크',         kind: 'time',  unit: '초', goal: 36000,  tag: '카메라 · 바른 자세로 버틴 시간' },
+  { id: 'hanging',     name: '행잉',           kind: 'time',  unit: '초', goal: 18000,  tag: '타이머 · 버틴 시간' },
+  { id: 'rope',        name: '줄넘기',         kind: 'count', unit: '회', goal: 100000, tag: '카메라 · 줄 돌림 확인' },
+  { id: 'treadmill',   name: '트레드밀',       kind: 'dist',  unit: 'km', goal: 300,    tag: '타이머 · 거리 기록' },
+  { id: 'rowing',      name: '로잉머신',       kind: 'dist',  unit: 'm',  goal: 200000, tag: '입력 · 거리 기록' },
+  { id: 'bike',        name: '실내자전거',     kind: 'dist',  unit: 'km', goal: 100,    tag: '라이딩 기록' }
+];
+
+/* 종목 아이콘 (현황판과 같은 그림) */
+const S = '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">';
+const ICON = {
+  squat: S + '<circle cx="30" cy="12" r="6" fill="currentColor"/><path d="M30 20l-4 18 16 4 -4 18M26 38l-12 2M30 26l20-2"/><path d="M8 66h56" stroke="#f5c518"/></svg>',
+  curlup: S + '<circle cx="16" cy="28" r="6" fill="currentColor"/><path d="M22 36l14 18 14-16 10 16M24 38l14-4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  jumpingjack: S + '<circle cx="36" cy="14" r="6" fill="currentColor"/><path d="M36 22v20M36 28l-16-14M36 28l16-14M36 42l-12 18M36 42l12 18"/><path d="M12 66h48" stroke="#f5c518"/></svg>',
+  lunge: S + '<circle cx="34" cy="12" r="6" fill="currentColor"/><path d="M34 20v18M34 38h12v16M34 38l-8 12-10 4M34 24l-9 9M34 24l9 8"/><path d="M8 60h56" stroke="#f5c518"/></svg>',
+  treadmill: S + '<circle cx="38" cy="10" r="6" fill="currentColor"/><path d="M36 18l-6 18 10 8-4 12M30 36l-12 6M34 22l14 8"/><path d="M8 62h44l12-14" stroke="#f5c518"/></svg>',
+  rowing: S + '<circle cx="18" cy="20" r="6" fill="currentColor"/><path d="M24 50l-4-20M21 34l10 4 12-2M24 50l14-10 8 14"/><path d="M43 36l12 9" stroke-width="3"/><circle cx="58" cy="48" r="6"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  pushup: S + '<circle cx="58" cy="30" r="6" fill="currentColor"/><path d="M52 36L12 54M48 38v20"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  plank: S + '<circle cx="58" cy="40" r="6" fill="currentColor"/><path d="M52 46L10 56M50 48v8h8"/><circle cx="30" cy="20" r="9" stroke-width="4"/><path d="M30 14v6l4 3" stroke-width="4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  hanging: S + '<path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>',
+  rope: S + '<circle cx="36" cy="12" r="6" fill="currentColor"/><path d="M36 20v22M36 26l-12 10M36 26l12 10M36 42l-6 14M36 42l6 14"/><path d="M24 36C14 52 20 66 36 66s22-14 12-30" stroke="#f5c518" stroke-width="3"/></svg>',
+  bike: S + '<circle cx="18" cy="50" r="10"/><circle cx="56" cy="50" r="10" stroke="#f5c518"/><path d="M18 50l12-20h18l8 20M30 30l8 20h-20M44 22h8"/></svg>'
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = (v, d = 0) => Number(v || 0).toLocaleString('ko-KR', { maximumFractionDigits: d });
+
+/* ===== 주소로 정하는 것 =====
+ *  ?ex=squat   종목 하나 고정 (기본: squat)
+ *  ?ex=auto    모든 종목을 차례로 넘김 (TV용)
+ *  ?ex=squat,plank,rope  고른 종목만 차례로
+ *  ?period=today|week|month   기간
+ *  ?demo=1     견본 데이터로만 보기 */
+const Q = new URLSearchParams(location.search);
+const exParam = (Q.get('ex') || 'squat').trim();
+const ROTATE = exParam === 'auto' ? EX.map(e => e.id) : exParam.split(',').map(s => s.trim()).filter(id => EX.some(e => e.id === id));
+if (!ROTATE.length) ROTATE.push('squat');
+let exIdx = 0, period = ['today', 'week', 'month'].includes(Q.get('period')) ? Q.get('period') : CONFIG.PERIOD;
+const FORCE_DEMO = Q.get('demo') === '1';
+const ex = () => EX.find(e => e.id === ROTATE[exIdx]);
+
+/* ===== 값 보여 주기 ===== */
+function show(e, v, big) {   // big = 큰 숫자 칸용(단위 작게)
+  const sm = t => big ? `<small>${t}</small>` : `<small>${t}</small>`;
+  if (e.kind === 'time') {
+    v = Math.round(v || 0);
+    if (v >= 3600) return `${Math.floor(v / 3600)}${sm('시간')} ${Math.floor(v % 3600 / 60)}${sm('분')}`;
+    if (v >= 60) return `${Math.floor(v / 60)}${sm('분')} ${v % 60}${sm('초')}`;
+    return `${v}${sm('초')}`;
+  }
+  if (e.kind === 'dist') return `${num(v, e.unit === 'km' ? 1 : 0)}${sm(e.unit)}`;
+  return `${num(v)}${sm(e.unit)}`;
+}
+const plain = (e, v) => show(e, v).replace(/<[^>]+>/g, '');
+const mask = n => {
+  n = String(n || '');
+  if (!CONFIG.MASK || n.length < 2) return n;
+  return n.length === 2 ? n[0] + '*' : n[0] + '*'.repeat(n.length - 2) + n.at(-1);
+};
+const PNAME = { today: '오늘', week: '이번 주', month: '이번 달' };
+
+/* ===== 시계 ===== */
+function tick() { $('clock').textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }); }
+tick(); setInterval(tick, 1000);
+
+/* ===== GAS 통신 (JSONP, 현황판과 같은 방식) ===== */
+function jsonp(params, timeout = 20000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'rankcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { done(); reject(new Error('시간 초과')); }, timeout);
+    function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = data => { done(); resolve(data); };
+    s.onerror = () => { done(); reject(new Error('연결 실패')); };
+    s.crossOrigin = 'anonymous';
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ ...params, token: CONFIG.TOKEN, callback: cb });
+    document.head.appendChild(s);
+  });
+}
+
+/* ===== GAS가 돌려줄 모양 (action=rank&ex=squat&period=week) =====
+ * { ok:true, updated:'18:20',
+ *   total: 3420, people: 41, avgPer: 83,            // 기간 합계 · 참여 인원 · 1인 평균
+ *   allTime: 12850,                                   // 10월부터 학교 전체 누적 (목표 막대)
+ *   best:   [{ name, grade, cls, value }],            // 기간 안 1회 최고 기록 (학생당 1개)
+ *   growth: [{ name, grade, cls, value, from, to }],  // 처음(또는 지난 기간) 최고 대비 늘어난 %
+ *   streak: [{ name, grade, cls, value }],            // 기간 안에 이 종목을 한 날 수
+ *   classes:[{ grade, cls, people, avg }],            // 반별 참여 인원 · 1인 평균
+ *   pbs:    [{ name, grade, cls, value, prev }] }     // 기간 안에 개인 최고를 새로 세운 기록
+ * 순위 자르기(학년 묶음 · 상위 N명)는 이 화면이 함 */
+
+/* GAS에 아직 순위 기능이 없을 때 보여 주는 견본 숫자 (이름은 지어낸 것) */
+function demoData(e) {
+  let seed = [...(e.id + period)].reduce((a, c) => a * 31 + c.charCodeAt(0) >>> 0, 7);
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  const fam = '김이박최정강조윤장임한오서신권황안송류홍', given = ['서준', '하윤', '도윤', '지우', '시우', '서아', '하준', '지호', '은우', '수아', '예준', '지안', '유준', '하린', '민준', '아린', '주원', '채원', '건우', '윤서'];
+  const base = { count: 40, time: 70, dist: e.unit === 'm' ? 1200 : 1.6 }[e.kind];
+  const kids = Array.from({ length: 60 }, (_, i) => {
+    const grade = 1 + (i % 6), cls = 1 + Math.floor(rnd() * 2);
+    const best = base * (0.4 + grade * 0.15) * (0.5 + rnd());
+    return { name: fam[Math.floor(rnd() * fam.length)] + given[Math.floor(rnd() * given.length)], grade, cls, best };
+  });
+  const r = v => e.kind === 'dist' ? Math.round(v * (e.unit === 'km' ? 10 : 1)) / (e.unit === 'km' ? 10 : 1) : Math.round(v);
+  const mult = { today: 1, week: 4, month: 14 }[period];
+  const total = kids.reduce((t, k) => t + k.best * 1.6, 0) * mult / 4;
+  return {
+    ok: true, updated: '견본',
+    total: r(total), people: Math.round(kids.length * { today: .35, week: .75, month: 1 }[period]), avgPer: r(total / kids.length),
+    allTime: r(e.goal * (0.25 + rnd() * 0.5)),
+    best: kids.map(k => ({ ...k, value: r(k.best) })),
+    growth: kids.map(k => ({ ...k, value: Math.round(rnd() * 60) })),
+    streak: kids.map(k => ({ ...k, value: 1 + Math.floor(rnd() * { today: 1, week: 5, month: 16 }[period]) })),
+    classes: Array.from({ length: 12 }, (_, i) => ({ grade: 1 + (i >> 1), cls: 1 + (i & 1), people: 5 + Math.floor(rnd() * 15), avg: r(base * (0.6 + (i >> 1) * 0.2) * (0.6 + rnd()) * mult / 2) })),
+    pbs: kids.slice(0, 8).map(k => ({ ...k, value: r(k.best * 1.1), prev: r(k.best) }))
+  };
+}
+
+/* ===== 그리기 ===== */
+let data = null, tab = 0, tabTimer = null;
+const TABS = [
+  { k: 'best',   why: () => `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`, val: (e, v) => show(e, v) },
+  { k: 'growth', why: () => '처음 기록보다 얼마나 늘었는지 · 누구나 1등 할 수 있어요', val: (e, v) => `+${num(v)}<small>%</small>` },
+  { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` }
+];
+
+function renderHead() {
+  const e = ex();
+  $('exIcon').innerHTML = ICON[e.id] || '';
+  $('exName').textContent = e.name + ' 순위';
+  $('exTag').textContent = e.tag;
+  document.title = e.name + ' · 스마트스포츠실 종목 순위';
+  document.querySelectorAll('#period button').forEach(b => b.classList.toggle('on', b.dataset.p === period));
+}
+
+function render() {
+  const e = ex(), d = data; if (!d) return;
+  const P = PNAME[period];
+  $('sumLabel').textContent = `${P} 모두 합치면`;
+  $('sum').innerHTML = show(e, d.total, true);
+  $('sumSub').textContent = d.avgPer != null ? `1인 평균 ${plain(e, d.avgPer)}` : '';
+  $('pplLabel').textContent = `${P} 참여한 친구`;
+  $('ppl').textContent = num(d.people);
+  $('pplSub').textContent = (d.best || []).length ? `최고 기록 ${plain(e, Math.max(...d.best.map(b => b.value)))}` : '';
+
+  // 학교 전체 누적 목표
+  $('goalName').textContent = `학교 전체 ${e.name} 도전`;
+  $('goalNow').innerHTML = show(e, d.allTime);
+  $('goalMax').textContent = '/ ' + plain(e, e.goal);
+  $('goalBar').style.width = Math.min(100, e.goal ? d.allTime / e.goal * 100 : 0) + '%';
+  $('goalSub').textContent = d.allTime >= e.goal ? '🎉 목표 달성!' : `목표까지 ${plain(e, Math.max(0, e.goal - d.allTime))} · 10월부터 모두 더한 값`;
+  $('note').textContent = '순위는 학년 묶음별로 따로 매겨요. 기록·성장·꾸준함 세 가지 순위가 차례로 나와요.';
+
+  // 반별 1인 평균
+  const cls = (d.classes || []).filter(c => c.people).slice().sort((a, b) => a.grade - b.grade || a.cls - b.cls);
+  const max = Math.max(0, ...cls.map(c => c.avg));
+  $('clsLabel').textContent = `${P} 반별 1인 평균`;
+  $('clsSub').textContent = '참여한 친구 기준';
+  $('cls').innerHTML = cls.length ? cls.map(c => `<div class="cr${c.avg === max ? ' top' : ''}" title="${c.people}명 참여">
+      <span class="c">${c.grade}-${c.cls}</span><span class="w"><i data-w="${max ? c.avg / max * 100 : 0}"></i></span><span class="n">${plain(e, c.avg)}</span></div>`).join('')
+    : '<div class="label">아직 기록이 없어요</div>';
+  requestAnimationFrame(() => document.querySelectorAll('.cr .w i').forEach(i => i.style.width = Math.max(2, i.dataset.w) + '%'));
+
+  renderTab();
+  drawTicker();
+}
+
+function renderTab() {
+  const e = ex(), t = TABS[tab], d = data; if (!d) return;
+  document.querySelectorAll('#tabs .t').forEach(b => b.classList.toggle('on', b.dataset.k === t.k));
+  $('why').textContent = t.why();
+  const list = (d[t.k] || []).filter(r => r.value > 0);
+  $('bands').innerHTML = CONFIG.BANDS.map(b => {
+    const top = list.filter(r => b.grades.includes(+r.grade)).sort((x, y) => y.value - x.value).slice(0, CONFIG.TOP_N);
+    return `<div class="band"><h3>${b.name}</h3>` + (top.length
+      ? top.map((r, i) => `<div class="rk"><span class="no">${i + 1}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span><span class="v">${t.val(e, r.value)}</span></div>`).join('')
+      : `<div class="none">${PNAME[period]}은 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
+  }).join('');
+  // 다음 순위로 넘어가기까지 남은 시간 막대
+  const bar = $('tabBar').firstElementChild;
+  bar.style.transition = 'none'; bar.style.width = '0';
+  requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = `width ${CONFIG.TAB_SEC}s linear`; bar.style.width = '100%'; }));
+  clearTimeout(tabTimer);
+  tabTimer = setTimeout(() => { tab = (tab + 1) % TABS.length; renderTab(); }, CONFIG.TAB_SEC * 1000);
+}
+
+/* 아래 띠: 기간 안에 개인 최고 기록을 새로 세운 친구 */
+let tickKey = '';
+function drawTicker() {
+  const e = ex(), track = $('tickTrack');
+  const pbs = (data?.pbs || []).filter(p => p.value > 0);
+  let html, run = false;
+  if (!pbs.length) html = `<span class="msg">${PNAME[period]} 새로운 개인 최고 기록을 기다리고 있어요 · 어제의 나를 이겨 보세요!</span>`;
+  else {
+    html = pbs.map(p => `<span class="tk">${esc(mask(p.name))}<small>${esc(p.grade)}-${esc(p.cls)}</small> ${plain(e, p.value)}` +
+      (p.prev ? ` <em>▲ ${plain(e, Math.max(0, p.value - p.prev))}</em>` : '') + '</span>').join('');
+    run = true;
+  }
+  if (html === tickKey) return;
+  tickKey = html;
+  track.classList.remove('run'); track.innerHTML = html;
+  if (!run) return;
+  const wrapW = $('tickWrap').clientWidth;
+  let reps = 1;
+  while (track.scrollWidth < wrapW && reps < 20) { reps++; track.innerHTML = html.repeat(reps); }
+  track.innerHTML += track.innerHTML;
+  const dist = track.scrollWidth / 2;
+  track.style.setProperty('--dur', Math.max(10, dist / (wrapW * 0.09)).toFixed(1) + 's');
+  void track.offsetWidth; track.classList.add('run');
+}
+
+/* ===== 불러오기 ===== */
+let seq = 0;
+async function load() {
+  const my = ++seq, e = ex();
+  let d = null, demo = FORCE_DEMO;
+  if (!demo) {
+    try {
+      d = await jsonp({ action: 'rank', ex: e.id, period });
+      if (!d || !d.ok) { demo = true; d = null; }   // GAS에 순위 기능이 아직 없음 → 견본
+    } catch (err) {
+      if (my !== seq) return;
+      $('status').textContent = '연결 끊김 · 다시 시도 중'; $('status').classList.add('off');
+      if (!data) demo = true; else return;          // 이미 그린 화면은 그대로 둠
+    }
+  }
+  if (my !== seq) return;
+  if (demo) d = demoData(e);
+  data = d;
+  document.body.classList.toggle('demo', demo);
+  $('status').textContent = demo ? '견본 숫자' : (d.updated || '') + ' 기준';
+  $('status').classList.remove('off');
+  render();
+}
+
+/* ===== 종목·기간 바꾸기 ===== */
+function setEx(i) { exIdx = (i + ROTATE.length) % ROTATE.length; tab = 0; tickKey = ''; data = null; renderHead(); load(); }
+document.querySelectorAll('#period button').forEach(b => b.onclick = () => {
+  period = b.dataset.p; tickKey = '';
+  const u = new URL(location.href); u.searchParams.set('period', period); history.replaceState(null, '', u);
+  renderHead(); load();
+});
+document.querySelectorAll('#tabs .t').forEach((b, i) => b.onclick = () => { tab = i; renderTab(); });
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') setEx(exIdx + 1);
+  else if (e.key === 'ArrowLeft') setEx(exIdx - 1);
+});
+addEventListener('resize', () => { tickKey = ''; drawTicker(); });
+
+renderHead(); load();
+setInterval(() => { if (!document.hidden) load(); }, CONFIG.REFRESH_SEC * 1000);
+if (ROTATE.length > 1) setInterval(() => setEx(exIdx + 1), CONFIG.AUTO_SEC * 1000);
+setTimeout(() => location.reload(), CONFIG.RELOAD_HOURS * 3600 * 1000);
+
+/* 화면을 누르면 전체 화면 */
+document.addEventListener('click', e => {
+  if (e.target.closest('button, a')) return;
+  if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+});
+</script>
+</body>
+</html>
