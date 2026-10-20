@@ -59,8 +59,9 @@
   #rankCard{display:flex;flex-direction:column;gap:.8vw}
   #tabs{display:flex;align-items:center;gap:.5vw}
   #tabs .t{font-size:1.15vw;font-weight:800;padding:.35vw 1vw;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);cursor:pointer;border:0;font-family:inherit}
+  #tabs .t{flex:none;white-space:nowrap}
   #tabs .t.on{background:#fff;color:var(--blue-d)}
-  #tabs .why{margin-left:auto;font-size:.95vw;color:var(--soft)}
+  #tabs .why{margin-left:auto;min-width:0;font-size:.95vw;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #tabBar{height:.25vw;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
   #tabBar i{display:block;height:100%;width:0;background:var(--yellow)}
   #bands{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9vw;min-height:0}
@@ -72,9 +73,10 @@
   .rk:nth-of-type(1) .no{background:var(--gold);color:var(--blue-d)}
   .rk:nth-of-type(2) .no{background:var(--silver);color:var(--blue-d)}
   .rk:nth-of-type(3) .no{background:var(--bronze);color:var(--blue-d)}
-  .rk .nm{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15;font-size:1.3vw;font-weight:800;white-space:nowrap;overflow:hidden}
+  .rk .nm{flex:1;min-width:4.4vw;display:flex;flex-direction:column;line-height:1.15;font-size:1.3vw;font-weight:800;white-space:nowrap;overflow:hidden}
   .rk .nm small{font-size:.8vw;font-weight:700;color:var(--soft)}
-  .rk .v{font-size:1.4vw;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rk .v{flex:none;font-size:1.4vw;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+  .rk .v.long{font-size:1.1vw}   /* '1분 13초'·'+300%+'처럼 긴 값은 조금 작게 → 이름이 가려지지 않게 */
   .rk .v small{font-size:.85vw;font-weight:800;margin-left:.1vw;color:var(--soft)}
   .band .none{font-size:1vw;color:var(--soft);padding:.6vw .2vw;line-height:1.5}
   @keyframes pop{from{opacity:0;transform:translateY(.5vw)}to{opacity:1;transform:none}}
@@ -318,7 +320,7 @@ function demoData(e) {
 let data = null, tab = 0, tabTimer = null;
 const TABS = [
   { k: 'best',   why: () => `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`, val: (e, v) => show(e, v) },
-  { k: 'growth', why: () => '처음 기록보다 얼마나 늘었는지 · 누구나 1등 할 수 있어요', val: (e, v) => `+${num(v)}<small>%</small>` },
+  { k: 'growth', why: () => '처음 기록보다 얼마나 늘었는지 · 누구나 1등 할 수 있어요', val: (e, v, r) => `+${num(v)}<small>%${r && r.capped ? '+' : ''}</small>` },
   { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` }
 ];
 
@@ -381,7 +383,7 @@ function renderTab() {
     }
     const top = rows.sort((x, y) => y.value - x.value).slice(0, CONFIG.TOP_N);
     return `<div class="band"><h3>${b.name}${condTxt}</h3>` + (top.length
-      ? top.map((r, i) => `<div class="rk"><span class="no">${i + 1}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span><span class="v">${t.val(e, r.value)}</span></div>`).join('')
+      ? top.map((r, i) => `<div class="rk"><span class="no">${i + 1}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span>${(() => { const h = t.val(e, r.value, r); const len = h.replace(/<[^>]+>/g, '').length; return `<span class="v${len > 5 ? ' long' : ''}">${h}</span>`; })()}</div>`).join('')
       : `<div class="none">${PNAME[period]}은 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
   }).join('');
   // 다음 순위로 넘어가기까지 남은 시간 막대
