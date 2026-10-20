@@ -65,7 +65,8 @@
   #tabBar i{display:block;height:100%;width:0;background:var(--yellow)}
   #bands{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9vw;min-height:0}
   .band{display:flex;flex-direction:column;gap:.45vw;background:var(--blue-dd);border-radius:.9vw;padding:.8vw;min-height:0;animation:pop .5s ease both}
-  .band h3{margin:0 0 .2vw;font-size:1.2vw;font-weight:800;color:var(--yellow)}
+  .band h3{margin:0 0 .2vw;font-size:1.2vw;font-weight:800;color:var(--yellow);display:flex;align-items:baseline;gap:.5vw}
+  .band h3 .cond{font-size:.85vw;font-weight:700;color:var(--soft)}
   .rk{flex:1;max-height:4.6vw;display:flex;align-items:center;gap:.5vw;padding:.45vw .6vw;border-radius:.6vw;background:rgba(255,255,255,.06)}
   .rk .no{flex:none;width:2.1vw;height:2.1vw;border-radius:50%;display:grid;place-items:center;font-size:1.05vw;font-weight:900;background:rgba(255,255,255,.12)}
   .rk:nth-of-type(1) .no{background:var(--gold);color:var(--blue-d)}
@@ -82,7 +83,8 @@
   #classes{display:flex;flex-direction:column;gap:.6vw}
   #classes .head{display:flex;align-items:baseline;gap:.5vw}
   #classes .head span{margin-left:auto;font-size:.85vw;color:var(--soft)}
-  #cls{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;gap:.25vw;min-height:0}
+  #cls{flex:1;display:flex;flex-direction:column;justify-content:flex-start;gap:1.1vw;padding-top:.6vw;min-height:0}
+  #cls.many{justify-content:space-evenly;gap:.25vw;padding-top:0}
   .cr{display:grid;grid-template-columns:2.6vw minmax(0,1fr) 6.4vw;align-items:center;gap:.5vw}
   .cr .c{font-size:.95vw;font-weight:800;color:var(--soft);font-variant-numeric:tabular-nums}
   .cr .w{height:1.1vw;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
@@ -194,7 +196,7 @@ const EX = [
   { id: 'hanging',     name: '행잉',           kind: 'time',  unit: '초', goal: 18000,  tag: '타이머 · 버틴 시간' },
   { id: 'rope',        name: '줄넘기',         kind: 'count', unit: '회', goal: 100000, tag: '카메라 · 줄 돌림 확인' },
   { id: 'treadmill',   name: '트레드밀',       kind: 'dist',  unit: 'km', goal: 300,    tag: '타이머 · 거리 기록' },
-  { id: 'rowing',      name: '로잉머신',       kind: 'dist',  unit: 'm',  goal: 200000, tag: '입력 · 거리 기록' },
+  { id: 'rowing',      name: '로잉머신',       kind: 'dist',  unit: 'km', goal: 200,    tag: '입력 · 거리 기록' },
   { id: 'bike',        name: '실내자전거',     kind: 'dist',  unit: 'km', goal: 100,    tag: '라이딩 기록' }
 ];
 
@@ -230,6 +232,8 @@ const ROTATE = exParam === 'auto' ? EX.map(e => e.id) : exParam.split(',').map(s
 if (!ROTATE.length) ROTATE.push('squat');
 let exIdx = 0, period = ['today', 'week', 'month'].includes(Q.get('period')) ? Q.get('period') : CONFIG.PERIOD;
 const FORCE_DEMO = Q.get('demo') === '1';
+/* 현황판(board/)에 저장해 둔 선생님 열쇠가 있으면 함께 보냄 → 맞으면 GAS가 전체 이름을 보냄 */
+let DASH_KEY = ''; try { DASH_KEY = localStorage.getItem('dashKey') || ''; } catch (e) {}
 const ex = () => EX.find(e => e.id === ROTATE[exIdx]);
 
 /* ===== 값 보여 주기 ===== */
@@ -247,10 +251,12 @@ function show(e, v, big) {   // big = 큰 숫자 칸용(단위 작게)
 const plain = (e, v) => show(e, v).replace(/<[^>]+>/g, '');
 const mask = n => {
   n = String(n || '');
-  if (!CONFIG.MASK || n.length < 2) return n;
+  if (!CONFIG.MASK || data?.keyOk || n.length < 2) return n;
   return n.length === 2 ? n[0] + '*' : n[0] + '*'.repeat(n.length - 2) + n.at(-1);
 };
 const PNAME = { today: '오늘', week: '이번 주', month: '이번 달' };
+/* 측정 조건 값 → 읽기 쉬운 말 (숫자면 초로 봄: 30 → 30초, 60 → 1분) */
+const condName = c => /^\d+$/.test(String(c)) ? (+c >= 60 && +c % 60 === 0 ? (+c / 60) + '분 측정' : c + '초 측정') : String(c);
 
 /* ===== 시계 ===== */
 function tick() { $('clock').textContent = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }); }
@@ -287,13 +293,13 @@ function demoData(e) {
   let seed = [...(e.id + period)].reduce((a, c) => a * 31 + c.charCodeAt(0) >>> 0, 7);
   const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
   const fam = '김이박최정강조윤장임한오서신권황안송류홍', given = ['서준', '하윤', '도윤', '지우', '시우', '서아', '하준', '지호', '은우', '수아', '예준', '지안', '유준', '하린', '민준', '아린', '주원', '채원', '건우', '윤서'];
-  const base = { count: 40, time: 70, dist: e.unit === 'm' ? 1200 : 1.6 }[e.kind];
+  const base = { count: 40, time: 70, dist: 1.6 }[e.kind];
   const kids = Array.from({ length: 60 }, (_, i) => {
     const grade = 1 + (i % 6), cls = 1 + Math.floor(rnd() * 2);
     const best = base * (0.4 + grade * 0.15) * (0.5 + rnd());
     return { name: fam[Math.floor(rnd() * fam.length)] + given[Math.floor(rnd() * given.length)], grade, cls, best };
   });
-  const r = v => e.kind === 'dist' ? Math.round(v * (e.unit === 'km' ? 10 : 1)) / (e.unit === 'km' ? 10 : 1) : Math.round(v);
+  const r = v => e.kind === 'dist' ? Math.round(v * 10) / 10 : Math.round(v);
   const mult = { today: 1, week: 4, month: 14 }[period];
   const total = kids.reduce((t, k) => t + k.best * 1.6, 0) * mult / 4;
   return {
@@ -348,6 +354,7 @@ function render() {
   const max = Math.max(0, ...cls.map(c => c.avg));
   $('clsLabel').textContent = `${P} 반별 1인 평균`;
   $('clsSub').textContent = '참여한 친구 기준';
+  $('cls').classList.toggle('many', cls.length >= 8);
   $('cls').innerHTML = cls.length ? cls.map(c => `<div class="cr${c.avg === max ? ' top' : ''}" title="${c.people}명 참여">
       <span class="c">${c.grade}-${c.cls}</span><span class="w"><i data-w="${max ? c.avg / max * 100 : 0}"></i></span><span class="n">${plain(e, c.avg)}</span></div>`).join('')
     : '<div class="label">아직 기록이 없어요</div>';
@@ -363,8 +370,17 @@ function renderTab() {
   $('why').textContent = t.why();
   const list = (d[t.k] || []).filter(r => r.value > 0);
   $('bands').innerHTML = CONFIG.BANDS.map(b => {
-    const top = list.filter(r => b.grades.includes(+r.grade)).sort((x, y) => y.value - x.value).slice(0, CONFIG.TOP_N);
-    return `<div class="band"><h3>${b.name}</h3>` + (top.length
+    let rows = list.filter(r => b.grades.includes(+r.grade));
+    // 최고 기록은 측정 조건(30초·1분 모드 등)이 같은 것끼리만 비교 → 이 학년 묶음에서 가장 많이 한 조건
+    let condTxt = '';
+    if (t.k === 'best' && rows.some(r => r.cond)) {
+      const cnt = {}; rows.forEach(r => cnt[r.cond] = (cnt[r.cond] || 0) + 1);
+      const c = Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0];
+      rows = rows.filter(r => String(r.cond) === c);
+      condTxt = `<small class="cond">${esc(condName(c))}</small>`;
+    }
+    const top = rows.sort((x, y) => y.value - x.value).slice(0, CONFIG.TOP_N);
+    return `<div class="band"><h3>${b.name}${condTxt}</h3>` + (top.length
       ? top.map((r, i) => `<div class="rk"><span class="no">${i + 1}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span><span class="v">${t.val(e, r.value)}</span></div>`).join('')
       : `<div class="none">${PNAME[period]}은 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
   }).join('');
@@ -408,7 +424,8 @@ async function load() {
   let d = null, demo = FORCE_DEMO;
   if (!demo) {
     try {
-      d = await jsonp({ action: 'rank', ex: e.id, period });
+      const q = { action: 'rank', ex: e.id, period }; if (DASH_KEY) q.key = DASH_KEY;
+      d = await jsonp(q);
       if (!d || !d.ok) { demo = true; d = null; }   // GAS에 순위 기능이 아직 없음 → 견본
     } catch (err) {
       if (my !== seq) return;
