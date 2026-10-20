@@ -278,7 +278,7 @@ function angle(a, b, c) {
   const cos = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y) || 1);
   return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 }
-const IDX = { ls: 11, rs: 12, le: 13, re: 14, lw: 15, rw: 16, lh: 23, rh: 24, lk: 25, rk: 26, la: 27, ra: 28 };
+const IDX = { ls: 11, rs: 12, le: 13, re: 14, lh: 23, rh: 24, lk: 25, rk: 26, la: 27, ra: 28 };
 function analyze(lm) {
   const W = canvas.width, H = canvas.height, P = {};
   for (const k in IDX) { const q = lm[IDX[k]]; P[k] = { x: q.x * W, y: q.y * H, v: q.visibility ?? 0 }; }
@@ -301,9 +301,9 @@ function analyze(lm) {
   const dir = Hp.y - (S.y + t * (E.y - S.y));
 
   // ---- 바닥에서 떠 있는지 ----
-  // 화면 y는 아래로 갈수록 커짐. 바닥 지지점 = 팔꿈치와 손목 중 더 아래쪽(팔꿈치 플랭크·손 플랭크 모두 대응)
-  const El = P[s + 'e'], Wr = P[s + 'w'];
-  const F = (Wr.v > CONFIG.VIS_MIN && Wr.y > El.y) ? Wr : El;
+  // 화면 y는 아래로 갈수록 커짐. 바닥 지지점 = 팔꿈치 (팔꿈치 플랭크: 손목은 보지 않음 → 손목 인식이 흔들려도 판정에 영향 없음)
+  const El = P[s + 'e'];
+  const F = El;
   const arm = Math.hypot(S.x - El.x, S.y - El.y) || 1;          // 위팔 길이(학생 크기·카메라 거리 보정용 자)
   const lift = (F.y - S.y) / arm;                               // 어깨가 지지점보다 얼마나 높은가
   const u = (Hp.x - F.x) / ((E.x - F.x) || 1);
@@ -347,7 +347,6 @@ function drawPose(r) {
   // 삼각형의 세로변(어깨–팔꿈치): 직각이면 노랑, 아니면 빨강
   const armCol = isRight() ? '#f5c518' : '#ff6b6b';
   line(s + 's', s + 'e', armCol);
-  if (r.F !== P[s + 'e']) line(s + 'e', s + 'w', armCol);
   const dot = (p, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(p.x), p.y, 12, 0, Math.PI * 2); ctx.fill(); };
   dot(P[s + 'h'], okCol(sHipA >= CONFIG.BODY_MIN));
   if (r.end === 'a') dot(P[s + 'k'], okCol(sKneeA >= CONFIG.KNEE_ANG_MIN && isKneeUp()));
