@@ -316,6 +316,6 @@ function diagDashboard() {
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d_' + y);
+  CacheService.getScriptCache().remove('dash_d3_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
