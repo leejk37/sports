@@ -58,10 +58,6 @@
   .rows{border-top:1px solid rgba(255,255,255,.25)}
   .row{display:flex;justify-content:space-between;font-size:19px;font-weight:700;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.25)}
   .row b{color:var(--warn)}
-  .hands{display:flex;gap:10px}
-  .hand{flex:1;text-align:center;padding:12px 6px;border-radius:10px;border:2px solid rgba(255,255,255,.5);font-size:18px;font-weight:800}
-  .hand.off{background:var(--yellow);color:#1b2a44;border-color:var(--yellow)}
-  .hand.done{background:#2b8a3e;border-color:#2b8a3e}
   #saveState{font-size:17px;font-weight:700;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.12)}
   #saveState:empty{display:none}
   #saveState.ok{color:var(--good)}
@@ -102,7 +98,6 @@
       <section class="screen" id="s-mode">
         <h2>측정 방법을<br>골라 주세요</h2>
         <button class="btn" data-mode="hang">매달리기<small>팔을 펴고 두 손으로 오래 버티기 · 시간</small></button>
-        <button class="btn" data-mode="switch">손 바꿔 잡기<small>한 손씩 떼었다 다시 잡기 · 횟수</small></button>
         <button class="btn line" id="rescan">다른 학생 스캔</button>
       </section>
 
@@ -120,16 +115,6 @@
 
       <section class="screen" id="s-measure">
         <div class="count"><span id="mainNum">0</span><small id="mainUnit">초</small></div>
-        <div id="switchInfo" hidden>
-          <div class="hands">
-            <div class="hand" id="handA">한쪽 손</div>
-            <div class="hand" id="handB">다른 손</div>
-          </div>
-          <div class="rows">
-            <div class="row"><span>매달린 시간</span><span id="subSec">0.0초</span></div>
-            <div class="row"><span>너무 짧게 뗀 손</span><b id="shortNum">0</b></div>
-          </div>
-        </div>
         <button class="btn line" id="stopBtn">측정 끝내기</button>
       </section>
 
@@ -158,13 +143,9 @@ const CONFIG = {
 
   // ---- 판정 기준 (길이는 어깨너비 S에 대한 비율) ----
   // 화면에는 철봉부터 허리까지만 보이면 돼요 (발은 안 보여도 됨)
-  HAND_OFF: 0.5,         // 손목이 철봉 높이보다 S의 50% 이상 내려가면 '손을 뗌'
-  HAND_ON: 0.2,          // 손목이 철봉 높이에서 S의 20% 안으로 돌아오면 '다시 잡음'
-  ONE_HAND_MIN_MS: 1000, // 손 바꿔 잡기: 한 손으로 이만큼 버텨야 인정 (0이면 조건 없음)
   BENT_ELBOW: 130,       // 매달리기: 팔꿈치가 이보다 굽으면 '팔 펴기' 안내
   START_STABLE_MS: 800,  // 두 손으로 철봉을 이만큼 잡고 있으면 3-2-1 시작
   COUNTDOWN_SEC: 3,      // 카운트다운 (시작 소리에 발을 뗌)
-  BAR_SAMPLE_MS: 600,    // 손 바꿔 잡기: 시작 후 이 시간 동안 철봉 높이 측정
   END_GRACE_MS: 500,     // 조건이 이만큼 깨져 있어야 끝 (순간 인식 흔들림 무시)
   LOST_MS: 1500,         // 사람을 이만큼 못 찾으면 끝
   MAX_SEC: 180,          // 최대 측정 시간
@@ -184,9 +165,7 @@ let pose, stream, facing = localStorage.getItem('hangFacing') || 'user';
 let email = '', clientId = '';
 let S0 = null, lastS = null, cdTimer = null, cdLostSince = null;
 let hangSince = null, startAt = 0, lastGoodAt = 0, badSince = null, lastSeenAt = 0;
-let barY = null, barSamples = [];
-let hands = null, cycleDone = { A: false, B: false };
-let count = 0, shortHolds = 0, result = null;
+let result = null;
 let lastQr = 0, lastVideoTime = -1;
 let audio, wakeLock;
 
@@ -237,7 +216,6 @@ function angle(a, b, c) {
   const cos = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y) || 1);
   return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 }
-const median = arr => { if (!arr.length) return null; const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 
 function analyze(lm) {
   const W = canvas.width, H = canvas.height;
@@ -277,7 +255,6 @@ function drawPose(r, live) {
     ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.setLineDash(dash);
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); ctx.restore();
   };
-  if (barY != null) line(barY, '#f5c518', []);                          // 철봉 높이
 }
 
 /* ===== 메인 루프 ===== */
@@ -326,12 +303,10 @@ function scanQr() {
 /* ===== 1단계: 철봉 잡기 대기 ===== */
 const bothUp = r => r.bodyOk && handUp(r.wA, r) && handUp(r.wB, r);
 function toWait(m = method) {
-  method = m; hangSince = null; barY = null;
+  method = 'hang'; hangSince = null;
   clearTimeout(cdTimer);
   beep(660, 60);   // 첫 터치로 소리 켜기
-  $('waitText').textContent = method === 'hang'
-    ? '두 손으로 잡으면 3-2-1이 시작돼요. ‘시작’ 소리에 발을 떼고 팔을 편 채 버텨요.'
-    : `‘시작’ 소리에 발을 떼고, 한 손씩 떼어 ${(CONFIG.ONE_HAND_MIN_MS / 1000).toFixed(0)}초 버틴 뒤 다시 잡아요. 양손을 한 번씩 바꾸면 1회예요.`;
+  $('waitText').textContent = '두 손으로 잡으면 3-2-1이 시작돼요. ‘시작’ 소리에 발을 떼고 팔을 편 채 버텨요.';
   show('wait');
 }
 
@@ -362,15 +337,9 @@ function countdownCheck(up, now) {   // 카운트다운 중 손을 놓으면 다
 function startMeasure(now = performance.now()) {
   S0 = lastS;
   startAt = now; lastGoodAt = now; lastSeenAt = now; badSince = null;
-  barY = null; barSamples = [];
-  hands = { A: { off: false, since: 0 }, B: { off: false, since: 0 } };
-  cycleDone = { A: false, B: false };
-  count = 0; shortHolds = 0;
   clientId = crypto.randomUUID?.() || String(Date.now()) + Math.random();
-  $('switchInfo').hidden = method !== 'switch';
-  $('mainUnit').textContent = method === 'hang' ? '초' : '회';
-  $('mainNum').textContent = method === 'hang' ? '0.0' : '0';
-  updateHands();
+  $('mainUnit').textContent = '초';
+  $('mainNum').textContent = '0.0';
   show('measure');
   $('big').textContent = '발 떼!'; setTimeout(() => mode === 'measure' && ($('big').textContent = ''), 800);
   beep(1000, 400);
@@ -380,16 +349,9 @@ function startMeasure(now = performance.now()) {
 function measure(r, now) {
   const sec = (now - startAt) / 1000;
   if (sec >= CONFIG.MAX_SEC) return finish(now);
-  let ok;
-
-  if (method === 'hang') {
-    ok = bothUp(r);
-    setHint(ok && r.elbow < CONFIG.BENT_ELBOW ? '팔을 쭉 펴요' : '');
-    if (ok) $('mainNum').textContent = sec.toFixed(1);
-  } else {
-    ok = switchStep(r, now);
-    $('subSec').textContent = sec.toFixed(1) + '초';
-  }
+  const ok = bothUp(r);
+  setHint(ok && r.elbow < CONFIG.BENT_ELBOW ? '팔을 쭉 펴요' : '');
+  if (ok) $('mainNum').textContent = sec.toFixed(1);
   drawPose(r, ok);
 
   if (ok) { lastGoodAt = now; badSince = null; return; }
@@ -397,61 +359,16 @@ function measure(r, now) {
   if (now - badSince > CONFIG.END_GRACE_MS) finish(lastGoodAt);
 }
 
-/* 손 바꿔 잡기: 손마다 '잡음 → 뗌 → 다시 잡음'을 확인하고, 양손이 한 번씩 끝나면 1회 */
-function switchStep(r, now) {
-  const ws = { A: r.wA, B: r.wB };
-  if (barY == null) {                                   // 시작 직후: 철봉 높이 기억
-    if (ws.A && ws.B && handUp(ws.A, r) && handUp(ws.B, r)) barSamples.push((ws.A.y + ws.B.y) / 2);
-    if (now - startAt > CONFIG.BAR_SAMPLE_MS && barSamples.length) barY = median(barSamples);
-    return handUp(ws.A, r) || handUp(ws.B, r);
-  }
-  const T = S0 ?? r.S;
-  let onCount = 0;
-  for (const k of ['A', 'B']) {
-    const w = ws[k], h = hands[k];
-    const below = w ? w.y - barY : Infinity;            // 안 보이면 뗀 것으로 봄
-    if (!h.off && below > CONFIG.HAND_OFF * T) { h.off = true; h.since = now; }
-    else if (h.off && below < CONFIG.HAND_ON * T) {
-      h.off = false;
-      if (now - h.since >= CONFIG.ONE_HAND_MIN_MS) { cycleDone[k] = true; beep(1100, 60); }
-      else { shortHolds++; flash(`한 손으로 ${(CONFIG.ONE_HAND_MIN_MS / 1000).toFixed(0)}초 버텨요`); beep(220, 150); }
-    }
-    if (!h.off) onCount++;
-  }
-  if (cycleDone.A && cycleDone.B) {
-    count++; cycleDone = { A: false, B: false };
-    $('mainNum').textContent = count; flash(count + '회!', true); beep(1320, 120);
-  }
-  $('shortNum').textContent = shortHolds;
-  updateHands();
-  return onCount >= 1;                                  // 두 손이 모두 떨어지면 끝
-}
-function updateHands() {
-  for (const k of ['A', 'B']) {
-    const el = $('hand' + k), h = hands?.[k];
-    el.className = 'hand' + (h?.off ? ' off' : cycleDone[k] ? ' done' : '');
-    el.textContent = (k === 'A' ? '한쪽 손' : '다른 손') + (h?.off ? ' · 버티는 중' : cycleDone[k] ? ' ✓' : '');
-  }
-}
-
 /* ===== 결과 ===== */
 function finish(endTime = performance.now()) {
   if (mode !== 'measure') return;
   const seconds = Math.max(0, Math.round((endTime - startAt) / 100) / 10);
-  result = { seconds, count: method === 'switch' ? count : 0 };
+  result = { seconds };
   beep(500, 500);
   show('result');
   setHint('');
-  if (method === 'hang') {
-    $('resMain').textContent = seconds.toFixed(1); $('resUnit').textContent = '초';
-    $('resRows').innerHTML = '<div class="row"><span>방법</span><span>매달리기</span></div>';
-  } else {
-    $('resMain').textContent = count; $('resUnit').textContent = '회';
-    $('resRows').innerHTML =
-      '<div class="row"><span>방법</span><span>손 바꿔 잡기</span></div>' +
-      `<div class="row"><span>매달린 시간</span><span>${seconds.toFixed(1)}초</span></div>` +
-      `<div class="row"><span>너무 짧게 뗀 손</span><b>${shortHolds}</b></div>`;
-  }
+  $('resMain').textContent = seconds.toFixed(1); $('resUnit').textContent = '초';
+  $('resRows').innerHTML = '<div class="row"><span>방법</span><span>매달리기</span></div>';
   save();
 }
 
@@ -464,7 +381,7 @@ async function save() {
   setSave('저장 중…');
   const body = {
     type: CONFIG.TYPE, token: CONFIG.TOKEN, email, method,
-    seconds: result.seconds, count: result.count, shortHolds, clientId
+    seconds: result.seconds, clientId
   };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.SAVE_TIMEOUT_MS);
