@@ -31,7 +31,10 @@ const STAMP = {
   RIDE_TAB: '2026',           // 인도어라이딩 시트 탭 (Dashboard.gs 와 같음, 스크립트 속성 RIDE_SHEET_ID)
   RIDE_HEAD_ROW: 3,
   RIDE_YEAR: 2026,
-  CACHE_SEC: 60
+  CACHE_SEC: 30,              // 학생·반별 결과 캐시 (아래 공유 캐시 덕분에 짧아도 빠름)
+  SHARED_SEC: 60,             // 종목 기록 공유 캐시: 시트는 1분에 한 번만 읽고 모든 학생이 나눠 씀 → 새 기록은 1분 안에 반영
+  RIDE_SEC: 600,              // 인도어라이딩(다른 파일)은 모아서 입력하므로 10분
+  ROSTER_SEC: 300
 };
 /* key는 허브 EXERCISES의 id와 같게 (도장 화면에서 '하러 가기'로 바로 연결) */
 const STAMP_EX = [
@@ -52,29 +55,93 @@ const STAMP_EX = [
 const stampFmt_ = (d, p) => Utilities.formatDate(d, STAMP.TZ, p);
 const stampIdOf_ = e => String(e || '').trim().toLowerCase().split('@')[0];
 
-/** ids(아이디 Set)의 기록을 모아 판정 준비. roster: stampRoster_() 결과 */
+/** ids(아이디 Set)의 기록을 모아 판정 준비. roster: stampRoster_() 결과
+ *  시트를 직접 읽지 않고 공유 캐시(stampShared_)에서 필요한 학생 것만 꺼냄 */
 function stampCtx_(ss, ids, roster) {
   const now = new Date();
   const ctx = {
     now, today: stampFmt_(now, 'yyyy-MM-dd'), hour: Number(stampFmt_(now, 'H')),
     crit: stampCriteria_(ss), best: {}, bike: {}
   };
+  const list = [...ids];
+  ctx.best = stampShared_(ss, 'sb2', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
+  ctx.bike = stampShared_(ss, 'rd2', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
+  return ctx;
+}
+
+/** 공유 캐시: 모든 학생 것을 한 번에 만들어 학생별 칸(prefix_아이디)에 나눠 담고, 필요한 학생 것만 꺼냄.
+ *  캐시가 비었으면 한 명만 만들고(잠금) 나머지는 기다렸다가 같은 결과를 씀 */
+function stampShared_(ss, prefix, sec, ids, build) {
+  const cache = CacheService.getScriptCache();
+  const take = () => {
+    if (!cache.get(prefix + '__ready')) return null;
+    const got = cache.getAll(ids.map(id => prefix + '_' + id)), out = {};
+    ids.forEach(id => { const v = got[prefix + '_' + id]; if (v) { try { out[id] = JSON.parse(v); } catch (e) {} } });
+    return out;
+  };
+  let out = take();
+  if (out) return out;
+  const lock = LockService.getScriptLock();
+  const locked = lock.tryLock(20000);
+  try {
+    if (locked && (out = take())) return out;          // 기다리는 동안 다른 요청이 만들어 둠
+    const all = build(), put = {};
+    Object.keys(all).forEach(id => { const j = JSON.stringify(all[id]); if (j.length < 95000) put[prefix + '_' + id] = j; });
+    const keys = Object.keys(put);
+    for (let i = 0; i < keys.length; i += 100) {       // 한 번에 너무 많이 넣지 않게 나눠 담음
+      const part = {}; keys.slice(i, i + 100).forEach(k => part[k] = put[k]);
+      try { cache.putAll(part, sec); } catch (e) {}
+    }
+    try { cache.put(prefix + '__ready', '1', sec); } catch (e) {}
+    out = {}; ids.forEach(id => { if (all[id]) out[id] = all[id]; });
+    return out;
+  } finally {
+    if (locked) lock.releaseLock();
+  }
+}
+
+/** 11개 종목 탭을 읽어 모든 학생의 best[아이디][날짜][종목] = 그날 가장 긴 측정시간(초) */
+function stampReadAllBest_(ss) {
+  const best = {};
   const dayOf = v => v instanceof Date ? stampFmt_(v, 'yyyy-MM-dd') : String(v).trim().slice(0, 10);
   const sec = v => { const x = Number(v); return isFinite(x) ? x : 0; };
-  // best[아이디][날짜][종목] = 그날 가장 긴 측정시간(초)
   STAMP_EX.forEach(ex => {
     const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
-    sh.getDataRange().getValues().slice(1).forEach(r => {
-      const id = stampIdOf_(r[5]); if (!ids.has(id)) return;
-      const d = dayOf(r[0]); if (!d) return;
-      const byDay = ctx.best[id] || (ctx.best[id] = {});
+    const n = sh.getLastRow() - 1; if (n < 1) return;
+    sh.getRange(2, 1, n, Math.max(6, ex.time + 1)).getValues().forEach(r => {   // 필요한 열(측정일시~측정시간)까지만
+      const id = stampIdOf_(r[5]); if (!id) return;
+      const d = dayOf(r[0]); if (!d || d < '2026-09-01') return;
+      const byDay = best[id] || (best[id] = {});
       const b = byDay[d] || (byDay[d] = {});
       b[ex.key] = Math.max(b[ex.key] || 0, sec(r[ex.time]));
     });
   });
-  const ride = stampRide_();                          // 인도어라이딩 시트 한 번만 읽음
-  ids.forEach(id => { const st = roster.byId[id]; if (st) ctx.bike[id] = ride(st); });
-  return ctx;
+  return best;
+}
+
+/** 명단의 모든 학생 → { 날짜: km } (인도어라이딩 시트) */
+function stampReadAllRide_(roster) {
+  const ride = stampRide_(), out = {};
+  roster.list.forEach(st => { const m = ride(st); if (Object.keys(m).length) out[st.id] = m; });
+  return out;
+}
+
+/** 시간 재기·캐시 미리 채우기: 편집기에서 실행하거나 시간 트리거(setupStampWarm)로 */
+function warmStamp() {
+  const h = Number(stampFmt_(new Date(), 'H'));
+  if (h < 7 || h >= 21) return;                        // 밤에는 쉼
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
+  const roster = stampRoster_(ss);
+  const ids = roster.list.map(x => x.id);
+  stampShared_(ss, 'sb2', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
+  stampShared_(ss, 'rd2', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
+  console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
+}
+/** 한 번만 실행: 1분마다 warmStamp → 학생이 언제 열어도 '처음 계산'을 기다리지 않음 (다시 실행하면 중복 없이 새로 만듦) */
+function setupStampWarm() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'warmStamp').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('warmStamp').timeBased().everyMinutes(1).create();
+  Logger.log('warmStamp 트리거를 1분마다로 만들었어요');
 }
 
 /** 한 학생의 하루 판정 */
@@ -138,7 +205,7 @@ function stampSummary_(emailRaw, monthRaw) {
   const today = stampFmt_(new Date(), 'yyyy-MM-dd');
   const month = stampMonthOf_(monthRaw, today);
   const cache = CacheService.getScriptCache();
-  const ck = 'stamp3_' + id + '_' + month;
+  const ck = 'stamp4_' + id + '_' + month;
   const hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
@@ -194,7 +261,7 @@ function stampTeam_(p) {
   const today = stampFmt_(new Date(), 'yyyy-MM-dd');
   const month = stampMonthOf_(p.month, today);
   const cache = CacheService.getScriptCache();
-  const ck = 'team1_' + grade + '_' + cls + '_' + month;
+  const ck = 'team2_' + grade + '_' + cls + '_' + month;
   const hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
@@ -232,6 +299,14 @@ function stampTeam_(p) {
 /** 학생명단 → { list:[{id,name,grade,cls,no,group,gkey}], byId, hasGroupCol }
  *  모둠은 제목이 '모둠'인 열에서 읽음(위치가 바뀌어도 됨). 기록 시트에는 모둠을 저장하지 않음 */
 function stampRoster_(ss) {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('sroster1');
+  if (hit) { try { const r = JSON.parse(hit); r.byId = {}; r.list.forEach(x => r.byId[x.id] = x); return r; } catch (e) {} }
+  const r = stampRosterRead_(ss);
+  try { const j = JSON.stringify({ list: r.list, hasGroupCol: r.hasGroupCol }); if (j.length < 95000) cache.put('sroster1', j, STAMP.ROSTER_SEC); } catch (e) {}
+  return r;
+}
+function stampRosterRead_(ss) {
   const C = SQUAT_CONFIG;
   const sh = ss.getSheetByName(C.ROSTER_SHEET);
   const out = { list: [], byId: {}, hasGroupCol: false };
@@ -312,6 +387,19 @@ function stampRide_() {
 /** 편집기에서 확인: TEST_ID에 명단에 있는 아이디를 넣고 실행 → 실행 로그 (저장소에는 실제 아이디를 올리지 않음) */
 function diagStamp() {
   const TEST_ID = '여기에_테스트용_아이디';
-  CacheService.getScriptCache().remove('stamp3_' + TEST_ID + '_' + Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'));
+  CacheService.getScriptCache().remove('stamp4_' + TEST_ID + '_' + Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'));
   Logger.log(JSON.stringify(stampSummary_(TEST_ID + SQUAT_CONFIG.DOMAIN), null, 2));
+}
+
+/** 편집기에서 시간 재기: 공유 캐시를 비우고 처음 계산 → 캐시 사용 순서로 (학년·반은 바꿔서) */
+function diagStampTime() {
+  const ym = Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'), c = CacheService.getScriptCache();
+  c.removeAll(['sb2__ready', 'rd2__ready', 'sroster1', 'team2_4_해_' + ym]);
+  let t = Date.now(); const r = stampTeam_({ grade: '4', cls: '해' });
+  Logger.log('처음 계산(시트 읽기): ' + (Date.now() - t) + 'ms, ok=' + r.ok + (r.error ? ' ' + r.error : ''));
+  c.remove('team2_4_해_' + ym);
+  t = Date.now(); stampTeam_({ grade: '4', cls: '해' });
+  Logger.log('공유 캐시로 계산: ' + (Date.now() - t) + 'ms');
+  t = Date.now(); stampTeam_({ grade: '4', cls: '해' });
+  Logger.log('결과 캐시: ' + (Date.now() - t) + 'ms');
 }
