@@ -4,9 +4,11 @@
  *  시트를 매번 다 읽지 않도록 60초 동안 캐시합니다.
  *
  *  보여 주는 것
- *   - 지금 운동 중 · 오늘 입실 인원 ('입퇴실' 탭)
+ *   - 지금 운동 중 · 오늘 다녀간 인원 ('입퇴실' 탭 + 운동 기록)
+ *     허브 공용 모드를 거치지 않은 학생(이 기기 모드, 운동 앱 직접 실행)도 빠지지 않도록
+ *     오늘 운동 기록이 있으면 '다녀감', 최근 NOW_MIN분 안에 기록을 저장했으면 '지금 운동 중'으로 함께 셈
  *   - 종목별 오늘 누적 (운동별 탭 + 체력 기록장 '기록' 탭의 줄넘기·실내자전거)
- *   - 반별 이번 주 참여율 (이번 주 입실한 학생 수 ÷ 반 인원, '학생명단'의 학생만)
+ *   - 반별 이번 주 참여율 (이번 주 입실했거나 운동 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
  *   - 학교 누적 거리 도전 (실내자전거 km만, START_DATE부터 — 트레드밀·로잉머신은 각자 카드에)
  *
  *  실내자전거는 '2026_인도어라이딩' 스프레드시트의 '2026' 시트에서 읽음
@@ -29,6 +31,7 @@
 const DASH = {
   TZ: 'Asia/Seoul',
   CACHE_SEC: 60,
+  NOW_MIN: 15,                          // 운동 기록을 이 시간(분) 안에 저장했으면 '지금 운동 중'으로 봄 (이 기기 모드 대비)
   PAST_CACHE_SEC: 21600,                // 지난 날짜 캐시(6시간, CacheService 최대)
   SHOW_NAMES: false,                    // true면 축하 소식에 이름(성 빼고)을 보여 줌
   START_DATE: '2026-10-01',             // 누적 거리 도전을 세기 시작한 날
@@ -67,7 +70,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d_' + target : 'dash_v2';
+  const cacheKey = past ? 'dash_d_' + target : 'dash_v3';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -128,12 +131,18 @@ function dashBuild_(pastDay) {
       }
     });
   }
-  const classSize = {};
-  Object.values(roster).forEach(st => { if (st.grade) classSize[label(st)] = (classSize[label(st)] || 0) + 1; });
-  const classes = Object.keys(classSize).map(c => ({
-    cls: c, size: classSize[c], came: weekByClass[c] ? weekByClass[c].size : 0
-  })).map(x => Object.assign(x, { rate: x.size ? Math.round(x.came / x.size * 100) : 0 }))
-    .sort((a, b) => b.rate - a.rate || a.cls.localeCompare(b.cls, 'ko'));
+  // 운동 기록으로 본 활동: 아이디 → { first, last (ms) } — 아래 종목 탭을 읽으면서 채움
+  const act = {};
+  const addAct = (id, d, t) => {
+    if (d >= monday && d <= today) {
+      const st = roster[id];
+      if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(id); }
+    }
+    if (d !== today || !t) return;
+    const a = act[id] || (act[id] = { first: t, last: t });
+    if (t < a.first) a.first = t;
+    if (t > a.last) a.last = t;
+  };
 
   // ---- 종목별 오늘 누적 · 누적 거리 · 축하 소식 ----
   const totals = [], feed = [], exSets = {};
@@ -151,6 +160,7 @@ function dashBuild_(pastDay) {
         const d = asDay(r[0]); if (!d) return;
         const id = idOf(r[ex.email]); if (!id) return;
         const v = num(r[ex.value]);
+        addAct(id, d, r[0] instanceof Date ? r[0].getTime() : 0);
         if (d === today) { total += v; people.add(id); }
         if (d < today) {
           tried.add(id);
@@ -190,6 +200,7 @@ function dashBuild_(pastDay) {
       const it = DASH_LOG.find(x => x.code === String(r[5])); if (!it) return;
       if (it.key === 'bike' && ride) return;               // 실내자전거는 인도어라이딩 시트로
       const d = asDay(r[1]), v = num(r[7]), id = idOf(r[2]);
+      if (id) addAct(id, d, r[0] instanceof Date ? r[0].getTime() : 0);
       if (d === today) { logTotals[it.key].total += v; logTotals[it.key].people.add(id); }
       if (it.distance && d >= DASH.START_DATE && d <= today) distanceKm += v;
     });
@@ -209,6 +220,26 @@ function dashBuild_(pastDay) {
     key: it.key, name: it.name, unit: it.unit,
     value: dashRound_(logTotals[it.key].total, it.decimals), people: logTotals[it.key].people.size
   }));
+
+  // ---- 입퇴실 + 운동 기록 합치기 ----
+  const nowMs = now.getTime(), hmMs = t => Utilities.formatDate(new Date(t), DASH.TZ, 'HH:mm');
+  Object.keys(act).forEach(id => {
+    const a = act[id], st = roster[id] || {};
+    inToday.add(id);
+    const recent = !past && nowMs - a.last <= DASH.NOW_MIN * 60000;
+    if (recent) inNow.add(id);
+    const v = visit[id] || (visit[id] = { id, name: st.name || '', first: '', last: '', n: 1, now: false });
+    const f = hmMs(a.first), l = hmMs(a.last);
+    if (!v.first || f < v.first) v.first = f;
+    if (l > v.last) v.last = l;
+    v.now = v.now || recent;
+  });
+  const classSize = {};
+  Object.values(roster).forEach(st => { if (st.grade) classSize[label(st)] = (classSize[label(st)] || 0) + 1; });
+  const classes = Object.keys(classSize).map(c => ({
+    cls: c, size: classSize[c], came: weekByClass[c] ? weekByClass[c].size : 0
+  })).map(x => Object.assign(x, { rate: x.size ? Math.round(x.came / x.size * 100) : 0 }))
+    .sort((a, b) => b.rate - a.rate || a.cls.localeCompare(b.cls, 'ko'));
 
   feed.sort((a, b) => b.t - a.t);
   return {

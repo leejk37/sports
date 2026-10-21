@@ -405,6 +405,7 @@ async function load() {
 
 /* ===== 지금 운동 중인 친구: 아래쪽 이름 띠 =====
  *  허브의 입실 명단(공용 모드 방)을 그대로 가져와 흘려 보냄 → 허브에서 QR 입실하면 여기에도 나타남
+ *  선생님 열쇠가 있으면 최근 15분 안에 운동 기록을 저장한 친구(이 기기 모드 포함)도 더함
  *  선생님 열쇠가 있으면 학년·반도 함께 표시 */
 let tickKey = '';
 async function loadTicker() {
@@ -421,6 +422,9 @@ async function loadTicker() {
     const v = vis.find(v => (s.email && v.email === s.email)) || vis.find(v => v.name === s.name);
     if (v && v.grade) { s.grade = v.grade; s.cls = v.cls; }
   });
+  // 허브 공용 모드를 거치지 않고(이 기기 모드 등) 방금 기록한 친구도 띠에 넣음
+  if (list && vis) vis.filter(v => v.now && !list.some(s => s.name === v.name))
+    .forEach(v => list.push({ name: v.name, grade: v.grade, cls: v.cls }));
   drawTicker(list);
 }
 function drawTicker(list) {
