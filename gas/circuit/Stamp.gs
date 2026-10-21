@@ -59,7 +59,7 @@ function stampSummary_(emailRaw, monthRaw) {
     ? String(monthRaw) : today.slice(0, 7);
 
   const cache = CacheService.getScriptCache();
-  const ck = 'stamp_' + email.split('@')[0] + '_' + month;
+  const ck = 'stamp2_' + email.split('@')[0] + '_' + month;
   const hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
@@ -107,8 +107,7 @@ function stampSummary_(emailRaw, monthRaw) {
   for (let i = 1; i <= last; i++) {
     const d = month + '-' + ('0' + i).slice(-2);
     if (d > today) break;
-    const j = judge(d);
-    days[d] = { stamp: j.stamp, done: j.done, need: j.need };
+    days[d] = judge(d);          // 그날 종목별 기록까지 (화면에서 날짜를 눌러 지난 날도 자세히 봄)
   }
 
   // 연속 도장: 오늘(도장 없으면 어제)부터 거꾸로. 도장 없는 주말은 건너뛰고 끊지 않음
@@ -189,6 +188,6 @@ function stampBike_(st) {
 /** 편집기에서 확인: TEST_ID에 명단에 있는 아이디를 넣고 실행 → 실행 로그 (저장소에는 실제 아이디를 올리지 않음) */
 function diagStamp() {
   const TEST_ID = '여기에_테스트용_아이디';
-  CacheService.getScriptCache().remove('stamp_' + TEST_ID + '_' + Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'));
+  CacheService.getScriptCache().remove('stamp2_' + TEST_ID + '_' + Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'));
   Logger.log(JSON.stringify(stampSummary_(TEST_ID + SQUAT_CONFIG.DOMAIN), null, 2));
 }
