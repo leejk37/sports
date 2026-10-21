@@ -172,7 +172,7 @@ const CONFIG = {
   TOKEN: '26cp4s_squat',
   REFRESH_SEC: 60,       // 데이터 새로 불러오는 간격(초)
   TAB_SEC: 10,           // 최고 기록 → 성장 → 꾸준함 넘기는 간격(초)
-  AUTO_SEC: 40,          // ?ex=auto 일 때 종목을 넘기는 간격(초)
+  // 종목이 여러 개(?ex=auto 등)면 최고 기록 → 성장 → 꾸준함을 한 번씩 보여 준 뒤 다음 종목으로 넘어감 (종목당 TAB_SEC × 3초)
   TOP_N: 7,              // 학년 묶음마다 보여 줄 인원
   MASK: true,            // 이름 가운데 글자 가리기 (김응서 → 김*서)
   PERIOD: 'week',        // 처음 보여 줄 기간: today | week | month
@@ -364,11 +364,12 @@ function render() {
     : '<div class="label">아직 기록이 없어요</div>';
   requestAnimationFrame(() => document.querySelectorAll('.cr .w i').forEach(i => i.style.width = Math.max(2, i.dataset.w) + '%'));
 
-  renderTab();
+  renderTab(true);   // 데이터만 새로 고침: 순위 넘기는 시간은 이어서 셈
   drawTicker();
 }
 
-function renderTab() {
+/* keep=true면 진행 중인 타이머를 그대로 두고 내용만 다시 그림(1분마다 데이터 새로 고침할 때) */
+function renderTab(keep = false) {
   const e = ex(), t = TABS[tab], d = data; if (!d) return;
   document.querySelectorAll('#tabs .t').forEach(b => b.classList.toggle('on', b.dataset.k === t.k));
   $('why').textContent = t.why();
@@ -388,12 +389,18 @@ function renderTab() {
       ? top.map((r, i) => `<div class="rk"><span class="no">${i + 1}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span>${(() => { const h = t.val(e, r.value, r); const len = h.replace(/<[^>]+>/g, '').length; return `<span class="v${len > 5 ? ' long' : ''}">${h}</span>`; })()}</div>`).join('')
       : `<div class="none">${PNAME[period]}은 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
   }).join('');
+  if (keep && tabTimer) return;
   // 다음 순위로 넘어가기까지 남은 시간 막대
   const bar = $('tabBar').firstElementChild;
   bar.style.transition = 'none'; bar.style.width = '0';
   requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = `width ${CONFIG.TAB_SEC}s linear`; bar.style.width = '100%'; }));
   clearTimeout(tabTimer);
-  tabTimer = setTimeout(() => { tab = (tab + 1) % TABS.length; renderTab(); }, CONFIG.TAB_SEC * 1000);
+  tabTimer = setTimeout(() => {
+    tabTimer = null;
+    // 순서: 최고 기록 → 성장 → 꾸준함. 꾸준함까지 보여 준 뒤 종목이 여러 개면 다음 종목의 최고 기록부터
+    if (tab === TABS.length - 1 && ROTATE.length > 1) return setEx(exIdx + 1);
+    tab = (tab + 1) % TABS.length; renderTab();
+  }, CONFIG.TAB_SEC * 1000);
 }
 
 /* 아래 띠: 기간 안에 개인 최고 기록을 새로 세운 친구 */
@@ -447,10 +454,11 @@ async function load() {
 }
 
 /* ===== 종목·기간 바꾸기 ===== */
-function setEx(i) { exIdx = (i + ROTATE.length) % ROTATE.length; tab = 0; tickKey = ''; data = null; renderHead(); load(); }
+function setEx(i) { clearTimeout(tabTimer); tabTimer = null; exIdx = (i + ROTATE.length) % ROTATE.length; tab = 0; tickKey = ''; data = null; renderHead(); load(); }
 document.querySelectorAll('#period button').forEach(b => b.onclick = () => {
   period = b.dataset.p; tickKey = '';
   const u = new URL(location.href); u.searchParams.set('period', period); history.replaceState(null, '', u);
+  clearTimeout(tabTimer); tabTimer = null; tab = 0;
   renderHead(); load();
 });
 document.querySelectorAll('#tabs .t').forEach((b, i) => b.onclick = () => { tab = i; renderTab(); });
@@ -462,7 +470,6 @@ addEventListener('resize', () => { tickKey = ''; drawTicker(); });
 
 renderHead(); load();
 setInterval(() => { if (!document.hidden) load(); }, CONFIG.REFRESH_SEC * 1000);
-if (ROTATE.length > 1) setInterval(() => setEx(exIdx + 1), CONFIG.AUTO_SEC * 1000);
 setTimeout(() => location.reload(), CONFIG.RELOAD_HOURS * 3600 * 1000);
 
 /* 화면을 누르면 전체 화면 */
