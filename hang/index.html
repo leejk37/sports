@@ -92,13 +92,7 @@
 
       <section class="screen" id="s-scan">
         <h2>QR 이름표를<br>카메라에 보여 주세요</h2>
-        <p>이름표가 확인되면 측정 방법을 고르는 화면으로 넘어가요.</p>
-      </section>
-
-      <section class="screen" id="s-mode">
-        <h2>측정 방법을<br>골라 주세요</h2>
-        <button class="btn" data-mode="hang">매달리기<small>팔을 펴고 두 손으로 오래 버티기 · 시간</small></button>
-        <button class="btn line" id="rescan">다른 학생 스캔</button>
+        <p>이름표가 확인되면 바로 철봉 잡기 화면으로 넘어가요.</p>
       </section>
 
       <section class="screen" id="s-countdown">
@@ -186,6 +180,7 @@ function setHint(text) { $('hint').textContent = text ?? HINTS[mode] ?? ''; }
 function beep(freq = 880, ms = 120) {
   try {
     audio ??= new AudioContext();
+    if (audio.state === 'suspended') audio.resume();
     const o = audio.createOscillator(), g = audio.createGain();
     o.frequency.value = freq; o.connect(g); g.connect(audio.destination);
     g.gain.setValueAtTime(0.25, audio.currentTime);
@@ -297,7 +292,7 @@ function scanQr() {
   email = (id.includes('@') ? id : id + CONFIG.DOMAIN).toLowerCase();
   $('who').textContent = email;
   beep(1200, 80);
-  show('mode');
+  toWait();
 }
 
 /* ===== 1단계: 철봉 잡기 대기 ===== */
@@ -306,7 +301,7 @@ function toWait(m = method) {
   method = 'hang'; hangSince = null;
   clearTimeout(cdTimer);
   beep(660, 60);   // 첫 터치로 소리 켜기
-  $('waitText').textContent = '두 손으로 잡으면 3-2-1이 시작돼요. ‘시작’ 소리에 발을 떼고 팔을 편 채 버텨요.';
+  $('waitText').textContent = '두 손으로 잡으면 3-2-1이 시작돼요. ‘시작’ 소리에 발을 떼고 팔을 편 채 버텨요. (소리가 안 나면 화면을 한 번 눌러 주세요)';
   show('wait');
 }
 
@@ -420,7 +415,7 @@ function startFromParams() {
   if (!/^[\w.\-]+@[\w.\-]+$/.test(em)) return false;
   email = em;
   $('who').textContent = (PARAMS.get('name') || em.split('@')[0]) + ' 학생';
-  show('mode');
+  toWait();
   return true;
 }
 function backOrScan() {
@@ -429,13 +424,15 @@ function backOrScan() {
 }
 if (FROM_HUB) {
   $('next').textContent = '허브로 돌아가기';
-  $('rescan').textContent = '허브로 돌아가기';
   $('cancel').textContent = '허브로';
 }
 
 /* ===== 버튼 ===== */
-document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => toWait(b.dataset.mode));
-$('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
+// 메뉴 없이 바로 시작하므로, 화면을 처음 누를 때 소리를 켬 (브라우저 소리 제한 대비)
+document.addEventListener('pointerdown', () => {
+  try { audio ??= new AudioContext(); if (audio.state === 'suspended') audio.resume(); } catch (e) {}
+}, { passive: true });
+$('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = () => startCountdown();
 $('stopBtn').onclick = () => finish(lastGoodAt);
 $('again').onclick = () => toWait(method);
