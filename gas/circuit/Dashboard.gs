@@ -70,7 +70,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d_' + target : 'dash_v3';
+  const cacheKey = past ? 'dash_d3_' + target : 'dash_v3';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
