@@ -19,31 +19,33 @@
   header h1{margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px;white-space:nowrap}
   #cls{flex:1;font-size:17px;font-weight:700;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hbtn{font:inherit;font-size:15px;font-weight:800;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:transparent;color:#fff;text-decoration:none;white-space:nowrap}
-  .bar{display:flex;align-items:center;gap:10px;padding:14px 18px 4px;max-width:1400px;margin:0 auto}
+  .bar{display:flex;align-items:center;gap:10px;padding:12px 14px 2px;max-width:1600px;margin:0 auto}
   .bar .day{flex:1;text-align:center;font-size:20px;font-weight:900}
   .bar .day small{font-size:14px;color:var(--soft);font-weight:700;margin-left:6px}
   .nav{font:inherit;font-size:20px;font-weight:900;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
   .nav:disabled{opacity:.25;cursor:default}
   .toToday{font:inherit;font-size:13px;font-weight:800;padding:6px 11px;border-radius:999px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
-  .summary{max-width:1400px;margin:0 auto;padding:4px 18px 0;text-align:center;font-size:15px;font-weight:700;color:var(--soft)}
+  .summary{max-width:1600px;margin:0 auto;padding:4px 18px 0;text-align:center;font-size:15px;font-weight:700;color:var(--soft)}
   .summary b{color:var(--yellow)}
-  main{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;padding:14px 18px;max-width:1400px;margin:0 auto}
-  .g{background:var(--blue-d);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;border:3px solid transparent}
+  /* 모둠 카드: 넓은 화면(가로 1000px 이상)에서는 모둠 수만큼(최대 6) 한 줄에 → 5모둠이 한 화면에 */
+  main{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;padding:12px 14px;max-width:1600px;margin:0 auto}
+  @media (min-width:1000px){ main{grid-template-columns:repeat(var(--n,5),minmax(0,1fr))} }
+  .g{background:var(--blue-d);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px;border:3px solid transparent;min-width:0}
   .g.s90{border-color:var(--yellow)}
   .g.s100{border-color:var(--yellow);background:linear-gradient(160deg,#2a4f86,#173d6e)}
   .gh{display:flex;align-items:center;gap:10px}
-  .gh h2{margin:0;flex:1;font-size:22px;font-weight:900}
-  .seal{flex:none;min-width:74px;height:74px;border-radius:50%;display:grid;place-items:center;text-align:center;line-height:1.05;font-weight:900;font-size:13px;
+  .gh h2{margin:0;flex:1;font-size:20px;font-weight:900}
+  .seal{flex:none;min-width:60px;height:60px;border-radius:50%;display:grid;place-items:center;text-align:center;line-height:1.05;font-weight:900;font-size:13px;
         border:4px dashed rgba(255,255,255,.3);color:var(--soft);transform:rotate(-8deg);padding:4px}
-  .seal b{display:block;font-size:22px}
+  .seal b{display:block;font-size:18px}
   .seal.s90{border:5px double var(--yellow);color:var(--yellow)}
   .seal.s100{border:5px double #fff;background:var(--yellow);color:var(--blue-dd)}
   .mem{display:flex;flex-direction:column;gap:6px}
-  .m{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06)}
-  .m .nm{flex:1;font-size:16px;font-weight:800}
-  .m .nm small{font-size:12px;color:var(--dim);margin-left:4px}
-  .m .st{font-size:14px;font-weight:900;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);white-space:nowrap}
-  .m .w{width:60px;height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .m{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.06)}
+  .m .nm{flex:1;min-width:0;font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m .nm small{font-size:11px;color:var(--dim);margin-left:3px}
+  .m .st{flex:none;font-size:13px;font-weight:900;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);white-space:nowrap}
+  .m .w{flex:none;width:34px;height:7px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
   .m .w i{display:block;height:100%;background:rgba(255,255,255,.55)}
   .m.s90 .st{background:rgba(245,197,24,.2);color:var(--yellow)}
   .m.s100 .st{background:var(--yellow);color:var(--blue-dd)}
@@ -52,9 +54,10 @@
   .strip span.s90{box-shadow:inset 0 0 0 2px var(--yellow)}
   .strip span.s100{background:var(--yellow)}
   .strip span.sel{outline:2px solid #fff;outline-offset:1px}
-  .gf{font-size:13px;font-weight:700;color:var(--soft)}
-  .rules{max-width:1400px;margin:0 auto;padding:0 18px 10px;font-size:13px;line-height:1.6;color:var(--soft)}
-  #status{font-size:13px;color:var(--dim);text-align:right;padding:0 18px 14px;max-width:1400px;margin:0 auto}
+  .gf span{white-space:nowrap}
+  .gf{font-size:12px;font-weight:700;color:var(--soft);line-height:1.4}
+  .rules{max-width:1600px;margin:0 auto;padding:0 18px 10px;font-size:13px;line-height:1.6;color:var(--soft)}
+  #status{font-size:13px;color:var(--dim);text-align:right;padding:0 18px 14px;max-width:1600px;margin:0 auto}
   .empty{padding:60px 20px;text-align:center;font-size:20px;font-weight:800;line-height:1.6}
   .empty a{color:var(--yellow)}
 </style>
@@ -125,6 +128,7 @@ function render() {
   if (!d.groups.length) {
     $('app').innerHTML = `<div class="empty" style="grid-column:1/-1">아직 모둠이 없어요.<br>학생명단의 '모둠' 열에 모둠 번호(1, 2, 3…)를 적어 주세요.</div>`;
   } else {
+    $('app').style.setProperty('--n', Math.min(6, Math.max(1, d.groups.length)));
     const days = Object.keys(d.groups[0].days);
     $('app').innerHTML = d.groups.map(g => {
       const x = g.days[sel] || { stamp: 0, m: g.members.map(() => ({ s: 0, d: 0, n: 0 })) };
@@ -142,7 +146,7 @@ function render() {
         <div class="gh"><h2>${esc(g.no)}모둠</h2><div class="seal ${sealCls}">${seal}</div></div>
         <div class="mem">${mem}</div>
         <div class="strip">${strip}</div>
-        <div class="gf">이달 모둠 도장 ${g.monthCount}개 · 완벽 ${g.monthPerfect}개 · 연속 ${g.streak}일</div>
+        <div class="gf"><span>이달 모둠 도장 ${g.monthCount}개</span> · <span>완벽 ${g.monthPerfect}개</span> · <span>연속 ${g.streak}일</span></div>
       </section>`;
     }).join('');
   }
