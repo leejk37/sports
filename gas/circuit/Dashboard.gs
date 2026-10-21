@@ -309,7 +309,7 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v2');
+  CacheService.getScriptCache().remove('dash_v3');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
