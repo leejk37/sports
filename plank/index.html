@@ -112,11 +112,7 @@
 
       <section class="screen" id="s-time">
         <h2>어떻게 할까요?</h2>
-        <p class="pickLabel">자세</p>
-        <div class="pick">
-          <button class="btn" data-kind="full">일반</button>
-          <button class="btn line" data-kind="knee">무릎 대고</button>
-        </div>
+        <p class="pickLabel">자세: 일반 (발끝으로 버티기)</p>
         <p class="pickLabel">얼마나 버틸까요?</p>
         <button class="btn" data-goal="0">최대한 오래</button>
         <div class="pick">
@@ -205,7 +201,7 @@ const video = $('video'), canvas = $('view'), ctx = canvas.getContext('2d');
 const qrCanvas = document.createElement('canvas'), qrCtx = qrCanvas.getContext('2d', { willReadFrequently: true });
 
 /* ===== 상태 ===== */
-let mode = 'loading', kind = 'full', goal = 0;
+let mode = 'loading', kind = 'full', goal = 0;   // 자세는 일반만 (무릎 대고 삭제 2026-10-21)
 let pose, stream, facing = localStorage.getItem('plankFacing') || 'user';
 let email = '', runStart = 0, runEnd = 0, lastTick = 0;
 let hold = 0, sag = 0, pike = 0, badSince = null, badKind = '', counted = false, lastSeen = 0;

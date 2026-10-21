@@ -36,11 +36,11 @@ function handleTreadmill_(d) {
     try { st = lookupStudent_(ss, email) || st; } catch (e) {}
 
     sh.appendRow([
-      new Date(), st.grade, st.cls, st.no, st.name,
+      new Date(), st.grade, st.cls, st.no, st.name, email,
       sec, sec / 86400,          // 운동 시간: 초, 그리고 분:초 표시용
-      dist, speed, email
+      dist, speed
     ]);
-    sh.getRange(sh.getLastRow(), 7).setNumberFormat('[m]:ss');
+    sh.getRange(sh.getLastRow(), 8).setNumberFormat('[m]:ss');
     if (key) cache.put(key, st.name || '', 21600);
     return treadmillJson_({ ok: true, name: st.name });
   } catch (err) {
@@ -52,7 +52,7 @@ function handleTreadmill_(d) {
 
 function createTreadmillSheet_(ss) {
   const sh = ss.insertSheet(TREADMILL_CONFIG.SHEET_NAME);
-  sh.appendRow(['측정일시', '학년', '반', '번호', '이름', '운동 시간(초)', '운동 시간', '거리(km)', '최고 속도(km/h)', '이메일']);
+  sh.appendRow(['측정일시', '학년', '반', '번호', '이름', '이메일', '운동 시간(초)', '운동 시간', '거리(km)', '최고 속도(km/h)']);
   sh.setFrozenRows(1);
   sh.getRange(1, 1, 1, 10).setFontWeight('bold');
   return sh;
