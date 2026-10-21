@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>우리 반 모둠 도장</title>
+<meta name="theme-color" content="#1f4e8c">
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  /* 반 전체 모둠을 카드로 나란히. 태블릿·TV 모두 */
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --blue-dd:#12305a; --yellow:#f5c518;
+    --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.4); --line:rgba(255,255,255,.16);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;-webkit-tap-highlight-color:transparent}
+  header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:4px solid var(--yellow);position:sticky;top:0;background:var(--blue);z-index:2}
+  header h1{margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px;white-space:nowrap}
+  #cls{flex:1;font-size:17px;font-weight:700;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hbtn{font:inherit;font-size:15px;font-weight:800;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:transparent;color:#fff;text-decoration:none;white-space:nowrap}
+  .bar{display:flex;align-items:center;gap:10px;padding:14px 18px 4px;max-width:1400px;margin:0 auto}
+  .bar .day{flex:1;text-align:center;font-size:20px;font-weight:900}
+  .bar .day small{font-size:14px;color:var(--soft);font-weight:700;margin-left:6px}
+  .nav{font:inherit;font-size:20px;font-weight:900;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
+  .nav:disabled{opacity:.25;cursor:default}
+  .toToday{font:inherit;font-size:13px;font-weight:800;padding:6px 11px;border-radius:999px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
+  .summary{max-width:1400px;margin:0 auto;padding:4px 18px 0;text-align:center;font-size:15px;font-weight:700;color:var(--soft)}
+  .summary b{color:var(--yellow)}
+  main{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;padding:14px 18px;max-width:1400px;margin:0 auto}
+  .g{background:var(--blue-d);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;border:3px solid transparent}
+  .g.s90{border-color:var(--yellow)}
+  .g.s100{border-color:var(--yellow);background:linear-gradient(160deg,#2a4f86,#173d6e)}
+  .gh{display:flex;align-items:center;gap:10px}
+  .gh h2{margin:0;flex:1;font-size:22px;font-weight:900}
+  .seal{flex:none;min-width:74px;height:74px;border-radius:50%;display:grid;place-items:center;text-align:center;line-height:1.05;font-weight:900;font-size:13px;
+        border:4px dashed rgba(255,255,255,.3);color:var(--soft);transform:rotate(-8deg);padding:4px}
+  .seal b{display:block;font-size:22px}
+  .seal.s90{border:5px double var(--yellow);color:var(--yellow)}
+  .seal.s100{border:5px double #fff;background:var(--yellow);color:var(--blue-dd)}
+  .mem{display:flex;flex-direction:column;gap:6px}
+  .m{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06)}
+  .m .nm{flex:1;font-size:16px;font-weight:800}
+  .m .nm small{font-size:12px;color:var(--dim);margin-left:4px}
+  .m .st{font-size:14px;font-weight:900;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);white-space:nowrap}
+  .m .w{width:60px;height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .m .w i{display:block;height:100%;background:rgba(255,255,255,.55)}
+  .m.s90 .st{background:rgba(245,197,24,.2);color:var(--yellow)}
+  .m.s100 .st{background:var(--yellow);color:var(--blue-dd)}
+  .strip{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin-top:2px}
+  .strip span{aspect-ratio:1/1;border-radius:50%;background:rgba(255,255,255,.08);cursor:pointer}
+  .strip span.s90{box-shadow:inset 0 0 0 2px var(--yellow)}
+  .strip span.s100{background:var(--yellow)}
+  .strip span.sel{outline:2px solid #fff;outline-offset:1px}
+  .gf{font-size:13px;font-weight:700;color:var(--soft)}
+  .rules{max-width:1400px;margin:0 auto;padding:0 18px 10px;font-size:13px;line-height:1.6;color:var(--soft)}
+  #status{font-size:13px;color:var(--dim);text-align:right;padding:0 18px 14px;max-width:1400px;margin:0 auto}
+  .empty{padding:60px 20px;text-align:center;font-size:20px;font-weight:800;line-height:1.6}
+  .empty a{color:var(--yellow)}
+</style>
+</head>
+<body>
+<header>
+  <h1>우리 반 모둠 도장</h1>
+  <div id="cls"></div>
+  <a class="hbtn" href="../">허브로</a>
+</header>
+<div id="top"></div>
+<main id="app"></main>
+<div class="rules">· <b>모둠 도장</b>: 모둠원 <b>모두</b>가 그날 개인 도장을 받으면 찍혀요. 모두 완벽 도장이면 <b>완벽 모둠 도장</b>.<br>
+· 날짜는 ‹ › 버튼·키보드 ←/→·화면 옆으로 밀기, 모둠 카드 아래 동그라미(이번 달)를 눌러도 바뀌어요. 모둠은 학생명단의 '모둠' 열에서 바꿉니다.</div>
+<div id="status"></div>
+
+<script>
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
+  TOKEN: '26cp4s_squat',
+  REFRESH_SEC: 60
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const P = new URLSearchParams(location.search);
+// 반 정하기: 허브에서 온 학생(email) 또는 선생님이 ?grade=4&cls=해
+const Q = P.get('email') ? { email: P.get('email').trim().toLowerCase() } : { grade: P.get('grade') || '', cls: P.get('cls') || '' };
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+let data = null, month = '', sel = '', seq = 0;
+
+function jsonp(params, timeout = 25000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'teamcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { done(); reject(new Error('시간 초과')); }, timeout);
+    function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = d => { done(); resolve(d); };
+    s.onerror = () => { done(); reject(new Error('연결 실패')); };
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ ...params, token: CONFIG.TOKEN, callback: cb });
+    document.head.appendChild(s);
+  });
+}
+const addDay = (d, n) => { const t = new Date(d + 'T12:00:00'); t.setDate(t.getDate() + n); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); };
+const dayName = d => { const t = new Date(d + 'T12:00:00'); return `${t.getMonth() + 1}월 ${t.getDate()}일 (${WD[t.getDay()]})`; };
+
+function goDay(target) {
+  if (!data || !target || target > data.today || target < '2026-09-01') return;
+  sel = target;
+  if (target.slice(0, 7) !== data.month) { month = target.slice(0, 7); load(); } else render();
+}
+
+function render() {
+  const d = data;
+  if (!sel || sel.slice(0, 7) !== d.month) sel = d.month === d.today.slice(0, 7) ? d.today : Object.keys(d.groups[0] ? d.groups[0].days : {}).pop() || d.today;
+  $('cls').textContent = d.classLabel;
+  const isToday = sel === d.today;
+  const rel = isToday ? '오늘' : sel === addDay(d.today, -1) ? '어제' : sel === addDay(d.today, -2) ? '그제' : '';
+  const dayGroups = d.groups.map(g => g.days[sel]).filter(Boolean);
+  const stamped = dayGroups.filter(x => x.stamp).length;
+  $('top').innerHTML = `<div class="bar">
+      <button class="nav" id="dPrev" ${sel <= '2026-09-01' ? 'disabled' : ''} aria-label="전날">‹</button>
+      <div class="day">${esc(dayName(sel))}${rel ? `<small>${rel}</small>` : ''}</div>
+      ${isToday ? '' : '<button class="toToday" id="toToday">오늘로</button>'}
+      <button class="nav" id="dNext" ${isToday ? 'disabled' : ''} aria-label="다음 날">›</button>
+    </div>
+    <div class="summary">${d.groups.length}개 모둠 중 <b>${stamped}</b>모둠이 ${isToday ? '오늘' : '이날'} 모둠 도장을 받았어요${d.noGroup ? ` · 모둠이 없는 친구 ${d.noGroup}명` : ''}</div>`;
+
+  if (!d.groups.length) {
+    $('app').innerHTML = `<div class="empty" style="grid-column:1/-1">아직 모둠이 없어요.<br>학생명단의 '모둠' 열에 모둠 번호(1, 2, 3…)를 적어 주세요.</div>`;
+  } else {
+    const days = Object.keys(d.groups[0].days);
+    $('app').innerHTML = d.groups.map(g => {
+      const x = g.days[sel] || { stamp: 0, m: g.members.map(() => ({ s: 0, d: 0, n: 0 })) };
+      const got = x.m.filter(v => v.s).length, all = x.m.length;
+      const sealCls = x.stamp === 100 ? 's100' : x.stamp === 90 ? 's90' : '';
+      const seal = x.stamp === 100 ? '완벽<b>모둠</b>도장' : x.stamp === 90 ? '<b>모둠</b>도장' : `<b>${got}/${all}</b>명`;
+      const mem = g.members.map((m, i) => {
+        const v = x.m[i] || { s: 0, d: 0, n: 0 };
+        const st = v.s === 100 ? '완벽 ★' : v.s === 90 ? '도장 ✓' : `${v.d}/${v.n}`;
+        const bar = v.s ? '' : `<span class="w"><i style="width:${v.n ? Math.round(v.d / v.n * 100) : 0}%"></i></span>`;
+        return `<div class="m${v.s === 100 ? ' s100' : v.s === 90 ? ' s90' : ''}"><span class="nm">${esc(m.name)}<small>${esc(m.no)}번</small></span>${bar}<span class="st">${st}</span></div>`;
+      }).join('');
+      const strip = days.map(k => { const s = g.days[k].stamp; return `<span class="${s === 100 ? 's100' : s === 90 ? 's90' : ''}${k === sel ? ' sel' : ''}" data-day="${k}" title="${k}"></span>`; }).join('');
+      return `<section class="g ${sealCls}">
+        <div class="gh"><h2>${esc(g.no)}모둠</h2><div class="seal ${sealCls}">${seal}</div></div>
+        <div class="mem">${mem}</div>
+        <div class="strip">${strip}</div>
+        <div class="gf">이달 모둠 도장 ${g.monthCount}개 · 완벽 ${g.monthPerfect}개 · 연속 ${g.streak}일</div>
+      </section>`;
+    }).join('');
+  }
+  $('dPrev').onclick = () => goDay(addDay(sel, -1));
+  $('dNext').onclick = () => goDay(addDay(sel, 1));
+  if ($('toToday')) $('toToday').onclick = () => goDay(d.today);
+  document.querySelectorAll('.strip span').forEach(s => s.onclick = () => goDay(s.dataset.day));
+}
+
+async function load() {
+  const my = ++seq;
+  $('status').textContent = '불러오는 중…';
+  try {
+    const q = { action: 'team', ...Q }; if (month) q.month = month;
+    const d = await jsonp(q);
+    if (my !== seq) return;
+    if (!d || !d.ok) throw new Error(d && d.error || '불러오지 못했어요');
+    data = d; month = d.month;
+    render();
+    $('status').textContent = (d.updated || '') + ' 기준 · 1분마다 새로 고침';
+  } catch (e) {
+    if (my !== seq) return;
+    if (!data) $('app').innerHTML = `<div class="empty" style="grid-column:1/-1">${esc(e.message)}<br><a href="../">허브로 돌아가기</a></div>`;
+    $('status').textContent = '연결이 끊겼어요 · 다시 시도 중';
+  }
+}
+
+if (!Q.email && !(Q.grade && Q.cls)) {
+  $('app').innerHTML = '<div class="empty" style="grid-column:1/-1">허브에서 <b>우리 모둠</b>을 누르고 이름을 골라 들어와 주세요.<br>선생님은 주소 끝에 <b>?grade=4&amp;cls=해</b>처럼 붙여 열 수 있어요.<br><br><a href="../">허브로 가기</a></div>';
+} else {
+  load();
+  setInterval(() => { if (!document.hidden && data && month === data.today.slice(0, 7)) load(); }, CONFIG.REFRESH_SEC * 1000);
+  addEventListener('keydown', e => { if (!data) return; if (e.key === 'ArrowLeft') goDay(addDay(sel, -1)); else if (e.key === 'ArrowRight') goDay(addDay(sel, 1)); });
+  let sx = null, sy = 0;
+  addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  addEventListener('touchend', e => {
+    if (sx == null || !data) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) goDay(addDay(sel, dx > 0 ? -1 : 1));
+  }, { passive: true });
+}
+</script>
+</body>
+</html>
