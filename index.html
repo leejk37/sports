@@ -209,6 +209,7 @@ const CONFIG = {
 
 /* 운동 메뉴: 새 운동은 여기에 한 줄 추가 */
 const ICON = {
+  stamp: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="34" r="22" stroke="#f5c518"/><path d="M25 34l8 8 15-16"/><path d="M14 64h44"/></svg>',
   squat: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="12" r="6" fill="currentColor"/><path d="M30 20l-4 18 16 4 -4 18M26 38l-12 2M30 26l20-2"/><path d="M8 66h56" stroke="#f5c518"/></svg>',
   curlup: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="28" r="6" fill="currentColor"/><path d="M22 36l14 18 14-16 10 16M24 38l14-4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   jumpingjack: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="14" r="6" fill="currentColor"/><path d="M36 22v20M36 28l-16-14M36 28l16-14M36 42l-12 18M36 42l12 18"/><path d="M12 66h48" stroke="#f5c518"/></svg>',
@@ -222,13 +223,14 @@ const ICON = {
   hanging: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>'
 };
 const EXERCISES = [
+  { id: 'stamp',       name: '내 도장',        desc: '오늘 남은 종목 · 이번 달 도장', url: 'stamp/',  ready: true,  tag: '내 기록' },
   { id: 'squat',       name: '스쿼트',         desc: '자세 인식 · 횟수 측정', url: 'squat/',       ready: true,  tag: '카메라 · 옆에서' },
   { id: 'curlup',      name: '윗몸말아올리기', desc: '자세 인식 · 횟수 측정', url: 'curlup/',      ready: true,  tag: '카메라 · 옆에서' },
   { id: 'jumpingjack', name: '점핑잭',         desc: '자세 인식 · 횟수 측정', url: 'jumpingjack/', ready: true,  tag: '카메라 · 앞에서' },
   { id: 'highknee',    name: '하이니',         desc: '무릎 높이 들기 · 횟수 측정', url: 'highknee/', ready: true,  tag: '카메라 · 앞에서' },
   { id: 'jumprope',    name: '줄넘기',         desc: '뛴 횟수 · 1분 빠르기',   url: 'jumprope/',    ready: true,  tag: '카메라 · 앞에서' },
   { id: 'lunge',       name: '런지',           desc: '자세 인식 · 횟수 측정', url: 'lunge/',       ready: true,  tag: '카메라 · 옆에서' },
-  { id: 'pushup',      name: '팔굽혀펴기',     desc: '일반 · 무릎 대고 · 횟수 측정', url: 'pushup/', ready: true, tag: '카메라 · 옆에서' },
+  { id: 'pushup',      name: '팔굽혀펴기',     desc: '무릎 대고 · 횟수 측정', url: 'pushup/', ready: true, tag: '카메라 · 옆에서' },
   { id: 'plank',       name: '플랭크',         desc: '바른 자세로 버틴 시간',   url: 'plank/',  ready: true, tag: '카메라 · 옆에서' },
   { id: 'treadmill',   name: '트레드밀',       desc: '운동 시간 · 거리 기록', url: 'treadmill/', ready: true, tag: '타이머' },
   { id: 'hanging',     name: '행잉',           desc: '버틴 시간 기록',        url: 'hang/',      ready: true, tag: '타이머' },

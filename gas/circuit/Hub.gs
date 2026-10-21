@@ -12,6 +12,7 @@
  *   logout    : 한 명 로그아웃
  *   logoutAll : 방 전체 로그아웃
  *   dash      : 큰 화면 현황판 요약 (Dashboard.gs). date=yyyy-MM-dd 를 주면 그날 기록
+ *   stamp     : 개인별 하루 도장·이번 달 달력 (Stamp.gs). email, month=yyyy-MM
  */
 const HUB_SHEET = '허브로그인';
 const HUB_HEADERS = ['방', '이메일', '이름', '학년', '반', '번호', '로그인시각'];
@@ -29,6 +30,8 @@ function hubJsonp_(e) {
       out = hubStudent_(p.email);
     } else if (p.action === 'dash') {
       out = dashSummary_(p.date, p.key);    // Dashboard.gs — 큰 화면 현황판 (date 없으면 오늘, key 맞으면 명단)
+    } else if (p.action === 'stamp') {
+      out = stampSummary_(p.email, p.month); // Stamp.gs — 개인별 하루 도장 (month=yyyy-MM, 없으면 이번 달)
     } else {
       const room = String(p.room || '');
       if (!/^[\w-]{1,20}$/.test(room)) throw new Error('방 이름이 잘못됐어요');

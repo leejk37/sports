@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>내 도장</title>
+<meta name="theme-color" content="#1f4e8c">
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  /* 태블릿 세로·가로 모두. 가로가 넓으면 왼쪽 '오늘', 오른쪽 '이번 달' 두 칸 */
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --blue-dd:#12305a; --yellow:#f5c518; --green:#2b8a3e;
+    --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.4); --line:rgba(255,255,255,.16);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;-webkit-tap-highlight-color:transparent}
+  header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:4px solid var(--yellow);position:sticky;top:0;background:var(--blue);z-index:2}
+  header h1{margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px}
+  #who{flex:1;font-size:17px;font-weight:700;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hbtn{font:inherit;font-size:15px;font-weight:800;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:transparent;color:#fff;text-decoration:none;cursor:pointer;white-space:nowrap}
+  main{display:grid;grid-template-columns:1fr;gap:16px;padding:16px;max-width:1200px;margin:0 auto}
+  @media (min-width:900px){ main{grid-template-columns:1.05fr 1fr;align-items:start} }
+  .card{background:var(--blue-d);border-radius:20px;padding:18px}
+  .label{font-size:15px;font-weight:800;color:var(--soft)}
+  #status{font-size:13px;color:var(--dim);text-align:right;padding:0 18px 12px;max-width:1200px;margin:0 auto}
+
+  /* 오늘 도장 */
+  .todayTop{display:flex;align-items:center;gap:18px}
+  .seal{flex:none;width:132px;height:132px;border-radius:50%;display:grid;place-items:center;text-align:center;line-height:1.05;
+        border:5px dashed rgba(255,255,255,.35);color:var(--soft);font-weight:900;transform:rotate(-8deg)}
+  .seal b{display:block;font-size:40px}
+  .seal small{display:block;font-size:14px;font-weight:800}
+  .seal.s90{border:6px double var(--yellow);color:var(--yellow)}
+  .seal.s100{border:6px double #fff;background:var(--yellow);color:var(--blue-dd);box-shadow:0 0 0 6px rgba(245,197,24,.25)}
+  .seal.pop{animation:pop .7s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes pop{from{transform:rotate(-8deg) scale(2.2);opacity:0}to{transform:rotate(-8deg) scale(1);opacity:1}}
+  .todayTxt{flex:1;min-width:0}
+  .todayTxt h2{margin:2px 0 6px;font-size:26px;font-weight:900;letter-spacing:-.5px;line-height:1.25}
+  .todayTxt p{margin:0;font-size:16px;color:var(--soft);line-height:1.5}
+  .prog{height:14px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:12px}
+  .prog i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#f5c518,#ffd84d);transition:width .8s ease}
+  .note{margin-top:10px;font-size:14px;font-weight:700;color:var(--blue-dd);background:#ffe38a;border-radius:10px;padding:7px 11px;display:none}
+
+  /* 종목 목록 */
+  .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:16px}
+  .it{display:flex;flex-direction:column;gap:4px;padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.07);border:2px solid transparent;color:#fff;text-decoration:none;font:inherit;text-align:left;cursor:pointer}
+  .it .n{font-size:17px;font-weight:900}
+  .it .s{font-size:14px;font-weight:700;color:var(--soft)}
+  .it.ok{background:rgba(43,138,62,.35);border-color:#3fb15a}
+  .it.ok .n::after{content:' ✓';color:#9ff0b0}
+  .it.part{border-color:rgba(245,197,24,.7)}
+  .it.part .s{color:var(--yellow)}
+  .it .go{font-size:13px;font-weight:800;color:var(--yellow)}
+  .it.ok .go{display:none}
+  .bike{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.07)}
+  .bike .n{font-size:17px;font-weight:900;flex:none}
+  .bike .w{flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .bike .w i{display:block;height:100%;width:0;background:#7fb0f0;border-radius:999px;transition:width .8s ease}
+  .bike .s{font-size:14px;font-weight:700;color:var(--soft);white-space:nowrap}
+  .bike.ok{background:rgba(245,197,24,.18)}
+  .bike.ok .w i{background:var(--yellow)}
+
+  /* 달력 */
+  .calHead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .calHead h3{flex:1;margin:0;font-size:21px;font-weight:900;text-align:center}
+  .nav{font:inherit;font-size:20px;font-weight:900;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
+  .nav:disabled{opacity:.25;cursor:default}
+  .sum{display:flex;gap:8px;margin-bottom:12px}
+  .sum div{flex:1;background:var(--blue-dd);border-radius:12px;padding:9px 10px;text-align:center}
+  .sum b{display:block;font-size:26px;font-weight:900;color:var(--yellow)}
+  .sum span{font-size:13px;font-weight:700;color:var(--soft)}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .cal .wd{font-size:13px;font-weight:800;color:var(--dim);text-align:center;padding-bottom:2px}
+  .cal .wd.sun{color:#ff9d8a}.cal .wd.sat{color:#9cc4ff}
+  .d{aspect-ratio:1/1;border-radius:10px;background:rgba(255,255,255,.05);position:relative;display:grid;place-items:center}
+  .d .num{position:absolute;top:4px;left:6px;font-size:12px;font-weight:800;color:var(--dim)}
+  .d.today{outline:3px solid var(--yellow);outline-offset:-3px}
+  .d.future{background:transparent}
+  .d .mk{width:62%;aspect-ratio:1/1;border-radius:50%;display:grid;place-items:center;font-size:clamp(9px,1.6vw,14px);font-weight:900;transform:rotate(-8deg)}
+  .d .mk.s90{border:3px solid var(--yellow);color:var(--yellow)}
+  .d .mk.s100{background:var(--yellow);color:var(--blue-dd)}
+  .d .bar{position:absolute;left:18%;right:18%;bottom:12%;height:4px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
+  .d .bar i{display:block;height:100%;background:rgba(255,255,255,.55)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:13px;font-weight:700;color:var(--soft)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:16px;height:16px;border-radius:50%;display:inline-block}
+  .rules{margin-top:14px;font-size:13px;line-height:1.6;color:var(--soft);border-top:1px solid var(--line);padding-top:10px}
+
+  .empty{padding:60px 20px;text-align:center;font-size:20px;font-weight:800;line-height:1.6}
+  .empty a{color:var(--yellow)}
+</style>
+</head>
+<body>
+<header>
+  <h1>내 도장</h1>
+  <div id="who"></div>
+  <a class="hbtn" id="back" href="../">허브로</a>
+</header>
+<div id="app"></div>
+<div id="status"></div>
+
+<script>
+/* ===== 설정 ===== */
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
+  TOKEN: '26cp4s_squat',
+  REFRESH_SEC: 60
+};
+/* 종목 → 운동 앱 폴더 ('하러 가기'). key는 Stamp.gs STAMP_EX / 허브 EXERCISES id 와 같음 */
+const APP = {
+  squat: 'squat/', lunge: 'lunge/', jumpingjack: 'jumpingjack/', curlup: 'curlup/', highknee: 'highknee/',
+  pushup: 'pushup/', plank: 'plank/', jumprope: 'jumprope/', hanging: 'hang/', treadmill: 'treadmill/', rowing: 'rowing/'
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const P = new URLSearchParams(location.search);
+const EMAIL = (P.get('email') || '').trim().toLowerCase();
+const NAME = P.get('name') || '';
+const FROM_HUB = P.get('from') === 'hub';
+let month = '', data = null, lastStamp = null, seq = 0;
+
+function jsonp(params, timeout = 20000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'stampcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { done(); reject(new Error('시간 초과')); }, timeout);
+    function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = d => { done(); resolve(d); };
+    s.onerror = () => { done(); reject(new Error('연결 실패')); };
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ ...params, token: CONFIG.TOKEN, callback: cb });
+    document.head.appendChild(s);
+  });
+}
+
+const fmtSec = v => (Math.round(v * 10) / 10).toString().replace(/\.0$/, '');
+const goUrl = key => '../' + APP[key] + '?' + new URLSearchParams({ email: EMAIL, name: NAME || (data && data.student.name) || '', from: 'hub' });
+
+function render() {
+  const d = data, t = d.todayStatus, st = d.student;
+  $('who').textContent = `${st.grade ? st.grade + '학년 ' + st.cls + '반 ' : ''}${st.name}`;
+  const left = t.need - t.done;
+  const sealCls = t.stamp === 100 ? 's100' : t.stamp === 90 ? 's90' : '';
+  const sealHtml = t.stamp === 100 ? '<small>완벽</small><b>100</b><small>도장</small>'
+    : t.stamp === 90 ? '<b>90</b><small>오늘 도장</small>'
+    : `<b>${t.done}/${t.need}</b><small>오늘 도장</small>`;
+  const title = t.stamp === 100 ? '완벽 도장을 받았어요! 🎉'
+    : t.stamp === 90 ? (t.bikeOpen ? `실내자전거 ${d.rule.bikeKm}km면 완벽 도장!` : '오늘 도장을 받았어요!')
+    : left === t.need ? '오늘 도장에 도전해 볼까요?' : `${left}종목만 더 하면 도장!`;
+  const sub = t.stamp === 90 && !t.bikeOpen ? `실내자전거 기록은 ${d.rule.bikeFromHour}시부터 반영돼요. ${d.rule.bikeKm}km 이상이면 완벽 도장!`
+    : t.stamp ? '' : '모든 종목을 기준 시간 이상 하면 도장을 받아요.';
+  const notes = [];
+  if (t.weekend) notes.push('주말에는 트레드밀·로잉머신·행잉을 빼고 셈해요');
+
+  const items = t.items.map(i => {
+    const cls = i.ok ? 'ok' : i.tried ? 'part' : '';
+    const s = i.ok ? `${fmtSec(i.sec)}초 통과` : i.tried ? `${fmtSec(i.sec)}초 · ${fmtSec(i.min - i.sec)}초 더` : `${i.min}초 이상`;
+    return `<a class="it ${cls}" href="${esc(goUrl(i.key))}"><span class="n">${esc(i.name)}</span><span class="s">${esc(s)}</span><span class="go">하러 가기 ›</span></a>`;
+  }).join('');
+  const bikeW = Math.min(100, t.km / d.rule.bikeKm * 100);
+  const bikeS = !t.bikeOpen ? `${d.rule.bikeFromHour}시부터 반영` : t.bikeOk ? `${t.km}km 통과` : `${t.km}km / ${d.rule.bikeKm}km`;
+
+  const prev = data._prevMonth, next = data._nextMonth;
+  const [Y, M] = d.month.split('-').map(Number);
+  const firstDow = new Date(Y, M - 1, 1).getDay();       // 0=일
+  const last = new Date(Y, M, 0).getDate();
+  let cells = ['일', '월', '화', '수', '목', '금', '토'].map((w, i) => `<div class="wd${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}">${w}</div>`).join('');
+  for (let i = 0; i < firstDow; i++) cells += '<div></div>';
+  for (let i = 1; i <= last; i++) {
+    const key = d.month + '-' + String(i).padStart(2, '0'), x = d.days[key];
+    const isToday = key === d.today;
+    if (!x) { cells += `<div class="d future"><span class="num">${i}</span></div>`; continue; }
+    const mk = x.stamp === 100 ? '<span class="mk s100">완벽</span>' : x.stamp === 90 ? '<span class="mk s90">90</span>'
+      : x.done ? `<span class="bar"><i style="width:${Math.round(x.done / x.need * 100)}%"></i></span>` : '';
+    cells += `<div class="d${isToday ? ' today' : ''}" title="${key} · ${x.done}/${x.need}종목"><span class="num">${i}</span>${mk}</div>`;
+  }
+
+  $('app').innerHTML = `<main>
+    <section class="card">
+      <div class="label">오늘 ${esc(d.today.slice(5).replace('-', '월 '))}일</div>
+      <div class="todayTop" style="margin-top:8px">
+        <div class="seal ${sealCls}${lastStamp !== null && t.stamp > lastStamp ? ' pop' : ''}">${sealHtml}</div>
+        <div class="todayTxt"><h2>${esc(title)}</h2><p>${esc(sub)}</p>
+          <div class="prog"><i id="progBar"></i></div></div>
+      </div>
+      <div class="note" id="note">${esc(notes.join(' · '))}</div>
+      <div class="items">${items}</div>
+      <div class="bike${t.bikeOk ? ' ok' : ''}"><span class="n">🚴 실내자전거</span><span class="w"><i id="bikeBar"></i></span><span class="s">${esc(bikeS)}</span></div>
+    </section>
+    <section class="card">
+      <div class="calHead">
+        <button class="nav" id="prev" ${prev ? '' : 'disabled'} aria-label="이전 달">‹</button>
+        <h3>${Y}년 ${M}월</h3>
+        <button class="nav" id="next" ${next ? '' : 'disabled'} aria-label="다음 달">›</button>
+      </div>
+      <div class="sum">
+        <div><b>${d.monthCount}</b><span>이달 도장</span></div>
+        <div><b>${d.monthPerfect}</b><span>완벽 도장</span></div>
+        <div><b>${d.streak}</b><span>연속 일수</span></div>
+      </div>
+      <div class="cal">${cells}</div>
+      <div class="legend">
+        <span><i style="border:3px solid var(--yellow)"></i>90 도장</span>
+        <span><i style="background:var(--yellow)"></i>완벽 도장</span>
+        <span><i style="background:rgba(255,255,255,.55);height:5px;border-radius:999px;width:18px"></i>한 만큼</span>
+      </div>
+      <div class="rules">
+        · <b>90 도장</b>: 그날 정해진 종목을 모두 기준 시간 이상 해요 (주말엔 스포츠실 종목 빼고)<br>
+        · <b>완벽 도장</b>: 90 도장 + 실내자전거 ${d.rule.bikeKm}km 이상 (${d.rule.bikeKm}km = 10분)<br>
+        · 연속 일수는 도장 없는 주말에는 끊기지 않아요
+      </div>
+    </section>
+  </main>`;
+  $('note').style.display = notes.length ? 'block' : 'none';
+  requestAnimationFrame(() => {
+    $('progBar').style.width = (t.need ? t.done / t.need * 100 : 0) + '%';
+    $('bikeBar').style.width = (t.bikeOpen ? bikeW : 0) + '%';
+  });
+  $('prev').onclick = () => { if (prev) { month = prev; load(); } };
+  $('next').onclick = () => { if (next) { month = next; load(); } };
+  if (d.month === d.today.slice(0, 7)) lastStamp = t.stamp;
+}
+
+const shift = (m, n) => { const [y, mo] = m.split('-').map(Number); const t = new Date(y, mo - 1 + n, 1); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0'); };
+
+async function load() {
+  const my = ++seq;
+  $('status').textContent = '불러오는 중…';
+  try {
+    const q = { action: 'stamp', email: EMAIL }; if (month) q.month = month;
+    const d = await jsonp(q);
+    if (my !== seq) return;
+    if (!d || !d.ok) throw new Error(d && d.error || '불러오지 못했어요');
+    d._prevMonth = d.month > '2026-09' ? shift(d.month, -1) : '';      // 기록은 2026년 9월부터
+    d._nextMonth = d.month < d.today.slice(0, 7) ? shift(d.month, 1) : '';
+    data = d; month = d.month;
+    render();
+    $('status').textContent = (d.updated || '') + ' 기준 · 1분마다 새로 고침';
+  } catch (e) {
+    if (my !== seq) return;
+    if (!data) $('app').innerHTML = `<div class="empty">${esc(e.message)}<br><a href="../">허브로 돌아가기</a></div>`;
+    $('status').textContent = '연결이 끊겼어요 · 다시 시도 중';
+  }
+}
+
+if (!/^[\w.\-]+@[\w.\-]+$/.test(EMAIL)) {
+  $('app').innerHTML = '<div class="empty">허브에서 <b>내 도장</b>을 누르고<br>이름을 골라 들어와 주세요.<br><br><a href="../">허브로 가기</a></div>';
+} else {
+  $('who').textContent = NAME;
+  load();
+  setInterval(() => { if (!document.hidden && month === (data && data.today.slice(0, 7))) load(); }, CONFIG.REFRESH_SEC * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+}
+</script>
+</body>
+</html>
