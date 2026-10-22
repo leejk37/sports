@@ -32,8 +32,9 @@ const STAMP = {
   RIDE_HEAD_ROW: 3,
   RIDE_YEAR: 2026,
   CACHE_SEC: 30,              // 학생·반별 결과 캐시 (아래 공유 캐시 덕분에 짧아도 빠름)
-  SHARED_SEC: 60,             // 종목 기록 공유 캐시: 시트는 1분에 한 번만 읽고 모든 학생이 나눠 씀 → 새 기록은 1분 안에 반영
+  SHARED_SEC: 90,             // 종목 기록 공유 캐시가 이보다 오래되면 새로 만듦 (warmStamp 트리거가 1분마다 미리 만듦)
   RIDE_SEC: 600,              // 인도어라이딩(다른 파일)은 모아서 입력하므로 10분
+  KEEP_SEC: 21600,            // 공유 캐시 보관 시간(최대 6시간). 오래된 것이라도 일단 바로 보여 주고 뒤에서 새로 만듦
   ROSTER_SEC: 300
 };
 /* key는 허브 EXERCISES의 id와 같게 (도장 화면에서 '하러 가기'로 바로 연결) */
@@ -64,39 +65,46 @@ function stampCtx_(ss, ids, roster) {
     crit: stampCriteria_(ss), best: {}, bike: {}
   };
   const list = [...ids];
-  ctx.best = stampShared_(ss, 'sb2', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
-  ctx.bike = stampShared_(ss, 'rd2', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
+  ctx.best = stampShared_(ss, 'sb3', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
+  ctx.bike = stampShared_(ss, 'rd3', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
   return ctx;
 }
 
 /** 공유 캐시: 모든 학생 것을 한 번에 만들어 학생별 칸(prefix_아이디)에 나눠 담고, 필요한 학생 것만 꺼냄.
- *  캐시가 비었으면 한 명만 만들고(잠금) 나머지는 기다렸다가 같은 결과를 씀 */
+ *  - 만든 지 sec초 안이면 그대로 씀
+ *  - 오래됐으면: 다른 요청이 새로 만드는 중이면 옛 것을 바로 돌려줌(기다리지 않음), 아니면 이 요청이 새로 만듦
+ *  - 아예 없으면(처음): 만들어질 때까지 기다림
+ *  잠금은 문서 잠금(getDocumentLock)을 씀 → 운동 기록 저장·허브 로그인(스크립트 잠금)을 막지 않음 */
 function stampShared_(ss, prefix, sec, ids, build) {
   const cache = CacheService.getScriptCache();
+  const at = Number(cache.get(prefix + '__at')) || 0;
   const take = () => {
-    if (!cache.get(prefix + '__ready')) return null;
     const got = cache.getAll(ids.map(id => prefix + '_' + id)), out = {};
     ids.forEach(id => { const v = got[prefix + '_' + id]; if (v) { try { out[id] = JSON.parse(v); } catch (e) {} } });
     return out;
   };
-  let out = take();
-  if (out) return out;
-  const lock = LockService.getScriptLock();
-  const locked = lock.tryLock(20000);
+  if (at && Date.now() - at < sec * 1000) return take();
+  const lock = LockService.getDocumentLock();
+  if (at) {                                           // 오래됨: 누가 만들고 있으면 옛 것으로 바로 답함
+    if (!lock.tryLock(0)) return take();
+  } else if (!lock.tryLock(25000)) {
+    return take();                                    // 처음인데 너무 오래 걸리면 있는 만큼
+  }
   try {
-    if (locked && (out = take())) return out;          // 기다리는 동안 다른 요청이 만들어 둠
+    const at2 = Number(cache.get(prefix + '__at')) || 0;
+    if (at2 && Date.now() - at2 < sec * 1000) return take();   // 기다리는 동안 다른 요청이 만들어 둠
     const all = build(), put = {};
     Object.keys(all).forEach(id => { const j = JSON.stringify(all[id]); if (j.length < 95000) put[prefix + '_' + id] = j; });
     const keys = Object.keys(put);
     for (let i = 0; i < keys.length; i += 100) {       // 한 번에 너무 많이 넣지 않게 나눠 담음
       const part = {}; keys.slice(i, i + 100).forEach(k => part[k] = put[k]);
-      try { cache.putAll(part, sec); } catch (e) {}
+      try { cache.putAll(part, STAMP.KEEP_SEC); } catch (e) {}
     }
-    try { cache.put(prefix + '__ready', '1', sec); } catch (e) {}
-    out = {}; ids.forEach(id => { if (all[id]) out[id] = all[id]; });
+    try { cache.put(prefix + '__at', String(Date.now()), STAMP.KEEP_SEC); } catch (e) {}
+    const out = {}; ids.forEach(id => { if (all[id]) out[id] = all[id]; });
     return out;
   } finally {
-    if (locked) lock.releaseLock();
+    lock.releaseLock();
   }
 }
 
@@ -128,13 +136,14 @@ function stampReadAllRide_(roster) {
 
 /** 시간 재기·캐시 미리 채우기: 편집기에서 실행하거나 시간 트리거(setupStampWarm)로 */
 function warmStamp() {
-  const h = Number(stampFmt_(new Date(), 'H'));
+  const now = new Date(), h = Number(stampFmt_(now, 'H')), m = Number(stampFmt_(now, 'm'));
   if (h < 7 || h >= 21) return;                        // 밤에는 쉼
+  if ((h < 8 || h >= 17) && m % 5) return;             // 수업 시간(8~17시)엔 1분마다, 그 밖엔 5분마다
   const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
   const roster = stampRoster_(ss);
   const ids = roster.list.map(x => x.id);
-  stampShared_(ss, 'sb2', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
-  stampShared_(ss, 'rd2', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
+  stampShared_(ss, 'sb3', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
+  stampShared_(ss, 'rd3', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
   console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
 }
 /** 한 번만 실행: 1분마다 warmStamp → 학생이 언제 열어도 '처음 계산'을 기다리지 않음 (다시 실행하면 중복 없이 새로 만듦) */
@@ -394,7 +403,7 @@ function diagStamp() {
 /** 편집기에서 시간 재기: 공유 캐시를 비우고 처음 계산 → 캐시 사용 순서로 (학년·반은 바꿔서) */
 function diagStampTime() {
   const ym = Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'), c = CacheService.getScriptCache();
-  c.removeAll(['sb2__ready', 'rd2__ready', 'sroster1', 'team2_4_해_' + ym]);
+  c.removeAll(['sb3__at', 'rd3__at', 'sroster1', 'team2_4_해_' + ym]);
   let t = Date.now(); const r = stampTeam_({ grade: '4', cls: '해' });
   Logger.log('처음 계산(시트 읽기): ' + (Date.now() - t) + 'ms, ok=' + r.ok + (r.error ? ' ' + r.error : ''));
   c.remove('team2_4_해_' + ym);

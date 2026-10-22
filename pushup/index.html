@@ -180,8 +180,9 @@ const CONFIG = {
   // 팔꿈치 각도 = 어깨–팔꿈치–손목, 몸 각도 = 어깨–엉덩이–발목(일반) / 어깨–엉덩이–무릎(무릎 대고)
   UP: 150,           // 팔꿈치가 이 이상 펴지면 → 올라온 자세 (1회 완성)
   START: 135,        // 이 아래로 굽혀지면 → 한 번 시작
-  DOWN: 95,          // 이 아래까지 굽혀야 → 충분히 내려감 (아니면 '덜 내려감')
-  BODY_MIN: 150,     // 몸 각도가 이보다 작으면 → 몸이 꺾임(엉덩이 처짐·솟음)
+  DOWN: 105,         // 이 아래까지 굽혀야 → 충분히 내려감 (아니면 '덜 내려감'). 95 → 105 (2026-10-23, 정확도 중앙값 50%로 너무 엄격)
+  BODY_MIN: 140,     // 몸 각도가 이보다 작으면 → 몸이 꺾임(엉덩이 처짐·솟음). 150 → 140 (무릎 대고는 엉덩이가 조금 접히는 게 자연스러움)
+  BENT_RATIO: 0.35,  // 한 번 하는 동안 몸이 꺾인 시간이 이 비율을 넘어야 '몸이 꺾임' (순간 흔들림 무시)
   MIN_REP_MS: 500,   // 이보다 짧은 움직임은 흔들림으로 무시
   VIS_MIN: 0.5,
   SMOOTH: 0.5,
@@ -397,17 +398,18 @@ function measure(now) {
   if (tickGoal(now)) return;
   if (sElbow == null) return;
   if (phase === 'up') {
-    if (sElbow < CONFIG.START) { phase = 'down'; rep = { start: now, minElbow: sElbow, minBody: sBody }; }
+    if (sElbow < CONFIG.START) { phase = 'down'; rep = { start: now, minElbow: sElbow, minBody: sBody, frames: 0, bent: 0 }; }
   } else {
     rep.minElbow = Math.min(rep.minElbow, sElbow);
     rep.minBody = Math.min(rep.minBody, sBody);
+    rep.frames++; if (sBody < CONFIG.BODY_MIN) rep.bent++;
     if (sElbow > CONFIG.UP) { judge(now); phase = 'up'; rep = null; }   // 팔을 다시 펴야 1회 완성
   }
 }
 function judge(now) {
   if (now - rep.start < CONFIG.MIN_REP_MS) return;
   const deepOk = rep.minElbow <= CONFIG.DOWN;
-  const bodyOk = rep.minBody >= CONFIG.BODY_MIN;
+  const bodyOk = !rep.frames || rep.bent / rep.frames <= CONFIG.BENT_RATIO;   // 꺾인 '시간 비율'로 판정
   if (deepOk && bodyOk) { counts.good++; beep(1320, 70); }
   else if (!deepOk) { counts.badDepth++; flash('더 내려가요!'); beep(220, 150); }   // 둘 다 부족하면 깊이 우선
   else { counts.badBody++; flash('몸을 일자로!'); beep(220, 150); }

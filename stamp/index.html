@@ -146,7 +146,7 @@ const NAME = P.get('name') || '';
 const FROM_HUB = P.get('from') === 'hub';
 let month = '', data = null, lastStamp = null, seq = 0;
 
-function jsonp(params, timeout = 20000) {
+function jsonp(params, timeout = 40000) {
   return new Promise((resolve, reject) => {
     const cb = 'stampcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
     const s = document.createElement('script');
@@ -318,9 +318,17 @@ async function load() {
   $('status').textContent = '불러오는 중…';
   try {
     const q = { action: 'stamp', email: EMAIL }; if (month) q.month = month;
-    const d = await jsonp(q);
+    let d;
+    try { d = await jsonp(q); }
+    catch (e1) {                                   // 한 번 실패하면 3초 뒤 한 번 더
+      if (my !== seq) return;
+      $('status').textContent = '응답이 늦어 다시 불러오는 중…';
+      await new Promise(r => setTimeout(r, 3000));
+      if (my !== seq) return;
+      d = await jsonp(q);
+    }
     if (my !== seq) return;
-    if (!d || !d.ok) throw new Error(d && d.error || '불러오지 못했어요');
+    if (!d || !d.ok) { const er = new Error(d && d.error || '불러오지 못했어요'); er.server = true; throw er; }
     d._prevMonth = d.month > '2026-09' ? shift(d.month, -1) : '';      // 기록은 2026년 9월부터
     d._nextMonth = d.month < d.today.slice(0, 7) ? shift(d.month, 1) : '';
     data = d; month = d.month;
@@ -328,8 +336,12 @@ async function load() {
     $('status').textContent = (d.updated || '') + ' 기준 · 1분마다 새로 고침';
   } catch (e) {
     if (my !== seq) return;
-    if (!data) $('app').innerHTML = `<div class="empty">${esc(e.message)}<br><a href="../">허브로 돌아가기</a></div>`;
-    $('status').textContent = '연결이 끊겼어요 · 다시 시도 중';
+    if (!data) $('app').innerHTML = `<div class="empty">${esc(e.server ? e.message : '서버 응답이 늦어요. 1분 뒤 자동으로 다시 불러와요.')}<br><a href="../">허브로 돌아가기</a></div>`;
+    // 원인을 나눠 보여 줌: 인터넷 / 서버 응답 늦음 / 서버가 알려 준 오류
+    const why = !navigator.onLine ? '인터넷 연결이 끊겼어요'
+      : e.server ? '서버 오류: ' + e.message
+      : e.message === '시간 초과' ? '서버 응답이 늦어요' : '서버에 연결하지 못했어요';
+    $('status').textContent = why + (data ? ' · 이전 화면을 보여 주는 중, 1분 뒤 다시 시도' : ' · 1분 뒤 다시 시도');
   }
 }
 
@@ -338,7 +350,7 @@ if (!/^[\w.\-]+@[\w.\-]+$/.test(EMAIL)) {
 } else {
   $('who').textContent = NAME;
   load();
-  setInterval(() => { if (!document.hidden && month === (data && data.today.slice(0, 7))) load(); }, CONFIG.REFRESH_SEC * 1000);
+  setInterval(() => { if (!document.hidden && (!data || month === data.today.slice(0, 7))) load(); }, CONFIG.REFRESH_SEC * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   addEventListener('keydown', e => { if (!data) return; if (e.key === 'ArrowLeft') goDay(addDay(sel, -1)); else if (e.key === 'ArrowRight') goDay(addDay(sel, 1)); });
 }
