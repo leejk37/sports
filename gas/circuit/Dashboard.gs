@@ -74,10 +74,12 @@ function dashSummary_(dateParam, key) {
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
+  if (!out && past) out = dashArchiveGet_(target);       // 지난 날: 한 번 계산한 결과를 '현황판보관' 탭에서 바로 꺼냄
   if (!out) {
     out = dashBuild_(past ? target : null);
-    try { cache.put(cacheKey, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {}
+    if (past) dashArchivePut_(target, out, realToday);
   }
+  if (!hit) { try { cache.put(cacheKey, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {} }
   // 이름 명단은 열쇠가 맞을 때만 내보냄
   const visitors = out.visitors;
   delete out.visitors;
@@ -319,3 +321,71 @@ function diagDashboardYesterday() {
   CacheService.getScriptCache().remove('dash_d3_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
+
+/* ===== 지난 날 보관 =====
+ * 지난 날짜 현황판은 계산에 약 8초(탭 13개 + 인도어라이딩 시트)가 걸리지만 결과는 더 바뀌지 않음.
+ * 그래서 한 번 계산하면 숨긴 탭 '현황판보관'(A 날짜 · B 결과 JSON · C 만든 시각)에 남겨 두고 다음부터는 그 한 줄만 읽음.
+ * 이틀 이상 지난 날만 보관(어제 기록은 자전거 입력·18시 퇴실 정리 등으로 아직 바뀔 수 있음).
+ * 지난 기록을 시트에서 고쳤다면 편집기에서 clearDashArchive() 실행(또는 그 날짜 줄을 지움). */
+const DASH_ARCHIVE = '현황판보관';
+
+function dashArchiveSheet_(create) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(DASH_ARCHIVE);
+  if (!sh && create) {
+    sh = ss.insertSheet(DASH_ARCHIVE);
+    sh.appendRow(['날짜', '결과(JSON) — 현황판 지난 날 보관, 지워도 다시 만들어짐', '만든 시각']);
+    sh.setFrozenRows(1);
+    try { sh.hideSheet(); } catch (e) {}
+  }
+  return sh;
+}
+function dashArchiveGet_(day) {
+  try {
+    const sh = dashArchiveSheet_(false); if (!sh || sh.getLastRow() < 2) return null;
+    const days = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getDisplayValues();
+    for (let i = days.length - 1; i >= 0; i--) {
+      if (days[i][0] === day) return JSON.parse(sh.getRange(i + 2, 2).getValue());
+    }
+  } catch (e) {}
+  return null;
+}
+function dashArchivePut_(day, out, today) {
+  const twoDaysAgo = Utilities.formatDate(new Date(new Date(today + 'T12:00:00+09:00').getTime() - 2 * 864e5), DASH.TZ, 'yyyy-MM-dd');
+  if (day > twoDaysAgo) return;                          // 어제·그제(아직 바뀔 수 있음)는 캐시(6시간)만
+  try {
+    const j = JSON.stringify(out); if (j.length > 49000) return;   // 칸 하나 최대 5만 자
+    const lock = LockService.getDocumentLock(); if (!lock.tryLock(5000)) return;
+    try {
+      if (dashArchiveGet_(day)) return;
+      const sh = dashArchiveSheet_(true);
+      const r = sh.getLastRow() + 1;
+      sh.getRange(r, 1, 1, 3).setNumberFormat('@').setValues([[day, j, Utilities.formatDate(new Date(), DASH.TZ, 'yyyy-MM-dd HH:mm')]]);
+    } finally { lock.releaseLock(); }
+  } catch (e) {}
+}
+/** 편집기에서 한 번: START_DATE부터 이틀 전까지 비어 있는 날을 미리 채움(4분 넘으면 멈춤, 다시 실행하면 이어서) */
+function fillDashArchive() {
+  const t0 = Date.now(), today = Utilities.formatDate(new Date(), DASH.TZ, 'yyyy-MM-dd');
+  let n = 0;
+  for (let d = new Date(DASH.START_DATE + 'T12:00:00+09:00'); ; d = new Date(d.getTime() + 864e5)) {
+    const day = Utilities.formatDate(d, DASH.TZ, 'yyyy-MM-dd');
+    if (day >= today || Date.now() - t0 > 240000) break;
+    if (dashArchiveGet_(day)) continue;
+    dashArchivePut_(day, dashBuild_(day), today); n++;
+  }
+  Logger.log('보관한 날: ' + n + '일 · ' + Math.round((Date.now() - t0) / 1000) + '초');
+}
+/** 지난 기록을 고쳤을 때: 보관 탭을 비움(다음에 볼 때 다시 계산) */
+function clearDashArchive() {
+  const sh = dashArchiveSheet_(false);
+  if (sh && sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
+  Logger.log('현황판 보관을 비웠어요');
+}
+/** 한 번 실행: 매일 새벽 1시에 이틀 전 날을 미리 보관 */
+function setupDashArchive() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'fillDashArchive').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('fillDashArchive').timeBased().atHour(1).everyDays(1).inTimezone(DASH.TZ).create();
+  Logger.log('매일 1시 fillDashArchive 트리거를 만들었어요');
+}
+

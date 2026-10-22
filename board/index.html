@@ -384,18 +384,31 @@ $('whoClose').onclick = e => { e.stopPropagation(); closeWho(); };
 addEventListener('keydown', e => { if (e.key === 'Escape') closeWho(); });
 
 let loadSeq = 0;           // 버튼을 빨리 여러 번 눌러도 마지막 날짜만 그림
+const pastMemo = {};       // 지난 날짜 결과 기억 (바뀌지 않으므로 다시 받지 않음)
+function fetchPast(day) {  // 같은 날을 두 번 요청하지 않게 Promise로 기억
+  if (!pastMemo[day]) {
+    const q = { action: 'dash', date: day }; if (DASH_KEY) q.key = DASH_KEY;
+    pastMemo[day] = jsonp(q, 40000).then(d => { if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류'); return d; })
+      .catch(e => { delete pastMemo[day]; throw e; });
+  }
+  return pastMemo[day];
+}
+/* 보고 있는 날의 전날을 미리 받아 둠 → ◀를 누르면 바로 나옴 */
+function prefetchPrev(day) { const p = addDays(day || todayStr(), -1); fetchPast(p).catch(() => {}); }
 async function load() {
   const want = viewDate, seq = ++loadSeq;
+  if (want && !pastMemo[want]) $('status').textContent = '지난 기록 불러오는 중…';
   try {
     const q = want ? { action: 'dash', date: want } : { action: 'dash' };
     if (DASH_KEY) q.key = DASH_KEY;
-    const d = await jsonp(q);
+    const d = want ? await fetchPast(want) : await jsonp(q);
     if (seq !== loadSeq) return;
     if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류');
     render(d);
     if (!d.past) loadTicker();
     $('status').textContent = (d.past ? '지난 기록 · 하루 마감' : d.updated + ' 기준') + (d.keyOk === false ? ' · 열쇠가 맞지 않아요' : '');
     $('status').classList.remove('off');
+    setTimeout(() => prefetchPrev(want), 1500);
   } catch (e) {
     if (seq !== loadSeq) return;
     $('status').textContent = '연결 끊김 · 다시 시도 중';
