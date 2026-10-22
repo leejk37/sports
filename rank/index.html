@@ -70,9 +70,10 @@
   .band h3 .cond{font-size:.85vw;font-weight:700;color:var(--soft)}
   .rk{flex:1;max-height:4.6vw;display:flex;align-items:center;gap:.5vw;padding:.45vw .6vw;border-radius:.6vw;background:rgba(255,255,255,.06)}
   .rk .no{flex:none;width:2.1vw;height:2.1vw;border-radius:50%;display:grid;place-items:center;font-size:1.05vw;font-weight:900;background:rgba(255,255,255,.12)}
-  .rk:nth-of-type(1) .no{background:var(--gold);color:var(--blue-d)}
-  .rk:nth-of-type(2) .no{background:var(--silver);color:var(--blue-d)}
-  .rk:nth-of-type(3) .no{background:var(--bronze);color:var(--blue-d)}
+  .rk.m1 .no{background:var(--gold);color:var(--blue-d)}
+  .rk.m2 .no{background:var(--silver);color:var(--blue-d)}
+  .rk.m3 .no{background:var(--bronze);color:var(--blue-d)}
+  .v .up{color:#7be495;font-size:.8em;margin-right:.15em}
   .rk .nm{flex:1;min-width:4.4vw;display:flex;flex-direction:column;line-height:1.15;font-size:1.3vw;font-weight:800;white-space:nowrap;overflow:hidden}
   .rk .nm small{font-size:.8vw;font-weight:700;color:var(--soft)}
   .rk .v{flex:none;font-size:1.4vw;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
@@ -259,6 +260,7 @@ const mask = n => {
   return n.length === 2 ? n[0] + '*' : n[0] + '*'.repeat(n.length - 2) + n.at(-1);
 };
 const PNAME = { today: '오늘', week: '이번 주', month: '이번 달' };
+const PNAME_TOPIC = { today: '오늘은', week: '이번 주는', month: '이번 달은' };   // 받침에 맞춘 '은/는'
 /* 측정 조건 값 → 읽기 쉬운 말 (숫자면 초로 봄: 30 → 30초, 60 → 1분) */
 const condName = c => /^\d+$/.test(String(c)) ? (+c >= 60 && +c % 60 === 0 ? (+c / 60) + '분 측정' : c + '초 측정') : String(c);
 
@@ -322,7 +324,8 @@ function demoData(e) {
 let data = null, tab = 0, tabTimer = null;
 const TABS = [
   { k: 'best',   why: () => `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`, val: (e, v) => show(e, v) },
-  { k: 'growth', why: () => '처음 기록보다 얼마나 늘었는지 · 누구나 1등 할 수 있어요', val: (e, v, r) => `+${num(v)}<small>%${r && r.capped ? '+' : ''}</small>` },
+  { k: 'growth', why: () => `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
+    val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
   { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` }
 ];
 
@@ -386,8 +389,8 @@ function renderTab(keep = false) {
     }
     const top = rows.sort((x, y) => y.value - x.value).slice(0, CONFIG.TOP_N);
     return `<div class="band"><h3>${b.name}${condTxt}</h3>` + (top.length
-      ? top.map((r, i) => `<div class="rk"><span class="no">${i + 1}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span>${(() => { const h = t.val(e, r.value, r); const len = h.replace(/<[^>]+>/g, '').length; return `<span class="v${len > 5 ? ' long' : ''}">${h}</span>`; })()}</div>`).join('')
-      : `<div class="none">${PNAME[period]}은 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
+      ? top.map((r, i) => { r._rank = i && top[i - 1].value === r.value ? top[i - 1]._rank : i + 1; return r; }).map(r => `<div class="rk${r._rank <= 3 ? ' m' + r._rank : ''}"><span class="no">${r._rank}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span>${(() => { const h = t.val(e, r.value, r); const len = h.replace(/<[^>]+>/g, '').length; return `<span class="v${len > 5 ? ' long' : ''}">${h}</span>`; })()}</div>`).join('')
+      : `<div class="none">${PNAME_TOPIC[period]} 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
   }).join('');
   if (keep && tabTimer) return;
   if (tab === TABS.length - 1) prefetchNext();     // 꾸준함이 나오는 동안 다음 종목 미리 받기
