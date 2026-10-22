@@ -44,14 +44,22 @@ function rankSummary_(exRaw, periodRaw, key) {
   const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
   const keyOk = !!real && !!key && String(key) === real;
 
+  // 결과를 6시간 보관하고 CACHE_SEC(60초)가 지나면 새로 만듦. 새로 만들다 실패하면(시간 초과·동시 실행 한도 등) 옛 결과로 답함
   const cache = CacheService.getScriptCache();
-  const ck = 'rank1_' + exId + '_' + period + (keyOk ? '_k' : '');
+  const ck = 'rank2_' + exId + '_' + period + (keyOk ? '_k' : '');
+  let old = null;
   const hit = cache.get(ck);
-  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
-
-  const out = rankBuild_(exId, cfg, period, keyOk);
-  try { const j = JSON.stringify(out); if (j.length < 95000) cache.put(ck, j, RANK.CACHE_SEC); } catch (e) {}
-  return out;
+  if (hit) { try { old = JSON.parse(hit); } catch (e) {} }
+  if (old && Date.now() - (old._at || 0) < RANK.CACHE_SEC * 1000) return old;
+  try {
+    const out = rankBuild_(exId, cfg, period, keyOk);
+    out._at = Date.now();
+    try { const j = JSON.stringify(out); if (j.length < 95000) cache.put(ck, j, 21600); } catch (e) {}
+    return out;
+  } catch (err) {
+    if (old) return old;
+    throw err;
+  }
 }
 
 function rankBuild_(exId, cfg, period, keyOk) {
@@ -165,7 +173,7 @@ function rankMask_(n) {
 
 /** 편집기에서 확인: 스쿼트 이번 주 순위 요약과 걸린 시간 */
 function diagRank() {
-  CacheService.getScriptCache().remove('rank1_squat_week');
+  CacheService.getScriptCache().remove('rank2_squat_week');
   const t = Date.now(), r = rankSummary_('squat', 'week');
   Logger.log((Date.now() - t) + 'ms · 합계 ' + r.total + ' · ' + r.people + '명 · 최고 ' + r.best.length + '줄 · 성장 ' + r.growth.length + ' · 갱신 ' + r.pbs.length);
   Logger.log(JSON.stringify(r).slice(0, 800));
