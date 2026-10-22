@@ -14,6 +14,7 @@
  *   dash      : 큰 화면 현황판 요약 (Dashboard.gs). date=yyyy-MM-dd 를 주면 그날 기록
  *   stamp     : 개인별 하루 도장·이번 달 달력·우리 모둠 (Stamp.gs). email, month=yyyy-MM
  *   team      : 반 전체 모둠 도장 (Stamp.gs). email 또는 grade·cls, month
+ *   rank      : 종목별 순위 (Rank.gs). ex, period, key(선생님 열쇠면 이름 그대로)
  */
 const HUB_SHEET = '허브로그인';
 const HUB_HEADERS = ['방', '이메일', '이름', '학년', '반', '번호', '로그인시각'];
@@ -35,6 +36,8 @@ function hubJsonp_(e) {
       out = stampSummary_(p.email, p.month); // Stamp.gs — 개인별 하루 도장 (month=yyyy-MM, 없으면 이번 달)
     } else if (p.action === 'team') {
       out = stampTeam_(p);                   // Stamp.gs — 반 전체 모둠 도장 (email 또는 grade·cls, month)
+    } else if (p.action === 'rank') {
+      out = rankSummary_(p.ex, p.period, p.key); // Rank.gs — 종목별 순위 화면 (ex, period=today|week|month)
     } else {
       const room = String(p.room || '');
       if (!/^[\w-]{1,20}$/.test(room)) throw new Error('방 이름이 잘못됐어요');

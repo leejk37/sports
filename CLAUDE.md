@@ -23,6 +23,7 @@
 | 내 도장 | …/sports/stamp/ | (읽기만) · 통과기준 | 허브 '내 도장' 카드 → 이름 고르기. `Stamp.gs` → 허브 JSONP `action=stamp&email=&month=yyyy-MM`. 오늘 남은 종목·이달 도장 달력·연속 일수 |
 | 우리 모둠 | …/sports/team/ | (읽기만) | 허브 '우리 모둠' 카드 → 이름 고르기(그 학생의 반). 선생님은 `?grade=4&cls=해`. `Stamp.gs` → 허브 JSONP `action=team`. 반 모둠별 모둠원 도장·모둠 도장·이달 도장 줄 |
 | 현황판 | …/sports/board/ | (읽기만) | 스포츠실 TV용. `Dashboard.gs` → 허브 JSONP `action=dash`. 지난 날짜는 ◀▶ 또는 `?date=2026-10-15` (3분 뒤 오늘로 복귀). 이름 명단은 선생님 기기만: `?key=열쇠` 한 번(스크립트 속성 `DASH_KEY`) |
+| 종목 순위 | …/sports/rank/ | (읽기만) | TV용. `?ex=squat`(또는 `auto`·`squat,plank`) `&period=today|week|month`. `Rank.gs` → 허브 JSONP `action=rank`. 최고 기록 → 성장 → 꾸준함 순서, 이름은 열쇠 없으면 서버에서 가림 |
 | 청평 인도어사이클 챌린지 | …/sports/ride/ | (읽기만) | 인도어라이딩 GAS(`gas/ride/`) JSONP `?format=json&callback=` |
 | TV 돌려보기 | …/sports/tv/ | — | 현황판 ↔ 인도어라이딩 30초마다 번갈아(`?sec=`), ←/→·F 키 |
 | 입퇴실 QR(선택) | …/sports/qr/ | 입퇴실 | QR 한 번 = 입실/퇴실. 기본은 허브에서 입퇴실 |
