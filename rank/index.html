@@ -155,7 +155,7 @@
     </section>
 
     <section class="card" id="classes">
-      <div class="head"><div class="label" id="clsLabel">반별 1인 평균</div><span id="clsSub"></span></div>
+      <div class="head"><div class="label" id="clsLabel">반별 합계</div><span id="clsSub"></span></div>
       <div id="cls"></div>
     </section>
   </div>
@@ -290,7 +290,7 @@ function jsonp(params, timeout = 20000) {
  *   best:   [{ name, grade, cls, value }],            // 기간 안 1회 최고 기록 (학생당 1개)
  *   growth: [{ name, grade, cls, value, from, to }],  // 처음(또는 지난 기간) 최고 대비 늘어난 %
  *   streak: [{ name, grade, cls, value }],            // 기간 안에 이 종목을 한 날 수
- *   classes:[{ grade, cls, people, avg }],            // 반별 참여 인원 · 1인 평균
+ *   classes:[{ grade, cls, people, avg, sum }],       // 반별 참여 인원 · 1인 평균 · 합계(화면은 합계로 비교)
  *   pbs:    [{ name, grade, cls, value, prev }] }     // 기간 안에 개인 최고를 새로 세운 기록
  * 순위 자르기(학년 묶음 · 상위 N명)는 이 화면이 함 */
 
@@ -357,15 +357,15 @@ function render() {
   $('goalSub').textContent = d.allTime >= e.goal ? '🎉 목표 달성!' : `목표까지 ${plain(e, Math.max(0, e.goal - d.allTime))} · 10월부터 모두 더한 값`;
   $('note').textContent = '순위는 학년 묶음별로 따로 매겨요. 기록·성장·꾸준함 세 가지 순위가 차례로 나와요.';
 
-  // 반별: 보통은 1인 평균, 실내자전거는 반 전체가 탄 거리 합계로 비교(많이 탄 반부터)
-  const bySum = e.id === 'bike';
+  // 반별: 반 친구들 기록을 모두 더한 합계로 비교(많이 한 반부터). 여럿이 참여할수록 올라감 (2026-10-23, 평균 → 합계)
+  const bySum = true;
   const cv = c => bySum ? (c.sum != null ? c.sum : c.avg * c.people) : c.avg;
   const cls = (d.classes || []).filter(c => c.people).slice().sort((a, b) => bySum ? cv(b) - cv(a) : (a.grade - b.grade || String(a.cls).localeCompare(String(b.cls), 'ko')));
   const max = Math.max(0, ...cls.map(cv));
   $('clsLabel').textContent = bySum ? `${P} 반별 합계` : `${P} 반별 1인 평균`;
-  $('clsSub').textContent = bySum ? '반 친구들 거리를 더함' : '참여한 친구 기준';
+  $('clsSub').textContent = bySum ? '반 친구들 기록을 더함' : '참여한 친구 기준';
   $('cls').classList.toggle('many', cls.length >= 8);
-  $('cls').innerHTML = cls.length ? cls.map(c => `<div class="cr${cv(c) === max ? ' top' : ''}" title="${c.people}명 참여">
+  $('cls').innerHTML = cls.length ? cls.map(c => `<div class="cr${cv(c) === max ? ' top' : ''}" title="${c.people}명 참여 · 1인 평균 ${plain(e, c.avg)}">
       <span class="c">${c.grade}-${c.cls}</span><span class="w"><i data-w="${max ? cv(c) / max * 100 : 0}"></i></span><span class="n">${plain(e, cv(c))}</span></div>`).join('')
     : '<div class="label">아직 기록이 없어요</div>';
   requestAnimationFrame(() => document.querySelectorAll('.cr .w i').forEach(i => i.style.width = Math.max(2, i.dataset.w) + '%'));
