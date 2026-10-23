@@ -58,6 +58,9 @@
   .tile .v{font-size:2.1vw;white-space:nowrap;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
   .tile .v small{font-size:.95vw;font-weight:800;margin-left:.15vw}
   .tile .p{font-size:.85vw;color:var(--soft)}
+  .tile .p .acc{font-weight:800;color:#fff}
+  .tile .p .acc.hi{color:#9ff0b0}
+  .tile .p .acc.lo{color:#ffb3a1}
   .tile.zero{opacity:.45}
   .tile.zero .v{color:var(--soft)}
   .tile.sum{background:var(--yellow);color:var(--blue-d)}
@@ -315,7 +318,7 @@ function render(d) {
   const tiles = ORDER.filter(k => by[k]).map(k => {
     const t = by[k];
     return `<div class="tile${t.value ? '' : ' zero'}">${ICON[k] || ''}<div class="n">${esc(t.name)}</div>
-      <div class="v">${val(t)}</div><div class="p">${t.people ? t.people + '명 참여' : (past ? '기록 없음' : '아직 없어요')}</div></div>`;
+      <div class="v">${val(t)}</div><div class="p">${t.people ? t.people + '명 참여' + (t.acc != null ? ` · <span class="acc${t.acc >= 90 ? ' hi' : t.acc < 60 ? ' lo' : ''}">🎯${t.acc}%</span>` : '') : (past ? '기록 없음' : '아직 없어요')}</div></div>`;
   });
   const kinds = (d.totals || []).filter(t => t.people).length;
   tiles.push(`<div class="tile sum"><div class="n">${W} 해 본 종목</div><div class="v">${kinds}<small>종목</small></div><div class="p">모두 ${ORDER.length}종목</div></div>`);

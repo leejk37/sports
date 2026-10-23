@@ -43,15 +43,16 @@ const DASH = {
   RIDE_YEAR: 2026
 };
 
-/* 운동별 탭 읽는 법: 날짜·이메일·값이 몇 번째 칸인지 (0부터) */
+/* 운동별 탭 읽는 법: 날짜·이메일·값이 몇 번째 칸인지 (0부터)
+ * acc: 정확도 = 정확(good 열) ÷ (good + bad 열들) / 플랭크는 버틴 시간 ÷ 전체 시간(total 열) — Rank.gs와 같음 */
 const DASH_EX = [
-  { key: 'squat',       name: '스쿼트',         sheet: '스쿼트',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6 },
-  { key: 'lunge',       name: '런지',           sheet: '런지',           email: 5, value: 7, unit: '회', sum: true, pbBy: 6 },
-  { key: 'jumpingjack', name: '점핑잭',         sheet: '점핑잭',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6 },
-  { key: 'highknee',    name: '하이니',         sheet: '하이니',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6 },
-  { key: 'curlup',      name: '윗몸말아올리기', sheet: '윗몸말아올리기', email: 5, value: 7, unit: '회', sum: true, pbBy: 6 },
-  { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     email: 5, value: 8, unit: '회', sum: true, pbBy: 7 },
-  { key: 'plank',       name: '플랭크',         sheet: '플랭크',         email: 5, value: 8, unit: '초', sum: true, pbBy: null, decimals: 1 },
+  { key: 'squat',       name: '스쿼트',         sheet: '스쿼트',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
+  { key: 'lunge',       name: '런지',           sheet: '런지',           email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
+  { key: 'jumpingjack', name: '점핑잭',         sheet: '점핑잭',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
+  { key: 'highknee',    name: '하이니',         sheet: '하이니',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8] } },
+  { key: 'curlup',      name: '윗몸말아올리기', sheet: '윗몸말아올리기', email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
+  { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     email: 5, value: 8, unit: '회', sum: true, pbBy: 7, acc: { good: 8, bad: [9, 10] } },
+  { key: 'plank',       name: '플랭크',         sheet: '플랭크',         email: 5, value: 8, unit: '초', sum: true, pbBy: null, decimals: 1, acc: { good: 8, total: 9 } },
   { key: 'hanging',     name: '행잉',           sheet: '행잉',           email: 5, value: 9, unit: '초', sum: true, pbBy: null, decimals: 1 },
   { key: 'treadmill',   name: '트레드밀',       sheet: '트레드밀',       email: 5, value: 8, unit: 'km', sum: true, pbBy: null, decimals: 2, distance: true, noPb: true },
   { key: 'jumprope',    name: '줄넘기',         sheet: '줄넘기',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, mergeInto: 'rope' },
@@ -70,7 +71,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d3_' + target : 'dash_v3';
+  const cacheKey = past ? 'dash_d4_' + target : 'dash_v4';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -153,7 +154,7 @@ function dashBuild_(pastDay) {
 
   DASH_EX.forEach(ex => {
     const sh = ss.getSheetByName(ex.sheet);
-    let total = 0, people = new Set();
+    let total = 0, people = new Set(), accG = 0, accT = 0;
     if (sh) {
       const rows = sh.getDataRange().getValues().slice(1);
       const best = {};                                   // 아이디|측정조건 → 오늘 전 최고
@@ -163,7 +164,10 @@ function dashBuild_(pastDay) {
         const id = idOf(r[ex.email]); if (!id) return;
         const v = num(r[ex.value]);
         addAct(id, d, r[0] instanceof Date ? r[0].getTime() : 0);
-        if (d === today) { total += v; people.add(id); }
+        if (d === today) {
+          total += v; people.add(id);
+          if (ex.acc) { const g = num(r[ex.acc.good]); accG += g; accT += ex.acc.total != null ? num(r[ex.acc.total]) : g + ex.acc.bad.reduce((t, c) => t + num(r[c]), 0); }
+        }
         if (d < today) {
           tried.add(id);
           const k = id + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]);
@@ -190,7 +194,8 @@ function dashBuild_(pastDay) {
       });
     }
     exSets[ex.key] = { total, people };
-    if (!ex.mergeInto) totals.push({ key: ex.key, name: ex.name, unit: ex.unit, value: dashRound_(total, ex.decimals), people: people.size });
+    if (!ex.mergeInto) totals.push({ key: ex.key, name: ex.name, unit: ex.unit, value: dashRound_(total, ex.decimals), people: people.size,
+      acc: ex.acc && accT > 0 ? Math.round(accG / accT * 100) : null });   // 그날 정확도(%)
   });
 
   const log = ss.getSheetByName('기록');
@@ -306,14 +311,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v3');
+  CacheService.getScriptCache().remove('dash_v4');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d3_' + y);
+  CacheService.getScriptCache().remove('dash_d4_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 
