@@ -74,6 +74,7 @@
   .rk.m2 .no{background:var(--silver);color:var(--blue-d)}
   .rk.m3 .no{background:var(--bronze);color:var(--blue-d)}
   .v .up{color:#7be495;font-size:.8em;margin-right:.15em}
+  .cr .n .acc{display:block;font-size:.7em;font-weight:700;color:#9ff0b0;line-height:1.1}
   .rk .nm{flex:1;min-width:4.4vw;display:flex;flex-direction:column;line-height:1.15;font-size:1.3vw;font-weight:800;white-space:nowrap;overflow:hidden}
   .rk .nm small{font-size:.8vw;font-weight:700;color:var(--soft)}
   .rk .v{flex:none;font-size:1.4vw;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
@@ -148,6 +149,7 @@
         <button class="t" data-k="best">🏆 최고 기록</button>
         <button class="t" data-k="growth">📈 성장</button>
         <button class="t" data-k="streak">🔥 꾸준함</button>
+        <button class="t" data-k="acc" hidden>🎯 정확도</button>
         <span class="why" id="why"></span>
       </div>
       <div id="tabBar"><i></i></div>
@@ -327,8 +329,12 @@ const TABS = [
     label: () => ex().id === 'bike' ? '🏆 거리 합계' : '🏆 최고 기록', val: (e, v) => show(e, v) },
   { k: 'growth', why: () => `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
     val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
-  { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` }
+  { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` },
+  { k: 'acc',    why: () => `바른 자세 비율 · ${PNAME[period]} ${data && data.accMin ? data.accMin + (ex().kind === 'time' ? '초' : ex().unit) : ''} 이상 한 친구`,
+    val: (e, v) => `${num(v)}<small>%</small>`, need: () => !!data && data.accuracy != null }   // 자세 판정이 있는 종목만
 ];
+/* 지금 보여 줄 순위 (정확도는 자세 판정이 있는 종목만) */
+const tabsNow = () => TABS.filter(t => !t.need || t.need());
 
 function renderHead() {
   const e = ex();
@@ -344,7 +350,7 @@ function render() {
   const P = PNAME[period];
   $('sumLabel').textContent = `${P} 모두 합치면`;
   $('sum').innerHTML = show(e, d.total, true);
-  $('sumSub').textContent = d.avgPer != null ? `1인 평균 ${plain(e, d.avgPer)}` : '';
+  $('sumSub').textContent = (d.avgPer != null ? `1인 평균 ${plain(e, d.avgPer)}` : '') + (d.accuracy != null ? ` · 🎯 정확도 ${d.accuracy}%` : '');
   $('pplLabel').textContent = `${P} 참여한 친구`;
   $('ppl').textContent = num(d.people);
   $('pplSub').textContent = (d.best || []).length ? `최고 기록 ${plain(e, Math.max(...d.best.map(b => b.value)))}` : '';
@@ -355,7 +361,7 @@ function render() {
   $('goalMax').textContent = '/ ' + plain(e, e.goal);
   $('goalBar').style.width = Math.min(100, e.goal ? d.allTime / e.goal * 100 : 0) + '%';
   $('goalSub').textContent = d.allTime >= e.goal ? '🎉 목표 달성!' : `목표까지 ${plain(e, Math.max(0, e.goal - d.allTime))} · 10월부터 모두 더한 값`;
-  $('note').textContent = '순위는 학년 묶음별로 따로 매겨요. 기록·성장·꾸준함 세 가지 순위가 차례로 나와요.';
+  $('note').textContent = '순위는 학년 묶음별로 따로 매겨요. 기록·성장·꾸준함' + (d.accuracy != null ? '·정확도' : '') + ' 순위가 차례로 나와요.';
 
   // 반별: 반 친구들 기록을 모두 더한 합계로 비교(많이 한 반부터). 여럿이 참여할수록 올라감 (2026-10-23, 평균 → 합계)
   const bySum = true;
@@ -366,8 +372,9 @@ function render() {
   $('clsSub').textContent = bySum ? '반 친구들 기록을 더함' : '참여한 친구 기준';
   $('cls').classList.toggle('many', cls.length >= 8);
   $('cls').innerHTML = cls.length ? cls.map(c => `<div class="cr${cv(c) === max ? ' top' : ''}" title="${c.people}명 참여 · 1인 평균 ${plain(e, c.avg)}">
-      <span class="c">${c.grade}-${c.cls}</span><span class="w"><i data-w="${max ? cv(c) / max * 100 : 0}"></i></span><span class="n">${plain(e, cv(c))}</span></div>`).join('')
+      <span class="c">${c.grade}-${c.cls}</span><span class="w"><i data-w="${max ? cv(c) / max * 100 : 0}"></i></span><span class="n">${plain(e, cv(c))}${c.acc != null ? `<small class="acc">${c.acc}%</small>` : ''}</span></div>`).join('')
     : '<div class="label">아직 기록이 없어요</div>';
+  if (cls.some(c => c.acc != null)) $('clsSub').textContent = '반 친구들 기록을 더함 · 초록은 정확도';
   requestAnimationFrame(() => document.querySelectorAll('.cr .w i').forEach(i => i.style.width = Math.max(2, i.dataset.w) + '%'));
 
   renderTab(true);   // 데이터만 새로 고침: 순위 넘기는 시간은 이어서 셈
@@ -376,7 +383,10 @@ function render() {
 
 /* keep=true면 진행 중인 타이머를 그대로 두고 내용만 다시 그림(1분마다 데이터 새로 고침할 때) */
 function renderTab(keep = false) {
-  const e = ex(), t = TABS[tab], d = data; if (!d) return;
+  const d = data; if (!d) return;
+  const T = tabsNow(); if (tab >= T.length) tab = 0;
+  const e = ex(), t = T[tab];
+  $('tabs').querySelector('[data-k="acc"]').hidden = !T.some(x => x.k === 'acc');
   document.querySelectorAll('#tabs .t').forEach(b => b.classList.toggle('on', b.dataset.k === t.k));
   $('why').textContent = t.why();
   $('tabs').querySelector('[data-k="best"]').textContent = TABS[0].label();   // 자전거는 '거리 합계'
@@ -397,7 +407,7 @@ function renderTab(keep = false) {
       : `<div class="none">${PNAME_TOPIC[period]} 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
   }).join('');
   if (keep && tabTimer) return;
-  if (tab === TABS.length - 1) prefetchNext();     // 꾸준함이 나오는 동안 다음 종목 미리 받기
+  if (tab === T.length - 1) prefetchNext();        // 마지막 순위가 나오는 동안 다음 종목 미리 받기
   // 다음 순위로 넘어가기까지 남은 시간 막대
   const bar = $('tabBar').firstElementChild;
   bar.style.transition = 'none'; bar.style.width = '0';
@@ -405,9 +415,10 @@ function renderTab(keep = false) {
   clearTimeout(tabTimer);
   tabTimer = setTimeout(() => {
     tabTimer = null;
-    // 순서: 최고 기록 → 성장 → 꾸준함. 꾸준함까지 보여 준 뒤 종목이 여러 개면 다음 종목의 최고 기록부터
-    if (tab === TABS.length - 1 && ROTATE.length > 1) return setEx(exIdx + 1);
-    tab = (tab + 1) % TABS.length; renderTab();
+    // 순서: 최고 기록 → 성장 → 꾸준함 → (정확도). 마지막까지 보여 준 뒤 종목이 여러 개면 다음 종목의 최고 기록부터
+    const n = tabsNow().length;
+    if (tab >= n - 1 && ROTATE.length > 1) return setEx(exIdx + 1);
+    tab = (tab + 1) % n; renderTab();
   }, CONFIG.TAB_SEC * 1000);
 }
 
@@ -500,7 +511,7 @@ document.querySelectorAll('#period button').forEach(b => b.onclick = () => {
   clearTimeout(tabTimer); tabTimer = null; tab = 0;
   renderHead(); load();
 });
-document.querySelectorAll('#tabs .t').forEach((b, i) => b.onclick = () => { tab = i; renderTab(); });
+document.querySelectorAll('#tabs .t').forEach(b => b.onclick = () => { const i = tabsNow().findIndex(t => t.k === b.dataset.k); if (i >= 0) { tab = i; renderTab(); } });
 addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') setEx(exIdx + 1);
   else if (e.key === 'ArrowLeft') setEx(exIdx - 1);
