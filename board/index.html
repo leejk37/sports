@@ -255,11 +255,12 @@ const ICON = {
   pushup: S + '<circle cx="58" cy="30" r="6" fill="currentColor"/><path d="M52 36L12 54M48 38v20"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   plank: S + '<circle cx="58" cy="40" r="6" fill="currentColor"/><path d="M52 46L10 56M50 48v8h8"/><circle cx="30" cy="20" r="9" stroke-width="4"/><path d="M30 14v6l4 3" stroke-width="4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   hanging: S + '<path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>',
+  highknee: S + '<circle cx="34" cy="10" r="6" fill="currentColor"/><path d="M34 18v22M34 40l-2 22M34 40h14v14M34 25l-10 9M34 25l11-6"/><path d="M10 64h52" stroke="#f5c518"/></svg>',
   rope: S + '<circle cx="36" cy="12" r="6" fill="currentColor"/><path d="M36 20v22M36 26l-12 10M36 26l12 10M36 42l-6 14M36 42l6 14"/><path d="M24 36C14 52 20 66 36 66s22-14 12-30" stroke="#f5c518" stroke-width="3"/></svg>',
   bike: S + '<circle cx="18" cy="50" r="10"/><circle cx="56" cy="50" r="10" stroke="#f5c518"/><path d="M18 50l12-20h18l8 20M30 30l8 20h-20M44 22h8"/></svg>'
 };
 /* 화면에 놓는 순서 */
-const ORDER = ['squat', 'lunge', 'jumpingjack', 'curlup', 'pushup', 'plank', 'hanging', 'rope', 'treadmill', 'rowing', 'bike'];
+const ORDER = ['squat', 'lunge', 'jumpingjack', 'highknee', 'curlup', 'pushup', 'plank', 'hanging', 'rope', 'treadmill', 'rowing', 'bike'];
 
 const $ = id => document.getElementById(id);
 const fmt = v => Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
@@ -351,6 +352,7 @@ function render(d) {
   });
   const kinds = (d.totals || []).filter(t => t.people).length;
   tiles.push(`<div class="tile sum"><div class="n">${W} 해 본 종목</div><div class="v">${kinds}<small>종목</small></div><div class="p">모두 ${ORDER.length}종목</div></div>`);
+  $('tiles').style.gridTemplateColumns = `repeat(${Math.ceil(tiles.length / 2)},1fr)`;   // 두 줄에 맞춰 칸 수 (종목 12 + 합계 1 → 7칸)
   $('tiles').innerHTML = tiles.join('');
 
   // 반별 참여율
