@@ -66,7 +66,7 @@ function stampCtx_(ss, ids, roster) {
   };
   const list = [...ids];
   ctx.best = stampShared_(ss, 'sb3', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
-  ctx.bike = stampShared_(ss, 'rd4', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
+  ctx.bike = stampShared_(ss, 'rd5', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
   return ctx;
 }
 
@@ -143,7 +143,7 @@ function warmStamp() {
   const roster = stampRoster_(ss);
   const ids = roster.list.map(x => x.id);
   stampShared_(ss, 'sb3', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
-  stampShared_(ss, 'rd4', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
+  stampShared_(ss, 'rd5', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
   console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
 }
 /** 한 번만 실행: 1분마다 warmStamp → 학생이 언제 열어도 '처음 계산'을 기다리지 않음 (다시 실행하면 중복 없이 새로 만듦) */
@@ -360,7 +360,7 @@ function stampCriteria_(ss) {
 }
 
 /** 인도어라이딩 시트(RIDE_TABS 탭들)를 한 번 읽어, 학생 → { 날짜: km } 를 돌려주는 함수를 만듦.
- *  학년·반·번호(없으면 이름)로 찾음. 시트가 없거나 권한이 없으면 늘 {} */
+ *  3행에 제목 '이메일' 칸이 있으면 구글 계정으로, 없으면 학년·반·번호, 그다음 같은 학년의 이름으로 찾음. 시트가 없거나 권한이 없으면 늘 {} */
 function stampRide_() {
   const none = () => ({});
   const id = PropertiesService.getScriptProperties().getProperty('RIDE_SHEET_ID');
@@ -371,16 +371,21 @@ function stampRide_() {
     STAMP.RIDE_TABS.forEach(name => {
       const sh = book.getSheetByName(name); if (!sh) return;
       const rows = sh.getDataRange().getValues();
-      const cols = rideDateCols_(rows[STAMP.RIDE_HEAD_ROW - 1] || [], STAMP.TZ, STAMP.RIDE_YEAR);
-      tabs.push({ cols, body: rows.slice(STAMP.RIDE_HEAD_ROW) });
+      const head = rows[STAMP.RIDE_HEAD_ROW - 1] || [];
+      const cols = rideDateCols_(head, STAMP.TZ, STAMP.RIDE_YEAR);
+      const ec = head.findIndex(h => /^(이메일|구글\s*계정|계정|email)$/i.test(String(h).trim()));   // 제목이 '이메일'인 칸(어느 열이든)
+      tabs.push({ cols, ec, body: rows.slice(STAMP.RIDE_HEAD_ROW) });
     });
     if (!tabs.length) return none;
     const s = v => String(v == null ? '' : v).trim();
     return st => {
       const out = {};
-      tabs.forEach(({ cols, body }) => {
-        const row = body.find(r => s(r[0]) === s(st.grade) && s(r[1]) === s(st.cls) && s(r[2]) === s(st.no))
-                 || body.find(r => s(r[3]) === s(st.name) && (!s(r[0]) || s(r[0]) === s(st.grade)));
+      tabs.forEach(({ cols, ec, body }) => {
+        // ① 구글 계정(이메일 칸이 있을 때) → ② 학년·반·번호 → ③ 같은 학년의 이름
+        const byMail = ec >= 0 ? body.find(r => stampIdOf_(r[ec]) === st.id) : null;
+        const row = byMail || (ec >= 0 && body.some(r => stampIdOf_(r[ec]) && stampIdOf_(r[ec]) !== st.id && s(r[3]) === s(st.name)) ? null
+                 : body.find(r => s(r[0]) === s(st.grade) && s(r[1]) === s(st.cls) && s(r[2]) === s(st.no))
+                 || body.find(r => s(r[3]) === s(st.name) && (!s(r[0]) || s(r[0]) === s(st.grade))));
         if (!row) return;
         cols.forEach(({ c, d }) => { const v = Number(row[c]); if (isFinite(v) && v > 0) out[d] = (out[d] || 0) + v; });
       });
@@ -414,7 +419,7 @@ function diagStamp() {
 /** 편집기에서 시간 재기: 공유 캐시를 비우고 처음 계산 → 캐시 사용 순서로 (학년·반은 바꿔서) */
 function diagStampTime() {
   const ym = Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'), c = CacheService.getScriptCache();
-  c.removeAll(['sb3__at', 'rd4__at', 'sroster1', 'team2_4_해_' + ym]);
+  c.removeAll(['sb3__at', 'rd5__at', 'sroster1', 'team2_4_해_' + ym]);
   let t = Date.now(); const r = stampTeam_({ grade: '4', cls: '해' });
   Logger.log('처음 계산(시트 읽기): ' + (Date.now() - t) + 'ms, ok=' + r.ok + (r.error ? ' ' + r.error : ''));
   c.remove('team2_4_해_' + ym);
