@@ -323,7 +323,8 @@ function demoData(e) {
 /* ===== 그리기 ===== */
 let data = null, tab = 0, tabTimer = null;
 const TABS = [
-  { k: 'best',   why: () => `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`, val: (e, v) => show(e, v) },
+  { k: 'best',   why: () => ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
+    label: () => ex().id === 'bike' ? '🏆 거리 합계' : '🏆 최고 기록', val: (e, v) => show(e, v) },
   { k: 'growth', why: () => `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
     val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
   { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` }
@@ -376,6 +377,7 @@ function renderTab(keep = false) {
   const e = ex(), t = TABS[tab], d = data; if (!d) return;
   document.querySelectorAll('#tabs .t').forEach(b => b.classList.toggle('on', b.dataset.k === t.k));
   $('why').textContent = t.why();
+  $('tabs').querySelector('[data-k="best"]').textContent = TABS[0].label();   // 자전거는 '거리 합계'
   const list = (d[t.k] || []).filter(r => r.value > 0);
   $('bands').innerHTML = CONFIG.BANDS.map(b => {
     let rows = list.filter(r => b.grades.includes(+r.grade));
