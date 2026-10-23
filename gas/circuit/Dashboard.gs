@@ -15,7 +15,7 @@
  *   스크립트 속성 RIDE_SHEET_ID 에 그 시트 주소의 /d/ 와 /edit 사이 글자를 넣어 둠 (저장소에는 올리지 않음)
  *   3번째 줄: 학년 | 반 | 번 | 이름 | 3 / 9 | 3 / 10 | … (날짜 칸), 4번째 줄부터 학생, 칸 값 = km
  *   RIDE_SHEET_ID가 없으면 체력 기록장 '기록' 탭의 실내자전거를 대신 씀
- *   - 축하 소식 (오늘 개인 최고 기록 · 처음 해 본 종목) — 이름은 SHOW_NAMES가 true일 때만
+ *   - 축하 소식 (오늘 개인 최고 기록 · 처음 해 본 종목) — '4학년 해반 김응서 친구가…'. 이름은 선생님 열쇠(DASH_KEY)가 맞으면 그대로, 아니면 김*서
  *
  *  지난 날짜 보기: action=dash&date=2026-10-15 처럼 날짜를 주면 그날 기준으로 계산
  *   - 오늘(또는 date 없음): 60초 캐시, '지금 운동 중' 포함
@@ -33,7 +33,6 @@ const DASH = {
   CACHE_SEC: 60,
   NOW_MIN: 15,                          // 운동 기록을 이 시간(분) 안에 저장했으면 '지금 운동 중'으로 봄 (이 기기 모드 대비)
   PAST_CACHE_SEC: 21600,                // 지난 날짜 캐시(6시간, CacheService 최대)
-  SHOW_NAMES: false,                    // true면 축하 소식에 이름(성 빼고)을 보여 줌
   START_DATE: '2026-10-01',             // 누적 거리 도전을 세기 시작한 날
   DISTANCE_GOAL_KM: 100,                // 누적 거리 목표 (스크립트 속성 GOAL_KM 이 있으면 그 값)
   DISTANCE_GOAL_NAME: '',               // 제목 (스크립트 속성 GOAL_NAME 이 있으면 그 값, 없으면 '학교 전체 ○km 도전')
@@ -71,7 +70,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d4_' + target : 'dash_v4';
+  const cacheKey = past ? 'dash_d5_' + target : 'dash_v5';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -82,13 +81,16 @@ function dashSummary_(dateParam, key) {
   }
   if (!hit) { try { cache.put(cacheKey, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {} }
   // 이름 명단은 열쇠가 맞을 때만 내보냄
-  const visitors = out.visitors;
-  delete out.visitors;
+  const visitors = out.visitors, feedRaw = out.feedRaw;
+  delete out.visitors; delete out.feedRaw;
+  let keyOk = false;
   if (key) {
     const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
-    out.keyOk = !!real && String(key) === real;
-    if (out.keyOk) out.visitors = visitors || [];
+    keyOk = out.keyOk = !!real && String(key) === real;
+    if (keyOk) out.visitors = visitors || [];
   }
+  // 축하 소식 이름: '4학년 해반 김응서 친구가…' (열쇠 없으면 김*서)
+  if (feedRaw) out.feed = feedRaw.map(f => f.tpl.replace('{who}', f.name ? ' ' + (keyOk ? f.name : dashMask_(f.name)) : ''));
   return out;
 }
 
@@ -107,7 +109,6 @@ function dashBuild_(pastDay) {
   const roster = rosterMap_(ss);                                        // Main.gs: 아이디 → {grade, cls, no, name}
   const idOf = e => String(e || '').trim().toLowerCase().split('@')[0];
   const label = st => st && st.grade ? `${st.grade}학년 ${st.cls}반` : '교직원';
-  const who = st => DASH.SHOW_NAMES && st && st.name ? ` ${String(st.name).slice(1)}` : '';
 
   // ---- 입퇴실: 지금 운동 중, 오늘 입실, 이번 주 반별 참여 ----
   const inNow = new Set(), inToday = new Set(), weekByClass = {};
@@ -150,7 +151,8 @@ function dashBuild_(pastDay) {
   // ---- 종목별 오늘 누적 · 누적 거리 · 축하 소식 ----
   const totals = [], feed = [], exSets = {};
   let distanceKm = 0;
-  const feedPush = (time, text) => feed.push({ t: time, text });
+  // 축하 소식: '{who}' 자리에 이름을 넣음(열쇠가 맞으면 실명, 아니면 가운데를 가림 — dashSummary_에서)
+  const feedPush = (time, tpl, st) => feed.push({ t: time, tpl, name: st && st.name ? String(st.name) : '' });
 
   DASH_EX.forEach(ex => {
     const sh = ss.getSheetByName(ex.sheet);
@@ -183,13 +185,13 @@ function dashBuild_(pastDay) {
         const time = r[0] instanceof Date ? r[0].getTime() : 0;
         if (!tried.has(id) && !seenFirst.has(id)) {
           seenFirst.add(id);
-          feedPush(time, `${label(st)}${who(st)} 친구가 ${ex.name}에 처음 도전했어요`);
+          feedPush(time, `${label(st)}{who} 친구가 ${ex.name}에 처음 도전했어요`, st);
           return;
         }
         const k = id + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]);
         if (!ex.noPb && k in best && v > best[k] && v > 0) {
           best[k] = v;
-          feedPush(time, `${label(st)}${who(st)} 친구가 ${ex.name} 개인 최고 ${dashFmt_(v, ex.decimals)}${ex.unit}!`);
+          feedPush(time, `${label(st)}{who} 친구가 ${ex.name} 개인 최고 ${dashFmt_(v, ex.decimals)}${ex.unit}!`, st);
         }
       });
     }
@@ -256,7 +258,7 @@ function dashBuild_(pastDay) {
     now: past ? null : inNow.size, todayIn: inToday.size,
     totals, classes,
     distance: dashGoal_(dashRound_(distanceKm, 1)),
-    feed: feed.slice(0, DASH.FEED_MAX).map(f => f.text),
+    feedRaw: feed.slice(0, DASH.FEED_MAX).map(f => ({ tpl: f.tpl, name: f.name })),   // dashSummary_가 이름을 넣어 feed로 바꿈
     visitors: Object.values(visit).map(v => {             // dashSummary_가 열쇠 확인 후에만 내보냄
       const st = roster[v.id] || {};
       return {
@@ -311,14 +313,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v4');
+  CacheService.getScriptCache().remove('dash_v5');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d4_' + y);
+  CacheService.getScriptCache().remove('dash_d5_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 
@@ -387,5 +389,12 @@ function setupDashArchive() {
   ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'fillDashArchive').forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('fillDashArchive').timeBased().atHour(1).everyDays(1).inTimezone(DASH.TZ).create();
   Logger.log('매일 1시 fillDashArchive 트리거를 만들었어요');
+}
+
+/** 이름 가운데 가리기: 김응서 → 김*서, 이준 → 이*, 남궁태윤 → 남**윤 */
+function dashMask_(n) {
+  n = String(n || '');
+  if (n.length < 2) return n;
+  return n.length === 2 ? n[0] + '*' : n[0] + '*'.repeat(n.length - 2) + n[n.length - 1];
 }
 
