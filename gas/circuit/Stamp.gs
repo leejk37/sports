@@ -28,7 +28,7 @@ const STAMP = {
   DEFAULT_SEC: 30,
   BIKE_KM: 5,                 // 실내자전거 그날 이만큼 이상이면 통과 (5km = 10분)
   BIKE_FROM_HOUR: 17,         // 오늘 도장에 자전거를 반영하기 시작하는 시각
-  RIDE_TAB: '2026',           // 인도어라이딩 시트 탭 (Dashboard.gs 와 같음, 스크립트 속성 RIDE_SHEET_ID)
+  RIDE_TABS: ['2026', '2026_저학년'],   // 인도어라이딩 시트에서 읽을 탭들(같은 모양: 1행 주차·2행 요일·3행 날짜, A~D 학년·반·번·이름). 없는 탭은 건너뜀
   RIDE_HEAD_ROW: 3,
   RIDE_YEAR: 2026,
   CACHE_SEC: 30,              // 학생·반별 결과 캐시 (아래 공유 캐시 덕분에 짧아도 빠름)
@@ -66,7 +66,7 @@ function stampCtx_(ss, ids, roster) {
   };
   const list = [...ids];
   ctx.best = stampShared_(ss, 'sb3', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
-  ctx.bike = stampShared_(ss, 'rd3', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
+  ctx.bike = stampShared_(ss, 'rd4', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
   return ctx;
 }
 
@@ -143,7 +143,7 @@ function warmStamp() {
   const roster = stampRoster_(ss);
   const ids = roster.list.map(x => x.id);
   stampShared_(ss, 'sb3', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
-  stampShared_(ss, 'rd3', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
+  stampShared_(ss, 'rd4', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
   console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
 }
 /** 한 번만 실행: 1분마다 warmStamp → 학생이 언제 열어도 '처음 계산'을 기다리지 않음 (다시 실행하면 중복 없이 새로 만듦) */
@@ -359,38 +359,49 @@ function stampCriteria_(ss) {
   return out;
 }
 
-/** 인도어라이딩 시트를 한 번 읽어, 학생 → { 날짜: km } 를 돌려주는 함수를 만듦.
+/** 인도어라이딩 시트(RIDE_TABS 탭들)를 한 번 읽어, 학생 → { 날짜: km } 를 돌려주는 함수를 만듦.
  *  학년·반·번호(없으면 이름)로 찾음. 시트가 없거나 권한이 없으면 늘 {} */
 function stampRide_() {
   const none = () => ({});
   const id = PropertiesService.getScriptProperties().getProperty('RIDE_SHEET_ID');
   if (!id) return none;
   try {
-    const sh = SpreadsheetApp.openById(id).getSheetByName(STAMP.RIDE_TAB);
-    if (!sh) return none;
-    const rows = sh.getDataRange().getValues();
-    const head = rows[STAMP.RIDE_HEAD_ROW - 1] || [];
-    const cols = [];
-    head.forEach((h, c) => {
-      let m, d = '';
-      if (h instanceof Date) d = Utilities.formatDate(h, STAMP.TZ, 'yyyy-MM-dd');
-      else if ((m = String(h).match(/^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/)))
-        d = STAMP.RIDE_YEAR + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2);
-      if (d) cols.push({ c, d });
+    const book = SpreadsheetApp.openById(id);
+    const tabs = [];                                  // [{ cols:[{c,d}], body:[행…] }]
+    STAMP.RIDE_TABS.forEach(name => {
+      const sh = book.getSheetByName(name); if (!sh) return;
+      const rows = sh.getDataRange().getValues();
+      const cols = rideDateCols_(rows[STAMP.RIDE_HEAD_ROW - 1] || [], STAMP.TZ, STAMP.RIDE_YEAR);
+      tabs.push({ cols, body: rows.slice(STAMP.RIDE_HEAD_ROW) });
     });
+    if (!tabs.length) return none;
     const s = v => String(v == null ? '' : v).trim();
-    const body = rows.slice(STAMP.RIDE_HEAD_ROW);
     return st => {
-      const row = body.find(r => s(r[0]) === s(st.grade) && s(r[1]) === s(st.cls) && s(r[2]) === s(st.no))
-               || body.find(r => s(r[3]) === s(st.name));
-      if (!row) return {};
       const out = {};
-      cols.forEach(({ c, d }) => { const v = Number(row[c]); if (isFinite(v) && v > 0) out[d] = (out[d] || 0) + v; });
+      tabs.forEach(({ cols, body }) => {
+        const row = body.find(r => s(r[0]) === s(st.grade) && s(r[1]) === s(st.cls) && s(r[2]) === s(st.no))
+                 || body.find(r => s(r[3]) === s(st.name) && (!s(r[0]) || s(r[0]) === s(st.grade)));
+        if (!row) return;
+        cols.forEach(({ c, d }) => { const v = Number(row[c]); if (isFinite(v) && v > 0) out[d] = (out[d] || 0) + v; });
+      });
       return out;
     };
   } catch (e) {
     return none;
   }
+}
+
+/** 날짜 줄 → [{ c: 열 번호, d: 'yyyy-MM-dd' }]. 날짜 값 또는 '3 / 9' 같은 글자 (Dashboard.gs도 씀) */
+function rideDateCols_(head, tz, year) {
+  const cols = [];
+  head.forEach((h, c) => {
+    let m, d = '';
+    if (h instanceof Date) d = Utilities.formatDate(h, tz, 'yyyy-MM-dd');
+    else if ((m = String(h).match(/^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/)))
+      d = year + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2);
+    if (d) cols.push({ c, d });
+  });
+  return cols;
 }
 
 /** 편집기에서 확인: TEST_ID에 명단에 있는 아이디를 넣고 실행 → 실행 로그 (저장소에는 실제 아이디를 올리지 않음) */
@@ -403,7 +414,7 @@ function diagStamp() {
 /** 편집기에서 시간 재기: 공유 캐시를 비우고 처음 계산 → 캐시 사용 순서로 (학년·반은 바꿔서) */
 function diagStampTime() {
   const ym = Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'), c = CacheService.getScriptCache();
-  c.removeAll(['sb3__at', 'rd3__at', 'sroster1', 'team2_4_해_' + ym]);
+  c.removeAll(['sb3__at', 'rd4__at', 'sroster1', 'team2_4_해_' + ym]);
   let t = Date.now(); const r = stampTeam_({ grade: '4', cls: '해' });
   Logger.log('처음 계산(시트 읽기): ' + (Date.now() - t) + 'ms, ok=' + r.ok + (r.error ? ' ' + r.error : ''));
   c.remove('team2_4_해_' + ym);

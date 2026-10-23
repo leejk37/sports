@@ -38,7 +38,7 @@ const DASH = {
   DISTANCE_GOAL_KM: 100,                // 누적 거리 목표 (스크립트 속성 GOAL_KM 이 있으면 그 값)
   DISTANCE_GOAL_NAME: '',               // 제목 (스크립트 속성 GOAL_NAME 이 있으면 그 값, 없으면 '학교 전체 ○km 도전')
   FEED_MAX: 8,
-  RIDE_TAB: '2026',                     // 인도어라이딩 시트의 탭 이름
+  RIDE_TABS: ['2026', '2026_저학년'],   // 인도어라이딩 시트에서 읽을 탭들 (없는 탭은 건너뜀)
   RIDE_HEAD_ROW: 3,                     // 날짜가 적힌 줄
   RIDE_YEAR: 2026
 };
@@ -269,30 +269,25 @@ function dashRide_(today) {
   const id = PropertiesService.getScriptProperties().getProperty('RIDE_SHEET_ID');
   if (!id) return null;
   try {
-    const sh = SpreadsheetApp.openById(id).getSheetByName(DASH.RIDE_TAB);
-    if (!sh) return null;
-    const rows = sh.getDataRange().getValues();
-    const head = rows[DASH.RIDE_HEAD_ROW - 1] || [];
-    // 날짜 칸 찾기: '3 / 9' 같은 글자 또는 날짜 값
-    const cols = [];
-    head.forEach((h, c) => {
-      let m, d = '';
-      if (h instanceof Date) d = Utilities.formatDate(h, DASH.TZ, 'yyyy-MM-dd');
-      else if ((m = String(h).match(/^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/)))
-        d = DASH.RIDE_YEAR + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2);
-      if (d) cols.push({ c, d });
-    });
+    const book = SpreadsheetApp.openById(id);
     const out = { todayKm: 0, todayPeople: 0, sinceKm: 0 };
-    rows.slice(DASH.RIDE_HEAD_ROW).forEach(r => {
-      if (!String(r[3] || '').trim()) return;               // 이름 없는 줄(합계 등)은 건너뜀
-      cols.forEach(({ c, d }) => {
-        const v = Number(r[c]);
-        if (!isFinite(v) || v <= 0) return;
-        if (d === today) { out.todayKm += v; out.todayPeople++; }
-        if (d >= DASH.START_DATE && d <= today) out.sinceKm += v;
+    let found = false;
+    DASH.RIDE_TABS.forEach(name => {
+      const sh = book.getSheetByName(name); if (!sh) return;
+      found = true;
+      const rows = sh.getDataRange().getValues();
+      const cols = rideDateCols_(rows[DASH.RIDE_HEAD_ROW - 1] || [], DASH.TZ, DASH.RIDE_YEAR);   // Stamp.gs
+      rows.slice(DASH.RIDE_HEAD_ROW).forEach(r => {
+        if (!String(r[3] || '').trim()) return;             // 이름 없는 줄(합계 등)은 건너뜀
+        cols.forEach(({ c, d }) => {
+          const v = Number(r[c]);
+          if (!isFinite(v) || v <= 0) return;
+          if (d === today) { out.todayKm += v; out.todayPeople++; }
+          if (d >= DASH.START_DATE && d <= today) out.sinceKm += v;
+        });
       });
     });
-    return out;
+    return found ? out : null;
   } catch (e) {
     return null;                                           // 권한·주소 문제면 '기록' 탭으로 대신
   }
