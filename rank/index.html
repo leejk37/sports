@@ -80,6 +80,9 @@
   .rk .v{flex:none;font-size:1.4vw;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
   .rk .v.long{font-size:1.1vw}   /* '1분 13초'·'+300%+'처럼 긴 값은 조금 작게 → 이름이 가려지지 않게 */
   .rk .v small{font-size:.85vw;font-weight:800;margin-left:.1vw;color:var(--soft)}
+  .rk .v .acc{display:block;font-style:normal;font-size:.8vw;font-weight:800;color:var(--soft);line-height:1.1;margin-top:.1vw}
+  .rk .v .acc.hi{color:#9ff0b0}
+  .rk .v .acc.lo{color:#ffb3a1}
   .band .none{font-size:1vw;color:var(--soft);padding:.6vw .2vw;line-height:1.5}
   @keyframes pop{from{opacity:0;transform:translateY(.5vw)}to{opacity:1;transform:none}}
 
@@ -326,7 +329,8 @@ function demoData(e) {
 let data = null, tab = 0, tabTimer = null;
 const TABS = [
   { k: 'best',   why: () => ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
-    label: () => ex().id === 'bike' ? '🏆 거리 합계' : '🏆 최고 기록', val: (e, v) => show(e, v) },
+    label: () => ex().id === 'bike' ? '🏆 거리 합계' : '🏆 최고 기록',
+    val: (e, v, r) => show(e, v) + (r && r.acc != null ? `<em class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}" title="이 기록의 정확도">🎯${r.acc}%</em>` : '') },   // 그 기록의 정확도
   { k: 'growth', why: () => `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
     val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
   { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` },
@@ -403,7 +407,7 @@ function renderTab(keep = false) {
     }
     const top = rows.sort((x, y) => y.value - x.value).slice(0, CONFIG.TOP_N);
     return `<div class="band"><h3>${b.name}${condTxt}</h3>` + (top.length
-      ? top.map((r, i) => { r._rank = i && top[i - 1].value === r.value ? top[i - 1]._rank : i + 1; return r; }).map(r => `<div class="rk${r._rank <= 3 ? ' m' + r._rank : ''}"><span class="no">${r._rank}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span>${(() => { const h = t.val(e, r.value, r); const len = h.replace(/<[^>]+>/g, '').length; return `<span class="v${len > 5 ? ' long' : ''}">${h}</span>`; })()}</div>`).join('')
+      ? top.map((r, i) => { r._rank = i && top[i - 1].value === r.value ? top[i - 1]._rank : i + 1; return r; }).map(r => `<div class="rk${r._rank <= 3 ? ' m' + r._rank : ''}"><span class="no">${r._rank}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span>${(() => { const h = t.val(e, r.value, r); const len = h.replace(/<em[\s\S]*?<\/em>/g, '').replace(/<[^>]+>/g, '').length; return `<span class="v${len > 5 ? ' long' : ''}">${h}</span>`; })()}</div>`).join('')
       : `<div class="none">${PNAME_TOPIC[period]} 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
   }).join('');
   if (keep && tabTimer) return;

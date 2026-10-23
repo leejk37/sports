@@ -6,7 +6,7 @@
  *  돌려주는 모양 (rank/index.html 주석과 같음)
  *   total·people·avgPer : 기간 합계 · 참여 인원 · 1인 평균
  *   allTime             : 2026-10-01부터 학교 전체 누적 (목표 막대)
- *   best   : 기간 안 1회 최고 기록 (학생 × 측정 조건마다 1개, cond = 측정시간·방식). 자전거(sumBest)는 기간 합계 km
+ *   best   : 기간 안 1회 최고 기록 (학생 × 측정 조건마다 1개, cond = 측정시간·방식, acc = 그 기록의 정확도 %). 자전거(sumBest)는 기간 합계 km
  *   growth : 기간 최고가 '기간 전 최고'(없으면 기간 첫 기록)보다 늘어난 양 value(회·초·km), pct도 함께 (같은 조건끼리)
  *   streak : 기간 안에 이 종목을 한 날 수
  *   classes: 반별 참여 인원 · 1인 평균 · 합계(sum, 자전거 반별 비교에 씀)
@@ -51,7 +51,7 @@ function rankSummary_(exRaw, periodRaw, key) {
 
   // 결과를 6시간 보관하고 CACHE_SEC(60초)가 지나면 새로 만듦. 새로 만들다 실패하면(시간 초과·동시 실행 한도 등) 옛 결과로 답함
   const cache = CacheService.getScriptCache();
-  const ck = 'rank6_' + exId + '_' + period + (keyOk ? '_k' : '');
+  const ck = 'rank7_' + exId + '_' + period + (keyOk ? '_k' : '');
   let old = null;
   const hit = cache.get(ck);
   if (hit) { try { old = JSON.parse(hit); } catch (e) {} }
@@ -121,7 +121,9 @@ function rankBuild_(exId, cfg, period, keyOk) {
   // 최고 기록: 학생 × 조건
   const bestMap = {};
   inP.forEach(r => { const k = r.id + '\u0001' + r.c; if (!bestMap[k] || r.v > bestMap[k].v) bestMap[k] = r; });
-  let best = Object.values(bestMap).map(r => Object.assign(who(r.id), { value: round(r.v), cond: r.c }));
+  // 최고 기록 옆에 '그 기록의 정확도'(그 한 번의 정확 ÷ 전체, 플랭크는 유지율)
+  let best = Object.values(bestMap).map(r => Object.assign(who(r.id), { value: round(r.v), cond: r.c,
+    acc: cfg.acc && r.at > 0 ? Math.round(r.ag / r.at * 100) : null }));
   if (cfg.sumBest) {                                  // 자전거: 하루 최고가 아니라 기간 동안 탄 거리 합계로 순위
     const sum = {};
     inP.forEach(r => sum[r.id] = (sum[r.id] || 0) + r.v);
@@ -210,7 +212,7 @@ function rankMask_(n) {
 
 /** 편집기에서 확인: 스쿼트 이번 주 순위 요약과 걸린 시간 */
 function diagRank() {
-  CacheService.getScriptCache().remove('rank6_squat_week');
+  CacheService.getScriptCache().remove('rank7_squat_week');
   const t = Date.now(), r = rankSummary_('squat', 'week');
   Logger.log((Date.now() - t) + 'ms · 합계 ' + r.total + ' · ' + r.people + '명 · 최고 ' + r.best.length + '줄 · 성장 ' + r.growth.length + ' · 갱신 ' + r.pbs.length);
   Logger.log(JSON.stringify(r).slice(0, 800));
