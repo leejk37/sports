@@ -30,12 +30,23 @@
 
   /* 왼쪽: 큰 숫자 + 축하 소식 */
   #left{display:grid;grid-template-rows:auto auto 1fr;gap:1.1vw;min-height:0}
-  .big b{display:block;font-size:4.8vw;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
-  .big b small{font-size:1.7vw;font-weight:800;margin-left:.3vw}
+  /* 지금 운동 중 · 다녀간 친구: 작게 나란히 */
+  #pair{display:grid;grid-template-columns:1fr 1fr;gap:.9vw}
+  #pair .card{padding:.7vw 1vw}
+  .big b{display:block;font-size:3.2vw;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+  .big b small{font-size:1.2vw;font-weight:800;margin-left:.2vw}
+  .big .cmp{font-size:.9vw;font-weight:700;color:var(--soft);min-height:1.2vw}
+  .big .cmp .up{color:#9ff0b0}.big .cmp .down{color:#ffb3a1}
+  /* 오늘의 숫자: 개인 최고 · 정확도 · 3일 연속 */
+  #stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.6vw;padding:.7vw .8vw}
+  #stats .s{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.1vw;padding:.3vw 0;border-radius:.7vw;background:rgba(255,255,255,.06)}
+  #stats .s .k{font-size:.85vw;font-weight:700;color:var(--soft);white-space:nowrap}
+  #stats .s b{font-size:2vw;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+  #stats .s b small{font-size:.9vw;font-weight:800;margin-left:.1vw;color:var(--soft)}
   .big.now b{color:var(--yellow)}
   #feedBox{display:flex;flex-direction:column;overflow:hidden}
   #feed{list-style:none;margin:.5vw 0 0;padding:0;display:flex;flex-direction:column;gap:.45vw;overflow:hidden}
-  #feed li{font-size:1.05vw;font-weight:600;line-height:1.3;padding:.5vw .8vw;border-radius:.7vw;background:rgba(255,255,255,.08);
+  #feed li{font-size:.95vw;font-weight:600;line-height:1.3;padding:.45vw .7vw;border-radius:.7vw;background:rgba(255,255,255,.08);
     border-left:.35vw solid var(--yellow);animation:pop .6s ease both}
   #feed li.empty{border-left-color:var(--dim);color:var(--soft)}
   @keyframes pop{from{opacity:0;transform:translateY(.6vw)}to{opacity:1;transform:none}}
@@ -91,7 +102,7 @@
   body.past #clock{display:none}
   body.past header{border-bottom-color:#9fc3f5}
   body.past .card.now{display:none}
-  body.past #left{grid-template-rows:auto 1fr}
+  body.past #pair{grid-template-columns:1fr}
   body:not(.past) #goToday{display:none}
 
   /* 다녀간 친구 명단 (선생님 기기에서만) */
@@ -163,8 +174,15 @@
 
   <div id="main">
     <section id="left">
-      <div class="card big now" data-list="now"><div class="label">지금 운동 중<span class="hint">명단 ▸</span></div><b><span id="now">-</span><small>명</small></b></div>
-      <div class="card big" data-list="all"><div class="label"><span id="inLabel">오늘 다녀간 친구</span><span class="hint">명단 ▸</span></div><b><span id="todayIn">-</span><small>명</small></b></div>
+      <div id="pair">
+        <div class="card big now" data-list="now"><div class="label">지금 운동 중<span class="hint">명단 ▸</span></div><b><span id="now">-</span><small>명</small></b><div class="cmp" id="nowSub"></div></div>
+        <div class="card big" data-list="all"><div class="label"><span id="inLabel">오늘 다녀간 친구</span><span class="hint">명단 ▸</span></div><b><span id="todayIn">-</span><small>명</small></b><div class="cmp" id="inCmp"></div></div>
+      </div>
+      <div class="card" id="stats">
+        <div class="s" title="그때까지의 자기 기록을 넘은 횟수"><span class="k">🏅 개인 최고</span><b><span id="stPb">-</span><small>건</small></b></div>
+        <div class="s" title="자세 판정이 있는 종목 전체의 바른 자세 비율"><span class="k">🎯 바른 자세</span><b><span id="stAcc">-</span><small>%</small></b></div>
+        <div class="s" title="오늘까지 평일 3일 연속 운동한 친구"><span class="k">🔥 3일 연속</span><b><span id="stStreak">-</span><small>명</small></b></div>
+      </div>
       <div class="card" id="feedBox"><div class="label">🎉 축하해요</div><ul id="feed"></ul></div>
     </section>
 
@@ -301,6 +319,17 @@ function render(d) {
   $('now').textContent = d.now == null ? '-' : d.now;
   $('todayIn').textContent = d.todayIn;
   $('inLabel').textContent = `${W} 다녀간 친구`;
+  $('nowSub').textContent = d.now != null && d.todayIn ? `다녀간 친구 중 ${Math.round(d.now / d.todayIn * 100)}%` : '';
+  // 앞선 평일과 비교 (월요일이면 지난 금요일)
+  if (d.prevIn != null && d.prevDay) {
+    const diff = d.todayIn - d.prevIn, dl = (() => { const t = new Date(d.prevDay + 'T12:00:00'); return '일월화수목금토'[t.getDay()]; })();
+    const isY = (() => { const a = new Date(d.today + 'T12:00:00'), b = new Date(d.prevDay + 'T12:00:00'); return (a - b) / 864e5 === 1; })();
+    const who = past ? (isY ? '전날' : `지난 ${dl}요일`) : (isY ? '어제' : `지난 ${dl}요일`);
+    $('inCmp').innerHTML = diff > 0 ? `${who}보다 <span class="up">▲${diff}명</span>` : diff < 0 ? `${who}보다 <span class="down">▼${-diff}명</span>` : `${who}와 같아요`;
+  } else $('inCmp').textContent = '';
+  $('stPb').textContent = d.pbCount != null ? d.pbCount : '-';
+  $('stAcc').textContent = d.accToday != null ? d.accToday : '-';
+  $('stStreak').textContent = d.streak3 != null ? d.streak3 : '-';
   $('title').textContent = past ? '스마트스포츠실 그날의 기록' : '스마트스포츠실 오늘';
   if (past) $('date').textContent = longDate(d.today);
 

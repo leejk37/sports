@@ -70,7 +70,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d5_' + target : 'dash_v5';
+  const cacheKey = past ? 'dash_d6_' + target : 'dash_v6';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -112,6 +112,9 @@ function dashBuild_(pastDay) {
 
   // ---- 입퇴실: 지금 운동 중, 오늘 입실, 이번 주 반별 참여 ----
   const inNow = new Set(), inToday = new Set(), weekByClass = {};
+  // 날짜별로 다녀간 친구(입퇴실 + 운동 기록) — '어제보다'와 '연속 운동' 계산용, 기준일 포함 14일
+  const since14 = day(new Date(base.getTime() - 13 * 864e5)), byDay = {};
+  const seen = (d, id) => { if (d >= since14 && d <= today) (byDay[d] = byDay[d] || new Set()).add(id); };
   const visit = {};                                      // 아이디 → {첫 입실, 마지막 퇴실, 횟수, 지금 이용 중}
   const hm = v => v instanceof Date ? Utilities.formatDate(v, DASH.TZ, 'HH:mm') : String(v || '').trim().slice(0, 5).replace(/^(\d):/, '0$1:');
   const ck = ss.getSheetByName('입퇴실');
@@ -119,6 +122,7 @@ function dashBuild_(pastDay) {
     ck.getDataRange().getValues().slice(1).forEach(r => {
       const d = asDay(r[0]), id = idOf(r[5]);
       if (!id) return;
+      seen(d, id);
       if (d === today) {
         inToday.add(id);
         const using = !past && r[10] === '이용 중';
@@ -138,6 +142,7 @@ function dashBuild_(pastDay) {
   // 운동 기록으로 본 활동: 아이디 → { first, last (ms) } — 아래 종목 탭을 읽으면서 채움
   const act = {};
   const addAct = (id, d, t) => {
+    seen(d, id);
     if (d >= monday && d <= today) {
       const st = roster[id];
       if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(id); }
@@ -150,6 +155,7 @@ function dashBuild_(pastDay) {
 
   // ---- 종목별 오늘 누적 · 누적 거리 · 축하 소식 ----
   const totals = [], feed = [], exSets = {};
+  let allAccG = 0, allAccT = 0, pbCount = 0, firstCount = 0;   // 오늘 전체 정확도 · 개인 최고 갱신 수 · 처음 도전 수
   let distanceKm = 0;
   // 축하 소식: '{who}' 자리에 이름을 넣음(열쇠가 맞으면 실명, 아니면 가운데를 가림 — dashSummary_에서)
   const feedPush = (time, tpl, st) => feed.push({ t: time, tpl, name: st && st.name ? String(st.name) : '' });
@@ -184,18 +190,19 @@ function dashBuild_(pastDay) {
         const st = roster[id], v = num(r[ex.value]);
         const time = r[0] instanceof Date ? r[0].getTime() : 0;
         if (!tried.has(id) && !seenFirst.has(id)) {
-          seenFirst.add(id);
+          seenFirst.add(id); firstCount++;
           feedPush(time, `${label(st)}{who} 친구가 ${ex.name}에 처음 도전했어요`, st);
           return;
         }
         const k = id + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]);
         if (!ex.noPb && k in best && v > best[k] && v > 0) {
-          best[k] = v;
+          best[k] = v; pbCount++;
           feedPush(time, `${label(st)}{who} 친구가 ${ex.name} 개인 최고 ${dashFmt_(v, ex.decimals)}${ex.unit}!`, st);
         }
       });
     }
     exSets[ex.key] = { total, people };
+    allAccG += accG; allAccT += accT;
     if (!ex.mergeInto) totals.push({ key: ex.key, name: ex.name, unit: ex.unit, value: dashRound_(total, ex.decimals), people: people.size,
       acc: ex.acc && accT > 0 ? Math.round(accG / accT * 100) : null });   // 그날 정확도(%)
   });
@@ -250,12 +257,21 @@ function dashBuild_(pastDay) {
   })).map(x => Object.assign(x, { rate: x.size ? Math.round(x.came / x.size * 100) : 0 }))
     .sort((a, b) => b.rate - a.rate || a.cls.localeCompare(b.cls, 'ko'));
 
+  // 어제(앞선 평일)와 비교 · 3일 연속(평일 기준, 오늘 포함) 운동한 친구
+  byDay[today] = new Set([...(byDay[today] || []), ...inToday]);
+  const prevWeekday = d => { let t = new Date(d + 'T12:00:00+09:00'); do { t = new Date(t.getTime() - 864e5); } while (Number(Utilities.formatDate(t, DASH.TZ, 'u')) >= 6); return day(t); };
+  const p1 = prevWeekday(today), p2 = prevWeekday(p1);
+  const prevIn = byDay[p1] ? byDay[p1].size : 0;
+  const streak3 = [...inToday].filter(id => byDay[p1] && byDay[p1].has(id) && byDay[p2] && byDay[p2].has(id)).length;
+
   feed.sort((a, b) => b.t - a.t);
   return {
     ok: true,
     updated: Utilities.formatDate(now, DASH.TZ, 'HH:mm'),
     past, today, weekFrom: monday,
     now: past ? null : inNow.size, todayIn: inToday.size,
+    prevIn, prevDay: p1, streak3, pbCount, firstCount,
+    accToday: allAccT > 0 ? Math.round(allAccG / allAccT * 100) : null,
     totals, classes,
     distance: dashGoal_(dashRound_(distanceKm, 1)),
     feedRaw: feed.slice(0, DASH.FEED_MAX).map(f => ({ tpl: f.tpl, name: f.name })),   // dashSummary_가 이름을 넣어 feed로 바꿈
@@ -313,14 +329,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v5');
+  CacheService.getScriptCache().remove('dash_v6');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d5_' + y);
+  CacheService.getScriptCache().remove('dash_d6_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 
