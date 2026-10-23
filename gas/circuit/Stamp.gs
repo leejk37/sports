@@ -6,7 +6,7 @@
  *       평일: 아래 STAMP_EX 11종목 전부
  *       주말(토·일): 스포츠실 전용(트레드밀·로잉머신·행잉)은 빼고 8종목
  *       통과 = 그날 그 종목 기록 중 측정시간이 '통과기준' 탭의 최소시간(기본 30초) 이상인 기록이 하나라도 있음
- *   - 100% 완벽 도장: 90% + 실내자전거 그날 5km 이상 (5km = 10분으로 간주)
+ *   - 100% 완벽 도장: 90% + 실내자전거 그날 5km 이상 (5km = 10분으로 간주). 1·2학년은 1km(마이후쉬)
  *       자전거는 인도어라이딩 시트에 모아서 입력하므로 오늘 도장에는 17시부터 반영
  *       (지난 날짜는 언제나 반영)
  *
@@ -27,6 +27,7 @@ const STAMP = {
   CRITERIA_SHEET: '통과기준',
   DEFAULT_SEC: 30,
   BIKE_KM: 5,                 // 실내자전거 그날 이만큼 이상이면 통과 (5km = 10분)
+  BIKE_KM_BY_GRADE: { 1: 1, 2: 1 },   // 학년별 예외: 저학년은 마이후쉬 기록이라 1km면 통과
   BIKE_FROM_HOUR: 17,         // 오늘 도장에 자전거를 반영하기 시작하는 시각
   RIDE_TABS: ['2026', '2026_저학년'],   // 인도어라이딩 시트에서 읽을 탭들(같은 모양: 1행 주차·2행 요일·3행 날짜, A~D 학년·반·번·이름). 없는 탭은 건너뜀
   RIDE_HEAD_ROW: 3,
@@ -62,9 +63,10 @@ function stampCtx_(ss, ids, roster) {
   const now = new Date();
   const ctx = {
     now, today: stampFmt_(now, 'yyyy-MM-dd'), hour: Number(stampFmt_(now, 'H')),
-    crit: stampCriteria_(ss), best: {}, bike: {}
+    crit: stampCriteria_(ss), best: {}, bike: {}, grade: {}
   };
   const list = [...ids];
+  list.forEach(id => { const st = roster.byId[id]; if (st) ctx.grade[id] = st.grade; });
   ctx.best = stampShared_(ss, 'sb3', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
   ctx.bike = stampShared_(ss, 'rd5', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
   return ctx;
@@ -166,9 +168,15 @@ function stampJudge_(ctx, id, d) {
   const done = items.filter(i => i.ok).length;
   const km = Math.round((((ctx.bike[id] || {})[d]) || 0) * 10) / 10;
   const bikeOpen = d < ctx.today || ctx.hour >= STAMP.BIKE_FROM_HOUR;
-  const bikeOk = bikeOpen && km >= STAMP.BIKE_KM;
+  const bikeOk = bikeOpen && km >= stampBikeKm_(ctx.grade[id]);
   const all = done === items.length;
   return { weekend, items, done, need: items.length, km, bikeOpen, bikeOk, stamp: all ? (bikeOk ? 100 : 90) : 0 };
+}
+
+/** 그 학년의 자전거 통과 km (BIKE_KM_BY_GRADE에 없으면 BIKE_KM) */
+function stampBikeKm_(grade) {
+  const g = String(grade == null ? '' : grade).trim();
+  return g in STAMP.BIKE_KM_BY_GRADE ? STAMP.BIKE_KM_BY_GRADE[g] : STAMP.BIKE_KM;
 }
 
 /** 그 달 1일 ~ 오늘(또는 말일)의 날짜 목록 */
@@ -214,7 +222,7 @@ function stampSummary_(emailRaw, monthRaw) {
   const today = stampFmt_(new Date(), 'yyyy-MM-dd');
   const month = stampMonthOf_(monthRaw, today);
   const cache = CacheService.getScriptCache();
-  const ck = 'stamp4_' + id + '_' + month;
+  const ck = 'stamp5_' + id + '_' + month;
   const hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
@@ -244,7 +252,7 @@ function stampSummary_(emailRaw, monthRaw) {
   const out = {
     ok: true, updated: stampFmt_(ctx.now, 'HH:mm'), today: ctx.today, month,
     student: { name: st.name, grade: st.grade, cls: st.cls, no: st.no, group: st.group },
-    rule: { bikeKm: STAMP.BIKE_KM, bikeFromHour: STAMP.BIKE_FROM_HOUR },
+    rule: { bikeKm: stampBikeKm_(st.grade), bikeFromHour: STAMP.BIKE_FROM_HOUR },
     todayStatus: stampJudge_(ctx, id, ctx.today), days,
     streak: stampStreak_(ctx.today, d => days[d] ? days[d].stamp : stampJudge_(ctx, id, d).stamp),
     monthCount: Object.values(days).filter(x => x.stamp).length,
@@ -270,7 +278,7 @@ function stampTeam_(p) {
   const today = stampFmt_(new Date(), 'yyyy-MM-dd');
   const month = stampMonthOf_(p.month, today);
   const cache = CacheService.getScriptCache();
-  const ck = 'team2_' + grade + '_' + cls + '_' + month;
+  const ck = 'team3_' + grade + '_' + cls + '_' + month;
   const hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
@@ -412,17 +420,17 @@ function rideDateCols_(head, tz, year) {
 /** 편집기에서 확인: TEST_ID에 명단에 있는 아이디를 넣고 실행 → 실행 로그 (저장소에는 실제 아이디를 올리지 않음) */
 function diagStamp() {
   const TEST_ID = '여기에_테스트용_아이디';
-  CacheService.getScriptCache().remove('stamp4_' + TEST_ID + '_' + Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'));
+  CacheService.getScriptCache().remove('stamp5_' + TEST_ID + '_' + Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'));
   Logger.log(JSON.stringify(stampSummary_(TEST_ID + SQUAT_CONFIG.DOMAIN), null, 2));
 }
 
 /** 편집기에서 시간 재기: 공유 캐시를 비우고 처음 계산 → 캐시 사용 순서로 (학년·반은 바꿔서) */
 function diagStampTime() {
   const ym = Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'), c = CacheService.getScriptCache();
-  c.removeAll(['sb3__at', 'rd5__at', 'sroster1', 'team2_4_해_' + ym]);
+  c.removeAll(['sb3__at', 'rd5__at', 'sroster1', 'team3_4_해_' + ym]);
   let t = Date.now(); const r = stampTeam_({ grade: '4', cls: '해' });
   Logger.log('처음 계산(시트 읽기): ' + (Date.now() - t) + 'ms, ok=' + r.ok + (r.error ? ' ' + r.error : ''));
-  c.remove('team2_4_해_' + ym);
+  c.remove('team3_4_해_' + ym);
   t = Date.now(); stampTeam_({ grade: '4', cls: '해' });
   Logger.log('공유 캐시로 계산: ' + (Date.now() - t) + 'ms');
   t = Date.now(); stampTeam_({ grade: '4', cls: '해' });
