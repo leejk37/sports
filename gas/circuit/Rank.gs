@@ -9,7 +9,7 @@
  *   best   : 기간 안 1회 최고 기록 (학생 × 측정 조건마다 1개, cond = 측정시간·방식). 자전거(sumBest)는 기간 합계 km
  *   growth : 기간 최고가 '기간 전 최고'(없으면 기간 첫 기록)보다 늘어난 양 value(회·초·km), pct도 함께 (같은 조건끼리)
  *   streak : 기간 안에 이 종목을 한 날 수
- *   classes: 반별 참여 인원 · 1인 평균
+ *   classes: 반별 참여 인원 · 1인 평균 · 합계(sum, 자전거 반별 비교에 씀)
  *   pbs    : 기간 안에 개인 최고를 새로 세운 기록 (최근 순 20개)
  *  학생 이름은 선생님 열쇠(스크립트 속성 DASH_KEY)가 맞을 때만 그대로, 아니면 가운데를 가림(김*서)
  *  열 위치는 CLAUDE.md '시트 데이터 구조' 표 (0부터)
@@ -46,7 +46,7 @@ function rankSummary_(exRaw, periodRaw, key) {
 
   // 결과를 6시간 보관하고 CACHE_SEC(60초)가 지나면 새로 만듦. 새로 만들다 실패하면(시간 초과·동시 실행 한도 등) 옛 결과로 답함
   const cache = CacheService.getScriptCache();
-  const ck = 'rank4_' + exId + '_' + period + (keyOk ? '_k' : '');
+  const ck = 'rank5_' + exId + '_' + period + (keyOk ? '_k' : '');
   let old = null;
   const hit = cache.get(ck);
   if (hit) { try { old = JSON.parse(hit); } catch (e) {} }
@@ -148,7 +148,7 @@ function rankBuild_(exId, cfg, period, keyOk) {
     const k = st.grade + '|' + st.cls, c = cls[k] || (cls[k] = { grade: st.grade, cls: st.cls, ids: new Set(), sum: 0 });
     c.ids.add(r.id); c.sum += r.v;
   });
-  const classes = Object.values(cls).map(c => ({ grade: c.grade, cls: c.cls, people: c.ids.size, avg: round(c.sum / c.ids.size) }));
+  const classes = Object.values(cls).map(c => ({ grade: c.grade, cls: c.cls, people: c.ids.size, avg: round(c.sum / c.ids.size), sum: round(c.sum) }));
 
   // 개인 최고 갱신: 그때까지의 같은 조건 최고보다 크면 (처음 기록은 제외)
   const run = {}, pbs = [];
@@ -178,7 +178,7 @@ function rankMask_(n) {
 
 /** 편집기에서 확인: 스쿼트 이번 주 순위 요약과 걸린 시간 */
 function diagRank() {
-  CacheService.getScriptCache().remove('rank4_squat_week');
+  CacheService.getScriptCache().remove('rank5_squat_week');
   const t = Date.now(), r = rankSummary_('squat', 'week');
   Logger.log((Date.now() - t) + 'ms · 합계 ' + r.total + ' · ' + r.people + '명 · 최고 ' + r.best.length + '줄 · 성장 ' + r.growth.length + ' · 갱신 ' + r.pbs.length);
   Logger.log(JSON.stringify(r).slice(0, 800));
