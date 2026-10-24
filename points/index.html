@@ -262,6 +262,7 @@ async function load() {
   try {
     const d = await jsonp({ action: 'points' });
     if (d && d.needKey) { store.set('dashKey', ''); KEY = ''; askKey('열쇠가 맞지 않아요. 다시 넣어 주세요'); $('status').textContent = ''; return; }
+    if (d && d.error === '방 이름이 잘못됐어요') throw new Error('GAS에 새 Hub.gs·Points.gs가 아직 배포되지 않았어요 (배포 관리 → 수정 → 새 버전)');
     if (!d || !d.ok) throw new Error((d && d.error) || '불러오지 못했어요');
     data = d; fillClasses(); render();
     if (cur) { const s = data.students.find(x => x.id === cur.id); if (s) cur.s = s; }
