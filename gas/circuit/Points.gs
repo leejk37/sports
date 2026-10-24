@@ -9,6 +9,7 @@
  *
  *  포인트 = 누적(+만 더함, 줄지 않음 → 뱃지 기준) / 남은 포인트 = 누적 − 선물로 쓴 것
  *  숫자는 '포인트규칙' 탭에서 고침(없으면 처음 부를 때 기본값으로 만듦). 고친 뒤 rebuildPoints() 한 번 실행하면 지난 것도 새 규칙으로 다시 계산
+ *  시작일 2026-10-19 (스마트스포츠 시스템을 쓰기 시작한 무렵)
  *
  *  탭 (setupPoints()가 만듦)
  *   포인트     : A 날짜 · B 학년 · C 반 · D 번호 · E 이름 · F 이메일 · G 종목P · H 도장P · I 모둠P · J 연속P · K 경신P · L 자세P · M 합계
@@ -19,7 +20,7 @@
  *   포인트현황 : 학생별 누적·사용·남은 포인트·뱃지 수 (밤마다 새로 씀, 선생님 확인용)
  *************************************************************/
 const POINT = {
-  FROM: '2026-10-01',          // 이날 기록부터 포인트 (10월 소급)
+  FROM: '2026-10-19',          // 이날 기록부터 포인트 (시스템을 쓰기 시작한 날)
   REDO_DAYS: 7,                // 밤마다 다시 계산하는 최근 날 수
   LEDGER: '포인트', RULES: '포인트규칙', GIFTS: '선물목록', TRADE: '선물교환', REPORT: '포인트현황',
   ACC_MIN_COUNT: 20,           // 바른 자세 포인트: 그날 그 종목을 이만큼 이상 했을 때만 (횟수 종목)
@@ -261,11 +262,13 @@ function pointsNightly() {
   } finally { lock.releaseLock(); }
 }
 
-/** 처음 한 번, 또는 규칙 숫자를 고친 뒤: 10월 1일부터 어제까지 모두 다시 계산 (편집기에서 실행) */
+/** 처음 한 번, 또는 규칙 숫자를 고친 뒤: 시작일(POINT.FROM)부터 어제까지 모두 다시 계산 (편집기에서 실행) */
 function rebuildPoints() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
   CacheService.getScriptCache().remove('prule1');
   const yest = stampFmt_(new Date(Date.now() - 864e5), 'yyyy-MM-dd');
+  const sh = pointLedger_(ss);
+  if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);   // 시작일 전 줄까지 모두 지우고 새로
   const n = pointWrite_(ss, POINT.FROM, yest);
   pointsReport_(ss);
   Logger.log(`${POINT.FROM}~${yest} 다시 계산: ${n}줄, ${Math.round((Date.now() - t0) / 1000)}초`);

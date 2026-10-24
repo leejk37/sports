@@ -159,3 +159,5 @@
 - Stamp.gs: '휴일' 탭(A 날짜 · B 이름, 없으면 2026년 2학기 공휴일로 생성) · stampJudge_ 휴일 판정 · stampStreak_ 주말 건너뛰기 없앰(오늘은 아직 안 끊김)
 - Points.gs: 같은 휴일 판정, 연속 포인트도 주말에 끊김
 - stamp/index.html: 휴일 안내 문구·자전거 줄·규칙 설명
+
+- 2026-10-24 포인트 시작일을 10월 19일(시스템 시작 무렵)로 (`POINT.FROM`). rebuildPoints는 원장을 모두 지우고 새로 씀
