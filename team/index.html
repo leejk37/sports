@@ -146,7 +146,7 @@ function render() {
         <div class="gh"><h2>${esc(g.no)}모둠</h2><div class="seal ${sealCls}">${seal}</div></div>
         <div class="mem">${mem}</div>
         <div class="strip">${strip}</div>
-        <div class="gf"><span>이달 모둠 도장 ${g.monthCount}개</span> · <span>완벽 ${g.monthPerfect}개</span> · <span>연속 ${g.streak}일</span></div>
+        <div class="gf"><span>이달 모둠 도장 ${g.monthCount}개</span> · <span>완벽 ${g.monthPerfect}개</span> · <span>연속 ${g.streak}일</span>${g.points ? ` · <span style="color:var(--yellow)">💎 ${Number(g.points.earned).toLocaleString('ko-KR')}P</span>` : ''}</div>
       </section>`;
     }).join('');
   }

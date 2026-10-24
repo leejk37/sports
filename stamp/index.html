@@ -112,6 +112,39 @@
   .mate.s90{background:rgba(245,197,24,.2);color:var(--yellow)}
   .mate.s100{background:var(--yellow);color:var(--blue-dd)}
   .team .gsum{margin-top:8px;font-size:13px;font-weight:700;color:var(--soft)}
+  /* 내 포인트 */
+  .pcard{grid-column:1/-1}
+  .phead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .phead h3{margin:0;font-size:21px;font-weight:900;flex:1}
+  .chip{font-size:14px;font-weight:900;padding:5px 12px;border-radius:999px;background:#9ff0b0;color:#0d3b1a}
+  .pgrid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media (min-width:900px){ .pgrid{grid-template-columns:1fr 1.25fr} }
+  .psum{display:flex;gap:8px}
+  .psum div{flex:1;background:var(--blue-dd);border-radius:12px;padding:10px;text-align:center}
+  .psum b{display:block;font-size:26px;font-weight:900}
+  .psum .big b{font-size:38px;color:var(--yellow)}
+  .psum span{font-size:13px;font-weight:700;color:var(--soft)}
+  .next{margin-top:12px;font-size:15px;font-weight:800}
+  .next .prog{margin-top:6px;height:10px}
+  .gifts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .gift{font-size:13px;font-weight:800;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft)}
+  .gift.can{background:rgba(245,197,24,.22);color:var(--yellow)}
+  .hist{margin-top:12px;font-size:14px;line-height:1.5}
+  .hist div{display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+  .hist .dd{flex:none;width:44px;color:var(--soft);font-weight:800}
+  .hist .pp{flex:none;width:44px;font-weight:900;color:#9ff0b0;text-align:right}
+  .hist .pp.minus{color:#ff9d8a}
+  .hist .tt{flex:1;color:var(--soft);min-width:0}
+  .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px}
+  .bd{border-radius:14px;padding:10px 6px 8px;text-align:center;background:rgba(255,255,255,.06)}
+  .bd i{display:block;font-style:normal;font-size:30px;line-height:1.1}
+  .bd b{display:block;font-size:13px;font-weight:900;margin-top:4px;line-height:1.25}
+  .bd small{display:block;font-size:11px;font-weight:700;color:var(--soft);margin-top:2px}
+  .bd.got{background:rgba(245,197,24,.2);box-shadow:inset 0 0 0 2px rgba(245,197,24,.6)}
+  .bd:not(.got) i{filter:grayscale(1);opacity:.35}
+  .bd:not(.got) b{color:var(--dim)}
+  .bd .bb{height:4px;border-radius:999px;background:rgba(255,255,255,.12);margin:5px 8px 0;overflow:hidden}
+  .bd .bb u{display:block;height:100%;background:rgba(255,255,255,.55)}
   .empty{padding:60px 20px;text-align:center;font-size:20px;font-weight:800;line-height:1.6}
   .empty a{color:var(--yellow)}
 </style>
@@ -179,7 +212,55 @@ function teamHtml(d, day, isToday) {
   const teamUrl = '../team/?' + new URLSearchParams({ email: EMAIL, from: 'hub' });
   return `<div class="team"><div class="top"><b>🤝 우리 ${esc(g.no)}모둠</b>${seal}<a href="${esc(teamUrl)}">반 모둠 보기 ›</a></div>
     <div class="mates">${mates}</div>
-    <div class="gsum">이달 모둠 도장 ${g.monthCount}개 · 완벽 ${g.monthPerfect}개 · 연속 ${g.streak}일${esc(msg)}</div></div>`;
+    <div class="gsum">이달 모둠 도장 ${g.monthCount}개 · 완벽 ${g.monthPerfect}개 · 연속 ${g.streak}일${d.points && d.points.group ? ` · 모둠 포인트 ${fmtP(d.points.group.earned)}P` : ''}${esc(msg)}</div></div>`;
+}
+const fmtP = n => Number(n || 0).toLocaleString('ko-KR');
+const md = d => { const [, m, dd] = String(d).split('-'); return m ? `${+m}/${+dd}` : ''; };
+
+/* 내 포인트: 남은 포인트 · 다음 선물 · 뱃지 · 최근 내역 (Points.gs) */
+function pointsHtml(d) {
+  const p = d.points; if (!p) return '';
+  const nextGift = p.gifts.find(g => g.cost > p.bal);
+  const can = p.gifts.filter(g => g.cost <= p.bal);
+  const prev = can.length ? can[can.length - 1].cost : 0;
+  const nextHtml = nextGift ? `<div class="next">🎁 ${esc(nextGift.name)}까지 <span style="color:var(--yellow)">${fmtP(nextGift.cost - p.bal)}P</span> 남았어요
+      <div class="prog"><i style="width:${Math.max(0, Math.min(100, (p.bal - prev) / (nextGift.cost - prev) * 100))}%"></i></div></div>`
+    : p.gifts.length ? '<div class="next">🎁 모든 선물로 바꿀 수 있어요! 선생님께 말해요</div>' : '';
+  const gifts = p.gifts.map(g => `<span class="gift${g.cost <= p.bal ? ' can' : ''}">${esc(g.name)} ${fmtP(g.cost)}P</span>`).join('');
+  const got = p.badges.filter(b => b.got).length;
+  const badges = p.badges.map(b => `<div class="bd${b.got ? ' got' : ''}" title="${esc(b.name)}"><i>${b.icon}</i><b>${esc(b.name)}</b>${b.got
+      ? `<small>${md(b.got)} 받음</small>` : `<small>${fmtP(b.have)}/${fmtP(b.n)}</small><div class="bb"><u style="width:${b.have / b.n * 100}%"></u></div>`}</div>`).join('');
+  const hist = [
+    ...(p.today ? [{ d: d.today, p: p.today, t: '오늘 (예정 · 밤에 확정)' }] : []),
+    ...p.trades.map(t => ({ d: t.d, p: -t.p, t: '🎁 ' + t.gift })),
+    ...p.recent
+  ].sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0).slice(0, 8)
+    .map(h => `<div><span class="dd">${md(h.d)}</span><span class="pp${h.p < 0 ? ' minus' : ''}">${h.p > 0 ? '+' : ''}${fmtP(h.p)}</span><span class="tt">${esc(h.t)}</span></div>`).join('');
+  return `<section class="card pcard">
+    <div class="phead"><h3>💎 내 포인트</h3>${p.today ? `<span class="chip">오늘 +${fmtP(p.today)}P 예정</span>` : ''}</div>
+    <div class="pgrid">
+      <div>
+        <div class="psum">
+          <div class="big"><b>${fmtP(p.bal)}</b><span>남은 포인트</span></div>
+          <div><b>${fmtP(p.earned)}</b><span>모은 포인트</span></div>
+          <div><b>${fmtP(p.month)}</b><span>이달</span></div>
+        </div>
+        ${nextHtml}
+        ${gifts ? `<div class="gifts">${gifts}</div>` : ''}
+        ${hist ? `<div class="hist">${hist}</div>` : '<div class="hist" style="color:var(--soft)">아직 포인트가 없어요. 오늘 운동하면 밤에 포인트가 들어와요!</div>'}
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:8px">뱃지 ${got}/${p.badges.length}</div>
+        <div class="badges">${badges}</div>
+      </div>
+    </div>
+    <div class="rules">
+      · 종목 통과 ${p.rules['종목 통과']}P · 하루 도장 ${p.rules['하루 도장']}P (완벽 +${p.rules['완벽 도장']}) · 모둠 도장 ${p.rules['모둠 도장']}P (완벽 +${p.rules['완벽 모둠 도장']})
+      · 연속 3일 ${p.rules['연속 3일']}P · 7일마다 ${p.rules['연속 7일마다']}P · 기록 경신 ${p.rules['기록 경신']}P · 바른 자세 ${p.rules['바른 자세']}P<br>
+      · 포인트는 매일 밤 확정돼요. 오늘 예정 포인트에는 기록 경신·바른 자세가 아직 들어 있지 않아요<br>
+      · 선물은 선생님께 말하면 바꿔 줘요. 선물로 바꿔도 모은 포인트와 뱃지는 그대로예요
+    </div>
+  </section>`;
 }
 let sel = '';                                         // 왼쪽에 자세히 보여 줄 날짜 (기본 오늘)
 const addDay = (d, n) => { const t = new Date(d + 'T12:00:00'); t.setDate(t.getDate() + n); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); };
@@ -288,6 +369,7 @@ function render() {
         · <b>모둠 도장</b>: 모둠원 모두가 도장을 받은 날 (모두 완벽 도장이면 완벽 모둠 도장)
       </div>
     </section>
+    ${pointsHtml(d)}
   </main>`;
   $('note').style.display = notes.length ? 'block' : 'none';
   requestAnimationFrame(() => {

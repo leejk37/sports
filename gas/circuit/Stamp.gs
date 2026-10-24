@@ -146,6 +146,7 @@ function warmStamp() {
   const ids = roster.list.map(x => x.id);
   stampShared_(ss, 'sb3', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
   stampShared_(ss, 'rd5', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
+  try { pointGet_(ss, []); } catch (e) {}              // Points.gs 포인트 합계 캐시
   console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
 }
 /** 한 번만 실행: 1분마다 warmStamp → 학생이 언제 열어도 '처음 계산'을 기다리지 않음 (다시 실행하면 중복 없이 새로 만듦) */
@@ -259,6 +260,7 @@ function stampSummary_(emailRaw, monthRaw) {
     monthPerfect: Object.values(days).filter(x => x.stamp === 100).length,
     group
   };
+  try { out.points = pointsForStamp_(ss, st, out); } catch (e) { out.points = null; console.warn('포인트: ' + e); }   // Points.gs
   try { cache.put(ck, JSON.stringify(out), STAMP.CACHE_SEC); } catch (e) {}
   return out;
 }
@@ -309,6 +311,7 @@ function stampTeam_(p) {
     grade, cls, classLabel: `${grade}학년 ${cls}반`, groups,
     noGroup: roster.list.filter(x => String(x.grade) === grade && String(x.cls) === cls && !x.group).length
   };
+  try { pointsForTeam_(ss, out); } catch (e) { console.warn('포인트: ' + e); }   // Points.gs 모둠 포인트 합계
   try { cache.put(ck, JSON.stringify(out), STAMP.CACHE_SEC); } catch (e) {}
   return out;
 }
