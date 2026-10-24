@@ -30,7 +30,7 @@ const POINT = {
 const POINT_RULES = [
   ['종목 통과', 1, '통과기준 이상 한 종목마다 (하루 종목당 한 번)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
-  ['완벽 도장', 5, '하루 도장 + 실내자전거 (하루 도장에 더해서)'],
+  ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
   ['모둠 도장', 5, '모둠원 모두 도장 (모둠원 각자에게)'],
   ['완벽 모둠 도장', 5, '모둠원 모두 완벽 도장 (모둠 도장에 더해서)'],
   ['연속 3일', 5, '도장 연속 3일째 되는 날'],
@@ -143,7 +143,7 @@ function pointCompute_(ss, from, to) {
   });
 
   // 3) 도장 판정 (Stamp.gs 엔진 그대로) · 모둠 도장 · 연속
-  const ctx = { now: new Date(), today, hour: 23, crit: stampCriteria_(ss), best, bike: stampReadAllRide_(roster), grade: {} };
+  const ctx = { now: new Date(), today, hour: 23, crit: stampCriteria_(ss), holi: stampHolidays_(ss), best, bike: stampReadAllRide_(roster), grade: {} };
   roster.list.forEach(st => ctx.grade[st.id] = st.grade);
   const days = [];
   for (let t = new Date('2026-09-01T12:00:00+09:00'); ; t = new Date(t.getTime() + 864e5)) {
@@ -176,8 +176,7 @@ function pointCompute_(ss, from, to) {
     let streak = 0;
     days.forEach(d => {
       const s = stampOf[st.id][d];
-      const w = Number(stampFmt_(new Date(d + 'T12:00:00+09:00'), 'u'));
-      if (s) streak++; else if (w < 6) streak = 0;            // 도장 없는 주말은 끊지 않음 (Stamp.gs와 같게)
+      if (s) streak++; else streak = 0;                       // 주말·휴일도 도장이 없으면 끊김 (Stamp.gs와 같게)
       if (d < from) return;
       const pass = passOf[st.id][d];
       const g = st.gkey ? groupOf[st.gkey][d] : 0;

@@ -4,9 +4,10 @@
  *  규칙 (2026-10-22 결정)
  *   - 90% 도장: 그날 해야 할 종목을 '모두' 통과
  *       평일: 아래 STAMP_EX 11종목 전부
- *       주말(토·일): 스포츠실 전용(트레드밀·로잉머신·행잉)은 빼고 8종목
+ *       휴일(토·일 + '휴일' 탭의 공휴일·재량휴업일): 스포츠실 전용(트레드밀·로잉머신·행잉)은 빼고 8종목
  *       통과 = 그날 그 종목 기록 중 측정시간이 '통과기준' 탭의 최소시간(기본 30초) 이상인 기록이 하나라도 있음
  *   - 100% 완벽 도장: 90% + 실내자전거 그날 5km 이상 (5km = 10분으로 간주). 1·2학년은 1km(마이후쉬)
+ *       휴일에는 스포츠실·자전거를 쓸 수 없으므로 8종목을 모두 하면 바로 완벽 도장 (2026-10-24 결정: 꾸준히 운동하게)
  *       자전거는 인도어라이딩 시트에 모아서 입력하므로 오늘 도장에는 17시부터 반영
  *       (지난 날짜는 언제나 반영)
  *
@@ -25,6 +26,7 @@
 const STAMP = {
   TZ: 'Asia/Seoul',
   CRITERIA_SHEET: '통과기준',
+  HOLIDAY_SHEET: '휴일',       // A 날짜 · B 이름. 주말이 아닌 휴일(공휴일·대체공휴일·재량휴업일)을 선생님이 적음
   DEFAULT_SEC: 30,
   BIKE_KM: 5,                 // 실내자전거 그날 이만큼 이상이면 통과 (5km = 10분)
   BIKE_KM_BY_GRADE: { 1: 1, 2: 1 },   // 학년별 예외: 저학년은 마이후쉬 기록이라 1km면 통과
@@ -63,7 +65,7 @@ function stampCtx_(ss, ids, roster) {
   const now = new Date();
   const ctx = {
     now, today: stampFmt_(now, 'yyyy-MM-dd'), hour: Number(stampFmt_(now, 'H')),
-    crit: stampCriteria_(ss), best: {}, bike: {}, grade: {}
+    crit: stampCriteria_(ss), holi: stampHolidays_(ss), best: {}, bike: {}, grade: {}
   };
   const list = [...ids];
   list.forEach(id => { const st = roster.byId[id]; if (st) ctx.grade[id] = st.grade; });
@@ -159,7 +161,8 @@ function setupStampWarm() {
 /** 한 학생의 하루 판정 */
 function stampJudge_(ctx, id, d) {
   const w = Number(stampFmt_(new Date(d + 'T12:00:00+09:00'), 'u'));   // 1=월 … 7=일
-  const weekend = w >= 6;
+  const holiday = (ctx.holi || {})[d] || '';                         // 공휴일 이름 (주말이 아닌 휴일)
+  const weekend = w >= 6 || !!holiday;                               // 휴일: 스포츠실 종목 빼고, 모두 하면 완벽 도장
   const need = STAMP_EX.filter(ex => !(weekend && ctx.crit[ex.key].weekendOff));
   const b = ((ctx.best[id] || {})[d]) || {};
   const items = need.map(ex => {
@@ -171,7 +174,7 @@ function stampJudge_(ctx, id, d) {
   const bikeOpen = d < ctx.today || ctx.hour >= STAMP.BIKE_FROM_HOUR;
   const bikeOk = bikeOpen && km >= stampBikeKm_(ctx.grade[id]);
   const all = done === items.length;
-  return { weekend, items, done, need: items.length, km, bikeOpen, bikeOk, stamp: all ? (bikeOk ? 100 : 90) : 0 };
+  return { weekend, holiday, items, done, need: items.length, km, bikeOpen, bikeOk, stamp: all ? (bikeOk || weekend ? 100 : 90) : 0 };
 }
 
 /** 그 학년의 자전거 통과 km (BIKE_KM_BY_GRADE에 없으면 BIKE_KM) */
@@ -188,15 +191,14 @@ function stampMonthDays_(month, today) {
   return out;
 }
 
-/** 연속 일수: 오늘(도장 없으면 어제)부터 거꾸로. 도장 없는 주말은 건너뛰고 끊지 않음. stampOf(d) → 0/90/100 */
+/** 연속 일수: 오늘(도장 없으면 어제)부터 거꾸로. 주말·휴일도 도장이 없으면 끊김 (2026-10-24: 운동 습관이 목적, 하루 10분 내외라 쉬는 날 없음). stampOf(d) → 0/90/100 */
 function stampStreak_(today, stampOf) {
   let streak = 0;
   for (let t = new Date(today + 'T12:00:00+09:00'), first = true, n = 0; n < 400; t = new Date(t.getTime() - 864e5), first = false, n++) {
     const d = stampFmt_(t, 'yyyy-MM-dd');
     if (d < '2026-09-01') break;
     if (stampOf(d)) { streak++; continue; }
-    const w = Number(stampFmt_(t, 'u'));
-    if (first || w >= 6) continue;
+    if (first) continue;                              // 오늘은 아직 안 했어도 어제까지의 연속을 보여 줌
     break;
   }
   return streak;
@@ -343,6 +345,36 @@ function stampRosterRead_(ss) {
     st.gkey = st.group ? [st.grade, st.cls, st.group].join('|') : '';
     out.list.push(st); out.byId[id] = st;
   });
+  return out;
+}
+
+/** 휴일 탭 → { 'yyyy-MM-dd': 이름 }. 탭이 없으면 2026년 2학기 공휴일로 만들어 둠 (주말은 적지 않아도 됨) */
+const STAMP_HOLIDAYS = [
+  ['2026-09-24', '추석 연휴'], ['2026-09-25', '추석'], ['2026-10-05', '개천절 대체공휴일'], ['2026-10-09', '한글날'],
+  ['2026-12-25', '성탄절'], ['2027-01-01', '신정'], ['2027-02-08', '설 연휴'], ['2027-02-09', '설 대체공휴일'], ['2027-03-01', '삼일절']
+];
+function stampHolidays_(ss) {
+  const c = CacheService.getScriptCache(), hit = c.get('sholi1');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  const out = {};
+  let sh = ss.getSheetByName(STAMP.HOLIDAY_SHEET);
+  if (!sh) {
+    STAMP_HOLIDAYS.forEach(([d, n]) => out[d] = n);
+    try {
+      sh = ss.insertSheet(STAMP.HOLIDAY_SHEET);
+      sh.getRange('A:A').setNumberFormat('@');
+      sh.getRange(1, 1, 1, 2).setValues([['날짜', '이름']]).setFontWeight('bold');
+      sh.getRange(2, 1, STAMP_HOLIDAYS.length, 2).setValues(STAMP_HOLIDAYS);
+      sh.getRange(1, 4).setValue('← 주말이 아닌 휴일만 적어요 (공휴일·대체공휴일·재량휴업일). 날짜는 2026-11-02 모양');
+      sh.setFrozenRows(1);
+    } catch (e) {}
+  } else {
+    sh.getDataRange().getValues().slice(1).forEach(r => {
+      const d = r[0] instanceof Date ? stampFmt_(r[0], 'yyyy-MM-dd') : String(r[0]).trim().replace(/[./]/g, '-');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) out[d] = String(r[1] || '휴일').trim() || '휴일';
+    });
+  }
+  try { c.put('sholi1', JSON.stringify(out), 300); } catch (e) {}
   return out;
 }
 
