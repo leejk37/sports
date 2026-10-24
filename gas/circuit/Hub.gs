@@ -15,6 +15,8 @@
  *   stamp     : 개인별 하루 도장·이번 달 달력·우리 모둠 (Stamp.gs). email, month=yyyy-MM
  *   team      : 반 전체 모둠 도장 (Stamp.gs). email 또는 grade·cls, month
  *   rank      : 종목별 순위 (Rank.gs). ex, period, key(선생님 열쇠면 이름 그대로)
+ *   points    : 선생님 포인트 화면 (Points.gs). key 필수, id 있으면 한 학생 자세히
+ *   gift      : 선물 주기 → 선물교환 탭 (Points.gs). key, id, gift
  */
 const HUB_SHEET = '허브로그인';
 const HUB_HEADERS = ['방', '이메일', '이름', '학년', '반', '번호', '로그인시각'];
@@ -38,6 +40,10 @@ function hubJsonp_(e) {
       out = stampTeam_(p);                   // Stamp.gs — 반 전체 모둠 도장 (email 또는 grade·cls, month)
     } else if (p.action === 'rank') {
       out = rankSummary_(p.ex, p.period, p.key); // Rank.gs — 종목별 순위 화면 (ex, period=today|week|month)
+    } else if (p.action === 'points') {
+      out = pointsTeacher_(p);               // Points.gs — 선생님 포인트 화면 (key, id 있으면 한 학생)
+    } else if (p.action === 'gift') {
+      out = pointsGive_(p);                  // Points.gs — 선물 주기 (key, id, gift)
     } else {
       const room = String(p.room || '');
       if (!/^[\w-]{1,20}$/.test(room)) throw new Error('방 이름이 잘못됐어요');

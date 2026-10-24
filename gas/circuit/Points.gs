@@ -449,3 +449,68 @@ function pointsReport_(ss) {
 }
 /** 편집기에서 실행: 선물교환 정리 + 포인트현황 새로 (선물을 바꿔 준 직후 확인용) */
 function pointsReport() { pointsReport_(SpreadsheetApp.getActiveSpreadsheet()); }
+
+/* ===== 선생님 화면 (…/sports/points/) — 열쇠(스크립트 속성 DASH_KEY)가 맞을 때만 ===== */
+function pointKeyOk_(key) {
+  const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
+  return !!real && !!key && String(key) === real;
+}
+
+/** action=points&key=      → 전교생 포인트 목록 (반 고르기·정렬은 화면에서)
+ *  action=points&key=&id=  → 한 학생 자세히 (뱃지·최근 내역·선물 내역) */
+function pointsTeacher_(p) {
+  if (!pointKeyOk_(p.key)) return { ok: false, error: '선생님 열쇠가 맞지 않아요', needKey: true };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = stampRoster_(ss);
+  const staff = pointStaffIds_(ss);
+  if (p.id) {
+    const id = stampIdOf_(p.id), st = roster.byId[id];
+    if (!st) return { ok: false, error: '명단에 없는 학생이에요' };
+    const x = pointGet_(ss, [id])[id] || null;
+    return {
+      ok: true, id, name: st.name, grade: st.grade, cls: st.cls, no: st.no, group: st.group,
+      earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
+      badges: pointBadgeList_(x), recent: x ? x.recent : [], trades: x ? x.trades : []
+    };
+  }
+  const list = roster.list.filter(st => !staff.has(st.id));
+  const all = pointGet_(ss, list.map(st => st.id));
+  return {
+    ok: true, updated: stampFmt_(new Date(), 'HH:mm'), gifts: all.__gifts || [],
+    students: list.map(st => {
+      const x = all[st.id];
+      return {
+        id: st.id, grade: st.grade, cls: st.cls, no: st.no, name: st.name, group: st.group,
+        earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
+        badges: x ? Object.keys(x.got).length : 0, stamp: x ? x.c.stamp : 0, perfect: x ? x.c.perfect : 0, streak: x ? x.c.streak : 0
+      };
+    })
+  };
+}
+
+/** action=gift&key=&id=&gift=선물이름  → 선물교환 탭에 한 줄 (남은 포인트가 모자라면 거절, force=1이면 그래도) */
+function pointsGive_(p) {
+  if (!pointKeyOk_(p.key)) return { ok: false, error: '선생님 열쇠가 맞지 않아요', needKey: true };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = stampRoster_(ss);
+  const id = stampIdOf_(p.id), st = roster.byId[id];
+  if (!st) return { ok: false, error: '명단에 없는 학생이에요' };
+  const gift = pointGifts_(ss).find(g => g.name === String(p.gift || '').trim());
+  if (!gift) return { ok: false, error: '선물목록에 없는 선물이에요' };
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: '잠시 뒤 다시 눌러 주세요' };
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove('pt1__at');                                   // 최신 남은 포인트로 확인
+    const x = pointGet_(ss, [id])[id];
+    const bal = x ? x.bal : 0;
+    if (bal < gift.cost && String(p.force) !== '1') return { ok: false, short: true, bal, cost: gift.cost, error: `남은 포인트(${bal}P)가 모자라요` };
+    const sh = pointTradeSheet_(ss);
+    const row = sh.getLastRow() + 1;
+    sh.getRange(row, 1).setNumberFormat('@');
+    sh.getRange(row, 1, 1, 8).setValues([[stampFmt_(new Date(), 'yyyy-MM-dd'), st.grade, st.cls, st.no, st.name, st.id + SQUAT_CONFIG.DOMAIN, gift.name, gift.cost]]);
+    SpreadsheetApp.flush();
+    cache.remove('pt1__at');                                   // 다음 요청(학생 화면 포함)부터 바로 반영
+    return { ok: true, gift: gift.name, cost: gift.cost, bal: bal - gift.cost };
+  } finally { lock.releaseLock(); }
+}
