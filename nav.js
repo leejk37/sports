@@ -24,6 +24,11 @@
     #spNav a:hover,#spNav a:focus-visible{background:rgba(255,255,255,.2);color:#fff;outline:none}
     #spNav a.on{background:#f5c518;color:#12305a}
     header h1{flex:none!important}                    /* 제목은 제 크기만, 남는 자리는 내비게이션이 */
+    /* 네 화면 머리줄을 같은 모양으로: 제목 글자 크기·위아래 여백 통일 (큰 화면만, 좁은 화면은 각 화면 설정대로) */
+    @media (min-width:861px){
+      header{padding-top:max(8px,.7vw)!important;padding-bottom:max(7px,.6vw)!important;padding-left:max(16px,2vw)!important;padding-right:max(16px,2vw)!important;align-items:center!important;box-sizing:border-box;min-height:max(60px,4.65vw);border-bottom-width:max(4px,.35vw)!important}   /* 머리줄 높이도 같게 */
+      header h1{font-size:max(22px,2.1vw)!important;line-height:1.2!important}
+    }
     header .grow{flex:0 0 0!important}
     #spNav.bar{flex:none;height:max(34px,2.2vw);margin:0;padding:0 max(12px,1.6vw);background:#12305a}
     .pageSwitch, #views{display:none!important}   /* 예전 화면별 바로 가기 단추는 이 내비게이션으로 대신 */
