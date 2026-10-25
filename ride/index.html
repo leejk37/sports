@@ -184,7 +184,7 @@ const CONFIG = {
 
 /* 기간 → 순위판 2개. 순위판마다 사이클 대회 '저지' 색 하나 */
 const PERIODS = [
-  { id: 'season', title: d => d.year + ' 시즌', boards: [
+  { id: 'season', title: d => d.year + ' 시즌', note: () => '3.3 – 12.31', boards: [   // 시즌 기간 (학기 시작 ~ 연말)
     { key: 'totalDistance', title: '누적 거리', jersey: '노란 저지', c: '#ffd21f' },
     { key: 'participation', title: '참여 일수', jersey: '초록 저지', c: '#1fa45b' } ] },
   { id: 'month', title: () => '이번 달', note: d => d.period.monthLabel + ' · 운영 ' + d.period.monthOpDays + '일', boards: [
