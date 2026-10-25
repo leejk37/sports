@@ -198,7 +198,8 @@ function schoolHtml(d) {
   const s = d.school, cl = d.classes || [], low = d.classesLow || [];
   if (!s) return `<div class="period" data-p="school"><h2>우리 학교</h2>
     <div class="boards"><section class="card" style="--c:var(--yellow)"><div class="empty">인도어라이딩 GAS를 새 버전으로 배포하면 나와요</div></section></div></div>`;
-  const stat = (k, v, sub, big) => `<div class="stat${big ? ' big' : ''}"><div class="k">${k}</div><div class="n">${km(v)}<small>km</small></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const kmInt = v => Math.round(Number(v || 0)).toLocaleString('ko-KR');   // 우리 학교 기록은 자연수까지
+  const stat = (k, v, sub, big) => `<div class="stat${big ? ' big' : ''}"><div class="k">${k}</div><div class="n">${kmInt(v)}<small>km</small></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
   const classRows = (cl, empty) => {
     const max = Math.max(1, ...cl.map(c => c.total));
     return cl.length ? cl.map(c => `
@@ -215,14 +216,14 @@ function schoolHtml(d) {
       <section class="card" style="--c:var(--yellow)">
         <div class="head"><h3>우리 학교 기록</h3><p>모두 함께 달린 거리</p></div>
         <div class="stats">
-          ${stat('시즌 총거리', s.total, '공유학교 거리 포함', true)}
+          ${stat(d.year + ' 총거리', s.total, '공유학교 거리 포함', true)}
           ${stat(d.period.monthLabel, s.month)}
           ${stat('이번 주', s.week)}
           ${stat('오늘', s.today, s.todayRiders ? s.todayRiders + '명이 달렸어요' : '아직 기록 전')}
         </div>
       </section>
       <section class="card" style="--c:#7fb0f0">
-        <div class="head"><h3>학급 순위 · 3~6학년</h3><p>반 학생들이 탄 거리 합계</p></div>
+        <div class="head"><h3>학급 순위 · 3~6학년</h3><p>즈위프트 · 반 합계</p></div>
         <ol class="clist">${classRows(cl, '아직 기록이 없어요')}</ol>
       </section>
       <section class="card" style="--c:#9ff0b0">
