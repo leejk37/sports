@@ -69,26 +69,21 @@
   .tabs{display:none}
 
   /* 휴대폰·좁은 화면: 기간 탭, 고정 px 크기 */
-  /* 큰 화면: 우리 학교 열에 카드 3장(기록·3~6학년·1·2학년)이 한 화면에 들어가도록 학급 순위를 촘촘하게 */
+  /* 큰 화면: 순위 카드는 6줄까지 보이고 카드 안 스크롤.
+     우리 학교 열은 옆 열과 같은 높이로 맞추고, 학급 기록 카드는 1·2학년이 내용만큼, 3~6학년이 나머지 높이를 씀(줄 간격은 다른 카드와 같게) */
   @media (min-width:861px){
-    .clist li{padding:.2vw .2vw;gap:.5vw}
-    .clist li.leader{padding:.22vw .5vw;margin:.08vw -.3vw .1vw}
-    .clist .rank{font-size:1vw} .clist li.leader .rank{font-size:1.15vw}
-    .clist .name{font-size:1.05vw} .clist li.leader .name{font-size:1.2vw}
-    .clist .val b{font-size:1.15vw} .clist li.leader .val b{font-size:1.4vw}
-    .clist .cls{font-size:.75vw}
-    .clist li{position:relative}
-    .rlist li{position:relative}
+    .rlist li,.clist li{position:relative}
     .scroll{overflow-x:hidden;padding:0 .3vw;margin:0 -.3vw;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent;overscroll-behavior:contain}
     .scroll::-webkit-scrollbar{width:.35vw} .scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:999px}
-    .clist.scroll{overflow-x:hidden;padding:0 .3vw;margin:0 -.3vw;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent;overscroll-behavior:contain}
-    .clist.scroll::-webkit-scrollbar{width:.35vw} .clist.scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:999px}
-    .clist .cbar{position:absolute;left:2.5vw;right:.2vw;bottom:0;height:.16vw;margin:0}   /* 막대를 줄 바닥에 겹쳐 높이를 아낌 */
-    .period[data-p="school"] .boards{gap:.6vw}
-    .period[data-p="school"] .card{padding-top:.6vw;padding-bottom:.3vw}
-    .period[data-p="school"] .stats{margin:.2vw 0 .4vw;gap:.4vw}
-    .period[data-p="school"] .stat{padding:.3vw .5vw}
-    .period[data-p="school"] .stat.big .n{font-size:2vw}
+    .period[data-p="school"]{display:flex;flex-direction:column;contain:size}   /* 이 열은 높이를 정하지 않고 옆 열 높이에 맞춤 */
+    .period[data-p="school"] .boards{flex:1;min-height:0;display:flex;flex-direction:column}
+    .period[data-p="school"] .card.ccard{min-height:0;display:flex;flex-direction:column}
+    .card.c36{flex:1 1 auto} .card.c12{flex:0 1 auto}   /* 남는 높이는 3~6학년 카드가, 모자라면 두 카드가 내용 비율만큼 줄어듦 */
+    .period[data-p="school"] .boards{gap:.9vw}
+    .period[data-p="school"] .stats{margin:.3vw 0 .5vw;gap:.5vw}
+    .period[data-p="school"] .stat{padding:.4vw .55vw}
+    .period[data-p="school"] .stat.big .n{font-size:2.3vw}
+    .clist{flex:1;min-height:0;overflow:hidden;padding:0 .3vw;margin:0 -.3vw}   /* 1위 띠가 양옆으로 살짝 나와도 잘리지 않게 */
   }
   @media (max-width:860px){
     header{padding:12px 16px 10px;gap:10px;border-bottom-width:4px;flex-wrap:wrap}
@@ -225,12 +220,12 @@ function schoolHtml(d) {
           ${stat('오늘', s.today, s.todayRiders ? s.todayRiders + '명이 달렸어요' : '아직 기록 전')}
         </div>
       </section>
-      <section class="card" style="--c:#7fb0f0">
-        <div class="head"><h3>학급 순위 · 3~6학년</h3><p>즈위프트 · 반 합계</p></div>
+      <section class="card ccard c36" style="--c:#7fb0f0">
+        <div class="head"><h3>학급 기록 · 3~6학년</h3><p>즈위프트 · 반 합계</p></div>
         <ol class="clist">${classRows(cl, '아직 기록이 없어요')}</ol>
       </section>
-      <section class="card" style="--c:#9ff0b0">
-        <div class="head"><h3>학급 순위 · 1·2학년</h3><p>마이후쉬 · 반 합계</p></div>
+      <section class="card ccard c12" style="--c:#9ff0b0">
+        <div class="head"><h3>학급 기록 · 1·2학년</h3><p>마이후쉬 · 반 합계</p></div>
         <ol class="clist">${classRows(low, '저학년 기록을 기다리고 있어요')}</ol>
       </section>
     </div></div>`;
@@ -252,18 +247,24 @@ const SHOW_ROWS = 6;
 let autoTimer = null;
 function fitClassLists() {
   clearInterval(autoTimer);
-  const lists = [...document.querySelectorAll('.clist, .rlist')];
+  const rl = [...document.querySelectorAll('.rlist')], cl = [...document.querySelectorAll('.clist')], lists = rl.concat(cl);
   const wide = matchMedia('(min-width:861px)').matches;
-  lists.forEach(ol => {
-    ol.classList.remove('scroll'); ol.style.maxHeight = ''; ol.scrollTop = 0;
-    const li = ol.querySelectorAll('li');
-    if (!wide || li.length <= SHOW_ROWS) return;
-    const top = li[0].offsetTop, bottom = li[SHOW_ROWS - 1].offsetTop + li[SHOW_ROWS - 1].offsetHeight;
-    ol.style.maxHeight = (bottom - top) + 'px';
+  const watch = ol => {
     ol.classList.add('scroll');
     ol._hold = 0; ol._rest = lists.indexOf(ol) % 3;     // 카드마다 조금씩 엇갈려 움직이게
     ['wheel', 'touchstart', 'pointerdown'].forEach(ev => ol.addEventListener(ev, () => { ol._hold = Date.now() + 20000; }, { passive: true }));
-  });
+  };
+  lists.forEach(ol => { ol.classList.remove('scroll'); ol.style.maxHeight = ''; ol.scrollTop = 0; });
+  if (wide) {
+    rl.forEach(ol => {                                   // 개인 순위: 6줄 높이로
+      const li = ol.querySelectorAll('li');
+      if (li.length <= SHOW_ROWS) return;
+      const top = li[0].offsetTop, bottom = li[SHOW_ROWS - 1].offsetTop + li[SHOW_ROWS - 1].offsetHeight;
+      ol.style.maxHeight = (bottom - top) + 'px';
+      watch(ol);
+    });
+  }
+  if (wide) cl.forEach(ol => { if (ol.scrollHeight > ol.clientHeight + 4) watch(ol); });   // 학급 기록: 카드에 남은 높이만큼, 넘치면 스크롤 (개인 순위 높이가 정해진 뒤 잼)
   const moving = lists.filter(ol => ol.classList.contains('scroll'));
   if (!moving.length || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   autoTimer = setInterval(() => moving.forEach(ol => {
