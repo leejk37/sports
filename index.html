@@ -46,6 +46,7 @@
   #frame{position:absolute;inset:18% 26%;border:4px solid var(--yellow);border-radius:18px;box-shadow:0 0 0 2000px rgba(0,0,0,.25)}
   #camHint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:rgba(20,30,50,.85);
     padding:8px 16px;border-radius:999px;font-size:16px;font-weight:700;white-space:nowrap}
+  #camHint.err{white-space:normal;width:90%;text-align:center;border-radius:14px;background:rgba(201,42,42,.92);line-height:1.4}
   #toast{position:absolute;left:12px;right:12px;top:12px;padding:12px;border-radius:12px;background:#2f9e44;
     font-size:20px;font-weight:800;text-align:center;opacity:0;transform:translateY(-8px);transition:.25s}
   #toast.on{opacity:1;transform:none}
@@ -421,23 +422,49 @@ const video = $('video'), canvas = $('view'), ctx = canvas.getContext('2d');
 const qc = document.createElement('canvas'), qctx = qc.getContext('2d', { willReadFrequently: true });
 let stream, facing = localStorage.getItem('hubFacing') || 'user', lastScan = 0, paused = false;
 
-let camStarting = false, camFails = 0;
+let camStarting = false, camFails = 0, camBlocked = false;
+let camHintBase = null;                              // 오류 전에 보이던 안내(공용 모드는 '…비추면 입실')
+/* 카메라를 못 켠 까닭을 나눠서 알려 줌 (누르면 다시 시도) */
+function camErrorText(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError')
+    return '카메라 권한이 막혀 있어요 · 주소창 왼쪽 아이콘 → 사이트 설정 → 카메라 "허용" 뒤 여기를 누르세요';
+  if (n === 'NotReadableError' || n === 'AbortError' || n === 'TrackStartError')
+    return '다른 앱이나 탭이 카메라를 쓰고 있어요 · 그 창을 닫고 여기를 누르세요';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError' || n === 'DevicesNotFoundError')
+    return '카메라를 찾지 못했어요 · 연결을 확인하고 여기를 누르세요';
+  if (!window.isSecureContext || !navigator.mediaDevices) return '이 주소에서는 카메라를 쓸 수 없어요 (https 주소로 열어 주세요)';
+  return '카메라를 켤 수 없어요 · 여기를 누르면 다시 시도해요';
+}
 async function startCamera() {
   if (camStarting) return;
   camStarting = true;
   stream?.getTracks().forEach(t => t.stop());
+  const open = f => navigator.mediaDevices.getUserMedia({ video: { facingMode: f, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    try { stream = await open(facing); }
+    catch (e1) {                                      // 뒤 카메라가 없는 기기(노트북 등)면 앞 카메라로
+      if (facing !== 'user' && (e1.name === 'NotFoundError' || e1.name === 'OverconstrainedError')) { facing = 'user'; stream = await open(facing); }
+      else throw e1;
+    }
     video.srcObject = stream; await video.play();
     canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    camFails = 0; lastFrameTime = -1; frozenFor = 0;
+    camFails = 0; camBlocked = false; lastFrameTime = -1; frozenFor = 0;
+    if (camHintBase !== null) { $('camHint').textContent = camHintBase; camHintBase = null; }
+    $('camHint').classList.remove('err');
   } catch (e) {
     camFails++;
-    $('camHint').textContent = '카메라를 켤 수 없어요 · 권한을 확인해 주세요';
+    camBlocked = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');   // 권한 거부는 저절로 다시 시도하지 않음(새로고침 반복 방지)
+    if (camHintBase === null) camHintBase = $('camHint').textContent;
+    $('camHint').textContent = camErrorText(e);
+    $('camHint').classList.add('err');
+    console.warn('카메라 실패', e && e.name, e && e.message);
   } finally {
     camStarting = false;
   }
 }
+$('camHint').style.cursor = 'pointer';
+$('camHint').addEventListener('click', () => { if (!stream || camBlocked || camFails) { camBlocked = false; camFails = 0; startCamera(); } });
 function stopCamera() { stream?.getTracks().forEach(t => t.stop()); stream = null; }
 
 /* 카메라 멈춤 감시: 3초마다 확인해서 멈췄으면 다시 켭니다.
@@ -445,7 +472,7 @@ function stopCamera() { stream?.getTracks().forEach(t => t.stop()); stream = nul
  * - 다시 켜기가 3번 연속 실패 → 화면 새로고침 */
 let lastFrameTime = -1, frozenFor = 0;
 setInterval(() => {
-  if (document.hidden || camStarting) return;
+  if (document.hidden || camStarting || camBlocked) return;   // 권한이 막혔으면 기다림(안내 문구를 누르면 다시 시도)
   const track = stream?.getVideoTracks()[0];
   const ended = !track || track.readyState === 'ended';
   if (!ended && video.currentTime !== lastFrameTime) { lastFrameTime = video.currentTime; frozenFor = 0; return; }
