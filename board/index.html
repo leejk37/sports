@@ -49,6 +49,11 @@
   #feed li{font-size:.95vw;font-weight:600;line-height:1.3;padding:.45vw .7vw;border-radius:.7vw;background:rgba(255,255,255,.08);
     border-left:.35vw solid var(--yellow);animation:pop .6s ease both}
   #feed li.empty{border-left-color:var(--dim);color:var(--soft)}
+  /* 축하 소식 글자 색: 학년·반은 흐리게, 이름은 노랑, 종목은 하늘색, 기록은 흰색 굵게 */
+  #feed .fw{color:var(--soft);font-weight:600}
+  #feed .fn{color:var(--yellow);font-weight:900}
+  #feed .fe{color:#8fd3ff;font-weight:900}
+  #feed .fv{color:#fff;font-weight:900}
   @keyframes pop{from{opacity:0;transform:translateY(.6vw)}to{opacity:1;transform:none}}
 
   /* 오른쪽: 거리 도전 · 종목 · 반별 참여 */
@@ -372,9 +377,17 @@ function render(d) {
   document.body.classList.toggle('names', Array.isArray(d.visitors));
   if (!Array.isArray(d.visitors)) closeWho(); else if (whoMode) drawWho();
 
+  // 축하 소식 — 서버 문장 '4학년 해반 김*서 친구가 스쿼트 개인 최고 18회!'를 나눠 색을 입힘(모양이 다르면 그대로)
+  function feedHtml(f) {
+    const m = String(f).match(/^(\d+학년 \S+반|교직원)(?: (\S+))? 친구가 (.+?)(에 처음 도전했어요| 개인 최고 )(.*)$/);
+    if (!m) return esc(f);
+    const [, who, name, ex, mid, rest] = m;
+    const tail = mid.trim() === '개인 최고' ? ` 개인 최고 <span class="fv">${esc(rest)}</span>` : esc(mid + rest);
+    return `<span class="fw">${esc(who)}</span>${name ? ` <span class="fn">${esc(name)}</span>` : ''} 친구가 <span class="fe">${esc(ex)}</span>${tail}`;
+  }
   // 축하 소식
   const feed = d.feed || [];
-  const html = feed.length ? feed.map(f => `<li>${esc(f)}</li>`).join('') : (past ? '<li class="empty">이날은 축하 소식이 없어요</li>' : '<li class="empty">오늘 첫 기록을 기다리고 있어요</li>');
+  const html = feed.length ? feed.map(f => `<li>${feedHtml(f)}</li>`).join('') : (past ? '<li class="empty">이날은 축하 소식이 없어요</li>' : '<li class="empty">오늘 첫 기록을 기다리고 있어요</li>');
   if ($('feed').dataset.last !== html) { $('feed').innerHTML = html; $('feed').dataset.last = html; }
 }
 
