@@ -553,5 +553,6 @@ addEventListener('storage', e => { if (!SHARED && e.key === CONFIG.STORE_KEY) re
 addEventListener('pageshow', () => { closePicker(); refresh(); });
 if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
 </script>
+<script src="nav.js" defer></script>
 </body>
 </html>
