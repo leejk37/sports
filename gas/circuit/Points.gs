@@ -416,7 +416,8 @@ function pointsForStamp_(ss, st, sum) {
     if (t.stamp && sum.streak && sum.streak % 7 === 0) today += R['연속 7일마다'];
   }
   const n = st.gkey ? stampRoster_(ss).list.filter(m => m.gkey === st.gkey).length : 0;
-  const gifts = (all.__gifts || []).filter(g => !g.group || n)            // 모둠이 없으면 모둠 선물은 안 보임
+  const gifts = pointGifts_(ss).filter(   // 선물목록은 작아서 매번 새로 읽음 (고치면 바로 반영)
+    g => !g.group || n)            // 모둠이 없으면 모둠 선물은 안 보임
     .map(g => g.group ? Object.assign({}, g, { members: n, share: Math.ceil(g.cost / n) }) : g)
     .sort((a, b) => (a.share || a.cost) - (b.share || b.cost));
   return {
@@ -484,7 +485,7 @@ function pointsTeacher_(p) {
   const list = roster.list.filter(st => !staff.has(st.id));
   const all = pointGet_(ss, list.map(st => st.id));
   return {
-    ok: true, updated: stampFmt_(new Date(), 'HH:mm'), gifts: all.__gifts || [],
+    ok: true, updated: stampFmt_(new Date(), 'HH:mm'), gifts: pointGifts_(ss),   // 선물목록은 매번 새로
     students: list.map(st => {
       const x = all[st.id];
       return {
