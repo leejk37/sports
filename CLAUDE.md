@@ -54,6 +54,7 @@
 - **학생 찾기는 `lookupStudent_(ss, email)`** 하나로만 합니다(명단에 아이디·이메일이 섞여 있어도 찾음, 10분 캐시).
 - **운동 앱 저장 형식**: `POST { type, token, email, clientId, …기록 }` → GAS `doPost`가 `type`으로 나눔.
   새 운동은 ① `gas/circuit/<운동>.gs` 파일 하나 ② `Main.gs`의 `doPost`에 `if (data.type === '<type>') return save<운동>_(data);` 한 줄 ③ 허브 `index.html`의 `EXERCISES`·`ICON`에 한 줄.
+- **한 주 = 월요일~일요일** (2026-10-25 결정). 주간 집계(순위 '이번 주', 인도어라이딩 주간 등)와 앞으로 만들 주간 기능은 모두 이 기준. 달력 화면 표시(일~토)는 보기 방식일 뿐
 - `clientId`로 같은 측정의 중복 저장을 막습니다(CacheService 6시간).
 - 저장 응답을 못 읽어도(리다이렉트 단계) 인터넷이 연결돼 있으면 "전송 완료"로 표시합니다.
 - 토큰(`26cp4s_squat`)은 화면 코드에 들어 있어 **비밀이 아닙니다**. 실제 보호는 학교 도메인 확인 + 명단 대조입니다.
