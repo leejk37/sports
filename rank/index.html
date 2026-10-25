@@ -231,13 +231,14 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const num = (v, d = 0) => Number(v || 0).toLocaleString('ko-KR', { maximumFractionDigits: d });
 
 /* ===== 주소로 정하는 것 =====
- *  ?ex=squat   종목 하나 고정 (기본: squat)
+ *  (없음)      모든 종목 차례로 = ?ex=auto (기본)
+ *  ?ex=squat   종목 하나 고정
  *  ?ex=auto    모든 종목을 차례로 넘김 (TV용)
  *  ?ex=squat,plank,rope  고른 종목만 차례로
  *  ?period=today|week|month   기간
  *  ?demo=1     견본 데이터로만 보기 */
 const Q = new URLSearchParams(location.search);
-const exParam = (Q.get('ex') || 'squat').trim();
+const exParam = (Q.get('ex') || 'auto').trim();   // 기본: 모든 종목 돌아가기 (2026-10-25)
 const ROTATE = exParam === 'auto' ? EX.map(e => e.id) : exParam.split(',').map(s => s.trim()).filter(id => EX.some(e => e.id === id));
 if (!ROTATE.length) ROTATE.push('squat');
 let exIdx = 0, period = ['today', 'week', 'month'].includes(Q.get('period')) ? Q.get('period') : CONFIG.PERIOD;

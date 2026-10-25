@@ -23,7 +23,7 @@
 | 내 도장 | …/sports/stamp/ | (읽기만) · 통과기준 · 포인트 | 허브 '내 도장' 카드 → 이름 고르기. `Stamp.gs` → 허브 JSONP `action=stamp&email=&month=yyyy-MM`. 오늘 남은 종목·이달 도장 달력·연속 일수 |
 | 우리 모둠 | …/sports/team/ | (읽기만) | 허브 '우리 모둠' 카드 → 이름 고르기(그 학생의 반). 선생님은 `?grade=4&cls=해`. `Stamp.gs` → 허브 JSONP `action=team`. 반 모둠별 모둠원 도장·모둠 도장·이달 도장 줄 |
 | 현황판 | …/sports/board/ | (읽기만) | 스포츠실 TV용. `Dashboard.gs` → 허브 JSONP `action=dash`. 지난 날짜는 ◀▶ 또는 `?date=2026-10-15` (3분 뒤 오늘로 복귀). 이름 명단은 선생님 기기만: `?key=열쇠` 한 번(스크립트 속성 `DASH_KEY`) |
-| 종목 순위 | …/sports/rank/ | (읽기만) | TV용. `?ex=squat`(또는 `auto`·`squat,plank`) `&period=today|week|month`. `Rank.gs` → 허브 JSONP `action=rank`. 최고 기록 → 성장 → 꾸준함 → 정확도(카메라 종목만, 20회·60초 이상) 순서, 반별은 합계, 이름은 열쇠 없으면 서버에서 가림 |
+| 종목 순위 | …/sports/rank/ | (읽기만) | TV용. 기본은 모든 종목 돌아가기(`?ex=auto`와 같음). 하나만은 `?ex=squat`, 고른 것만 `?ex=squat,plank` `&period=today|week|month`. `Rank.gs` → 허브 JSONP `action=rank`. 최고 기록 → 성장 → 꾸준함 → 정확도(카메라 종목만, 20회·60초 이상) 순서, 반별은 합계, 이름은 열쇠 없으면 서버에서 가림 |
 | 포인트 관리 | …/sports/points/ | (읽기) · 선물교환 | **선생님만**. 열쇠(`DASH_KEY`, 현황판과 같음)를 `?key=` 한 번 또는 화면에 입력 → 이 기기에 기억. 반 고르기·정렬, 학생 누르면 뱃지·내역, '선물' → 선물교환 탭에 한 줄(모자라면 한 번 더 확인). `Points.gs` → 허브 JSONP `action=points`·`action=gift` |
 | 청평 인도어사이클 챌린지 | …/sports/ride/ | (읽기만) | 인도어라이딩 GAS(`gas/ride/`) JSONP `?format=json&callback=`. 학급 기록은 3~6학년(`2026`, 즈위프트)과 1·2학년(`2026_저학년`, 마이후쉬, classesLow) 카드 따로, 반 합계 km. 개인 순위는 3~6학년만, 단 '이번 주 출석률'엔 저학년도(각 탭 운영일 기준). 모든 순위 카드는 큰 화면에서 6줄 보이고 카드 안 자동 세로 스크롤(개인 20위까지, `TOP_N`) |
 | TV 돌려보기 | …/sports/tv/ | — | 현황판 ↔ 인도어라이딩 30초마다 번갈아(`?sec=`), ←/→·F 키 |
