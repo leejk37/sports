@@ -3,9 +3,11 @@
  * - 데이터 원본: '2026' 시트 (학생별 날짜 칸에 거리 입력)
  * - 순위 6종, 각 6위까지
  * - 우리 학교 기록(총·이번 달·이번 주·오늘 거리 합계)과 학급 순위(반 학생들이 탄 거리 합계)
+ * - '2026_저학년' 탭(1·2학년 마이후쉬): 저학년 학급 순위는 따로(classesLow), 개인 순위는 이번 주 출석률에만 함께
  */
 const CONFIG = {
   SHEET_NAME: '2026',
+  LOW_SHEET_NAME: '2026_저학년',   // 1·2학년 마이후쉬 기록(선생님 입력). 학급 순위는 따로, 개인은 '이번 주 출석률'에만 함께
   YEAR: 2026,
   TOP_N: 6,
   TZ: 'Asia/Seoul'
@@ -13,9 +15,79 @@ const CONFIG = {
 
 function updateDailyData() {
   const tz = CONFIG.TZ;
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
+  const book = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = book.getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) throw new Error("'" + CONFIG.SHEET_NAME + "' 시트를 찾을 수 없습니다.");
+
+  // 기간 계산 (이번 달 / 이번 주: 월~일)
+  const now = new Date();
+  const todayKey = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+  const monthPrefix = Utilities.formatDate(now, tz, 'yyyy-MM');
+  const dow = Number(Utilities.formatDate(now, tz, 'u')); // 1=월 ... 7=일
+  const weekStart = new Date(now.getTime() - (dow - 1) * 86400000);
+  const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
+  const P = {
+    todayKey, monthPrefix,
+    weekStartKey: Utilities.formatDate(weekStart, tz, 'yyyy-MM-dd'),
+    weekEndKey: Utilities.formatDate(weekEnd, tz, 'yyyy-MM-dd')
+  };
+
+  const high = readTab_(sheet, P);                                   // 3~6학년 ('2026')
+  const lowSheet = book.getSheetByName(CONFIG.LOW_SHEET_NAME);
+  const low = lowSheet ? readTab_(lowSheet, P) : null;               // 1·2학년 마이후쉬 ('2026_저학년', 선생님 입력)
+  const riders = high.riders;
+  const school = high.school;
+  const mOp = high.opMonth, wOp = high.opWeek;
+
+  // 5. 순위 6종 (저학년은 거리 기준이 달라 '이번 주 출석률'에만 함께 올림. 출석률은 각 탭의 운영일로 셈)
+  const weekAtt = riders.concat(low ? low.riders : []);
+  const rankings = {
+    totalDistance: rank_(riders.filter(r => r.total > 0),
+      r => [r.total], r => ({ value: round1_(r.total), unit: 'km' })),
+
+    participation: rank_(riders.filter(r => r.days > 0),
+      r => [r.days, r.total], r => ({ value: r.days, unit: '일', sub: round1_(r.total) + 'km' })),
+
+    monthDistance: rank_(riders.filter(r => r.monthDist > 0),
+      r => [r.monthDist], r => ({ value: round1_(r.monthDist), unit: 'km' })),
+
+    weekDistance: rank_(riders.filter(r => r.weekDist > 0),
+      r => [r.weekDist], r => ({ value: round1_(r.weekDist), unit: 'km' })),
+
+    monthAttendance: rank_(riders.filter(r => r.monthDays > 0 && mOp > 0),
+      r => [r.monthDays / mOp, r.monthDist],
+      r => ({ value: Math.round(r.monthDays / mOp * 100), unit: '%', sub: r.monthDays + '/' + mOp + '일' })),
+
+    weekAttendance: rank_(weekAtt.filter(r => r.weekDays > 0 && r.wOp > 0),
+      r => [r.weekDays / r.wOp, r.low ? 0 : r.weekDist],
+      r => ({ value: Math.round(r.weekDays / r.wOp * 100), unit: '%', sub: r.weekDays + '/' + r.wOp + '일', low: !!r.low }))
+  };
+
+  const result = {
+    updateTime: Utilities.formatDate(now, tz, 'yyyy년 MM월 dd일 HH:mm 업데이트'),
+    year: CONFIG.YEAR,
+    period: {
+      monthLabel: Number(Utilities.formatDate(now, tz, 'M')) + '월',
+      monthOpDays: mOp,
+      weekLabel: Utilities.formatDate(weekStart, tz, 'M/d') + '~' + Utilities.formatDate(weekEnd, tz, 'M/d'),
+      weekOpDays: wOp
+    },
+    rankings: rankings,
+    school: { total: round1_(school.total), month: round1_(school.month), week: round1_(school.week),
+              today: round1_(school.today), todayRiders: school.todayRiders,
+              riders: riders.filter(r => r.total > 0).length },
+    classes: classRank_(riders),
+    classesLow: low ? classRank_(low.riders) : []                   // 저학년 학급 순위 (따로)
+  };
+
+  PropertiesService.getScriptProperties().setProperty('DAILY_BAKED_DATA', JSON.stringify(result));
+}
+
+/** 탭 하나 읽기 → { riders, school, opMonth, opWeek }. 각 학생에 그 탭의 운영일(wOp)과 저학년 표시(low)를 붙임 */
+function readTab_(sheet, P) {
+  const tz = CONFIG.TZ;
   const data = sheet.getDataRange().getValues();
+  const isLow = sheet.getName() === CONFIG.LOW_SHEET_NAME;
 
   // 1. 헤더(이름이 있는 줄) 찾기
   let headerRowIdx = -1;
@@ -23,7 +95,7 @@ function updateDailyData() {
     const rowStr = data[i].join('').replace(/\s/g, '');
     if (rowStr.includes('이름') || rowStr.includes('성명')) { headerRowIdx = i; break; }
   }
-  if (headerRowIdx === -1) throw new Error("'이름' 헤더를 찾지 못했습니다.");
+  if (headerRowIdx === -1) throw new Error("'" + sheet.getName() + "' 탭에서 '이름' 헤더를 찾지 못했습니다.");
   const headers = data[headerRowIdx];
 
   // 2. 열 찾기: 학년/반/이름/공유학교 + 날짜 열(헤더 줄 또는 그 위 줄에 날짜가 있는 열)
@@ -44,22 +116,12 @@ function updateDailyData() {
       }
     }
   }
-  if (nameIdx === -1) throw new Error("'이름' 열을 찾지 못했습니다.");
+  if (nameIdx === -1) throw new Error("'" + sheet.getName() + "' 탭에서 '이름' 열을 찾지 못했습니다.");
 
-  // 3. 기간 계산 (이번 달 / 이번 주: 월~일)
-  const now = new Date();
-  const todayKey = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
-  const monthPrefix = Utilities.formatDate(now, tz, 'yyyy-MM');
-  const dow = Number(Utilities.formatDate(now, tz, 'u')); // 1=월 ... 7=일
-  const weekStart = new Date(now.getTime() - (dow - 1) * 86400000);
-  const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
-  const weekStartKey = Utilities.formatDate(weekStart, tz, 'yyyy-MM-dd');
-  const weekEndKey = Utilities.formatDate(weekEnd, tz, 'yyyy-MM-dd');
+  const inMonth = key => key.startsWith(P.monthPrefix) && key <= P.todayKey;
+  const inWeek = key => key >= P.weekStartKey && key <= P.weekEndKey && key <= P.todayKey;
 
-  const inMonth = key => key.startsWith(monthPrefix) && key <= todayKey;
-  const inWeek = key => key >= weekStartKey && key <= weekEndKey && key <= todayKey;
-
-  // 4. 학생별 집계 + 운영일(누구라도 기록이 있는 날) 집계
+  // 3. 학생별 집계 + 운영일(누구라도 기록이 있는 날) 집계
   const riders = [];
   const opMonth = new Set();
   const opWeek = new Set();
@@ -73,7 +135,7 @@ function updateDailyData() {
     const r = {
       grade: gradeIdx !== -1 ? String(row[gradeIdx]).trim() : '',
       className: classIdx !== -1 ? String(row[classIdx]).trim() : '',
-      name: name,
+      name: name, low: isLow,
       total: 0, days: 0,
       monthDist: 0, monthDays: 0,
       weekDist: 0, weekDays: 0
@@ -86,15 +148,19 @@ function updateDailyData() {
       r.days++;
       if (inMonth(c.key)) { r.monthDist += v; r.monthDays++; opMonth.add(c.key); }
       if (inWeek(c.key)) { r.weekDist += v; r.weekDays++; opWeek.add(c.key); }
-      if (c.key === todayKey) { school.today += v; school.todayRiders++; }
+      if (c.key === P.todayKey) { school.today += v; school.todayRiders++; }
     });
     if (shareIdx !== -1) r.total += toNum_(row[shareIdx]); // 공유학교: 누적거리에만 포함
 
     riders.push(r);
     school.total += r.total; school.month += r.monthDist; school.week += r.weekDist;
   }
+  riders.forEach(r => { r.wOp = opWeek.size; });
+  return { riders, school, opMonth: opMonth.size, opWeek: opWeek.size };
+}
 
-  // 학급 순위: 그 반 학생들이 탄 누적 거리 합계 (riders = 한 번이라도 탄 학생 수)
+/** 학급 순위: 그 반 학생들이 탄 누적 거리 합계 (riders = 한 번이라도 탄 학생 수) */
+function classRank_(riders) {
   const byClass = {};
   riders.filter(r => r.total > 0).forEach(r => {
     const k = r.grade + '|' + r.className;
@@ -105,49 +171,7 @@ function updateDailyData() {
     .map(c => ({ grade: c.grade, className: c.className, riders: c.riders, total: round1_(c.total) }))
     .sort((a, b) => b.total - a.total);
   classes.forEach((c, i) => { c.rank = i > 0 && c.total === classes[i - 1].total ? classes[i - 1].rank : i + 1; });
-
-  const mOp = opMonth.size, wOp = opWeek.size;
-
-  // 5. 순위 6종
-  const rankings = {
-    totalDistance: rank_(riders.filter(r => r.total > 0),
-      r => [r.total], r => ({ value: round1_(r.total), unit: 'km' })),
-
-    participation: rank_(riders.filter(r => r.days > 0),
-      r => [r.days, r.total], r => ({ value: r.days, unit: '일', sub: round1_(r.total) + 'km' })),
-
-    monthDistance: rank_(riders.filter(r => r.monthDist > 0),
-      r => [r.monthDist], r => ({ value: round1_(r.monthDist), unit: 'km' })),
-
-    weekDistance: rank_(riders.filter(r => r.weekDist > 0),
-      r => [r.weekDist], r => ({ value: round1_(r.weekDist), unit: 'km' })),
-
-    monthAttendance: rank_(riders.filter(r => r.monthDays > 0 && mOp > 0),
-      r => [r.monthDays / mOp, r.monthDist],
-      r => ({ value: Math.round(r.monthDays / mOp * 100), unit: '%', sub: r.monthDays + '/' + mOp + '일' })),
-
-    weekAttendance: rank_(riders.filter(r => r.weekDays > 0 && wOp > 0),
-      r => [r.weekDays / wOp, r.weekDist],
-      r => ({ value: Math.round(r.weekDays / wOp * 100), unit: '%', sub: r.weekDays + '/' + wOp + '일' }))
-  };
-
-  const result = {
-    updateTime: Utilities.formatDate(now, tz, 'yyyy년 MM월 dd일 HH:mm 업데이트'),
-    year: CONFIG.YEAR,
-    period: {
-      monthLabel: Number(Utilities.formatDate(now, tz, 'M')) + '월',
-      monthOpDays: mOp,
-      weekLabel: Utilities.formatDate(weekStart, tz, 'M/d') + '~' + Utilities.formatDate(weekEnd, tz, 'M/d'),
-      weekOpDays: wOp
-    },
-    rankings: rankings,
-    school: { total: round1_(school.total), month: round1_(school.month), week: round1_(school.week),
-              today: round1_(school.today), todayRiders: school.todayRiders,
-              riders: riders.filter(r => r.total > 0).length },
-    classes: classes
-  };
-
-  PropertiesService.getScriptProperties().setProperty('DAILY_BAKED_DATA', JSON.stringify(result));
+  return classes;
 }
 
 /** 정렬 기준(keyFn 배열: 앞이 우선) 내림차순 → 동점은 같은 순위 → 상위 TOP_N위까지 */

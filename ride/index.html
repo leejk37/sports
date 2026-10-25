@@ -69,6 +69,22 @@
   .tabs{display:none}
 
   /* 휴대폰·좁은 화면: 기간 탭, 고정 px 크기 */
+  /* 큰 화면: 우리 학교 열에 카드 3장(기록·3~6학년·1·2학년)이 한 화면에 들어가도록 학급 순위를 촘촘하게 */
+  @media (min-width:861px){
+    .clist li{padding:.2vw .2vw;gap:.5vw}
+    .clist li.leader{padding:.22vw .5vw;margin:.08vw -.3vw .1vw}
+    .clist .rank{font-size:1vw} .clist li.leader .rank{font-size:1.15vw}
+    .clist .name{font-size:1.05vw} .clist li.leader .name{font-size:1.2vw}
+    .clist .val b{font-size:1.15vw} .clist li.leader .val b{font-size:1.4vw}
+    .clist .cls{font-size:.75vw}
+    .clist li{position:relative}
+    .clist .cbar{position:absolute;left:2.5vw;right:.2vw;bottom:0;height:.16vw;margin:0}   /* 막대를 줄 바닥에 겹쳐 높이를 아낌 */
+    .period[data-p="school"] .boards{gap:.6vw}
+    .period[data-p="school"] .card{padding-top:.6vw;padding-bottom:.3vw}
+    .period[data-p="school"] .stats{margin:.2vw 0 .4vw;gap:.4vw}
+    .period[data-p="school"] .stat{padding:.3vw .5vw}
+    .period[data-p="school"] .stat.big .n{font-size:2vw}
+  }
   @media (max-width:860px){
     header{padding:12px 16px 10px;gap:10px;border-bottom-width:4px;flex-wrap:wrap}
     header h1{font-size:22px} #date{display:none} #clock{font-size:18px} #status{font-size:12px;width:100%}
@@ -177,18 +193,20 @@ function boardHtml(d, b, emptyMsg) {
 /* 마지막 열: 우리 학교 기록 + 학급 순위 */
 const km = v => Number(v || 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
 function schoolHtml(d) {
-  const s = d.school, cl = d.classes || [];
+  const s = d.school, cl = d.classes || [], low = d.classesLow || [];
   if (!s) return `<div class="period" data-p="school"><h2>우리 학교</h2>
     <div class="boards"><section class="card" style="--c:var(--yellow)"><div class="empty">인도어라이딩 GAS를 새 버전으로 배포하면 나와요</div></section></div></div>`;
   const stat = (k, v, sub, big) => `<div class="stat${big ? ' big' : ''}"><div class="k">${k}</div><div class="n">${km(v)}<small>km</small></div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
-  const max = Math.max(1, ...cl.map(c => c.total));
-  const rows = cl.length ? cl.map(c => `
+  const classRows = (cl, empty) => {
+    const max = Math.max(1, ...cl.map(c => c.total));
+    return cl.length ? cl.map(c => `
     <li class="${c.rank === 1 ? 'leader' : ''}">
       <span class="rank">${c.rank}</span>
       <span><span class="name">${esc(String(c.grade).replace(/학년$/, ''))}${esc(String(c.className).replace(/반$/, ''))}</span><span class="cls">${c.riders}명</span>
         <span class="cbar"><i style="width:${Math.round(c.total / max * 100)}%"></i></span></span>
       <span class="val"><b>${km(c.total)}</b><span class="u">km</span></span>
-    </li>`).join('') : '<div class="empty">아직 기록이 없어요</div>';
+    </li>`).join('') : `<div class="empty">${empty}</div>`;
+  };
   return `<div class="period" data-p="school">
     <h2>우리 학교<small>${s.riders}명이 함께 달렸어요</small></h2>
     <div class="boards">
@@ -202,8 +220,12 @@ function schoolHtml(d) {
         </div>
       </section>
       <section class="card" style="--c:#7fb0f0">
-        <div class="head"><h3>학급 순위</h3><p>반 학생들이 탄 거리 합계</p></div>
-        <ol>${rows}</ol>
+        <div class="head"><h3>학급 순위 · 3~6학년</h3><p>반 학생들이 탄 거리 합계</p></div>
+        <ol class="clist">${classRows(cl, '아직 기록이 없어요')}</ol>
+      </section>
+      <section class="card" style="--c:#9ff0b0">
+        <div class="head"><h3>학급 순위 · 1·2학년</h3><p>마이후쉬 · 반 합계</p></div>
+        <ol class="clist">${classRows(low, '저학년 기록을 기다리고 있어요')}</ol>
       </section>
     </div></div>`;
 }
