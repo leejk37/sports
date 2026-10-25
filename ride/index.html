@@ -78,6 +78,9 @@
     .clist .val b{font-size:1.15vw} .clist li.leader .val b{font-size:1.4vw}
     .clist .cls{font-size:.75vw}
     .clist li{position:relative}
+    .rlist li{position:relative}
+    .scroll{overflow-x:hidden;padding:0 .3vw;margin:0 -.3vw;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent;overscroll-behavior:contain}
+    .scroll::-webkit-scrollbar{width:.35vw} .scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:999px}
     .clist.scroll{overflow-x:hidden;padding:0 .3vw;margin:0 -.3vw;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent;overscroll-behavior:contain}
     .clist.scroll::-webkit-scrollbar{width:.35vw} .clist.scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:999px}
     .clist .cbar{position:absolute;left:2.5vw;right:.2vw;bottom:0;height:.16vw;margin:0}   /* 막대를 줄 바닥에 겹쳐 높이를 아낌 */
@@ -190,7 +193,7 @@ function boardHtml(d, b, emptyMsg) {
     </li>`).join('') : `<div class="empty">${emptyMsg}</div>`;
   return `<section class="card" style="--c:${b.c}${b.white ? ';--m:12%' : ''}">
     <div class="head">${jerseySvg(b)}<h3>${b.title}</h3><p>1위는 ${b.jersey}</p></div>
-    <ol>${rows}</ol></section>`;
+    <ol class="rlist">${rows}</ol></section>`;
 }
 /* 마지막 열: 우리 학교 기록 + 학급 순위 */
 const km = v => Number(v || 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
@@ -243,13 +246,13 @@ function render(d) {
   fitClassLists();
 }
 
-/* 학급 순위: 큰 화면에서는 6반까지만 보이고 나머지는 카드 안에서 위아래로 넘김.
+/* 개인 순위·학급 순위: 큰 화면에서는 6줄까지만 보이고 나머지는 카드 안에서 위아래로 넘김.
    TV는 손댈 사람이 없으니 4초마다 한 줄씩 저절로 내려가고, 끝에 닿으면 잠시 쉬었다가 맨 위로. 손으로 넘기면 20초 동안 멈춤 */
 const SHOW_ROWS = 6;
 let autoTimer = null;
 function fitClassLists() {
   clearInterval(autoTimer);
-  const lists = [...document.querySelectorAll('.clist')];
+  const lists = [...document.querySelectorAll('.clist, .rlist')];
   const wide = matchMedia('(min-width:861px)').matches;
   lists.forEach(ol => {
     ol.classList.remove('scroll'); ol.style.maxHeight = ''; ol.scrollTop = 0;
@@ -258,7 +261,7 @@ function fitClassLists() {
     const top = li[0].offsetTop, bottom = li[SHOW_ROWS - 1].offsetTop + li[SHOW_ROWS - 1].offsetHeight;
     ol.style.maxHeight = (bottom - top) + 'px';
     ol.classList.add('scroll');
-    ol._hold = 0; ol._rest = 0;
+    ol._hold = 0; ol._rest = lists.indexOf(ol) % 3;     // 카드마다 조금씩 엇갈려 움직이게
     ['wheel', 'touchstart', 'pointerdown'].forEach(ev => ol.addEventListener(ev, () => { ol._hold = Date.now() + 20000; }, { passive: true }));
   });
   const moving = lists.filter(ol => ol.classList.contains('scroll'));
@@ -268,9 +271,12 @@ function fitClassLists() {
     if (ol._rest > 0) { ol._rest--; return; }
     const end = ol.scrollTop + ol.clientHeight >= ol.scrollHeight - 2;
     if (end) { ol.scrollTo({ top: 0, behavior: 'smooth' }); ol._rest = 2; return; }
-    const row = ol.querySelector('li:not(.leader)');
-    ol.scrollBy({ top: row ? row.offsetHeight : 30, behavior: 'smooth' });
-    if (ol.scrollTop + ol.clientHeight + (row ? row.offsetHeight : 30) >= ol.scrollHeight - 2) ol._rest = 2;
+    // 다음 줄의 윗선에 딱 맞춰 넘김 (반쯤 잘린 줄이 남지 않게)
+    const items = [...ol.children], base = items[0].offsetTop;
+    const next = items.find(li => li.offsetTop - base > ol.scrollTop + 2);
+    const to = Math.min(next ? next.offsetTop - base : ol.scrollHeight, ol.scrollHeight - ol.clientHeight);
+    ol.scrollTo({ top: to, behavior: 'smooth' });
+    if (to >= ol.scrollHeight - ol.clientHeight - 2) ol._rest = 2;
   }), 4000);
 }
 addEventListener('resize', () => { clearTimeout(fitClassLists._t); fitClassLists._t = setTimeout(fitClassLists, 300); });
