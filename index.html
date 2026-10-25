@@ -25,7 +25,7 @@
 
   header{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:4px solid var(--yellow)}
   header h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.5px;flex:1}
-  /* 로그인 없이 누구나 여는 화면 (현황판·순위·인도어사이클·입퇴실) */
+  /* 로그인 없이 누구나 여는 화면 (현황판·순위·인도어사이클) */
   #views{display:flex;gap:6px;flex-wrap:wrap}
   .vlink{font-size:14px;font-weight:800;padding:6px 12px;border-radius:999px;background:var(--yellow);color:var(--blue-d);text-decoration:none;white-space:nowrap}
   .vlink:active{transform:translateY(1px)}
@@ -169,7 +169,6 @@
       <a class="vlink" href="board/">현황판</a>
       <a class="vlink" href="rank/?ex=auto">종목 순위</a>
       <a class="vlink" href="ride/">인도어사이클</a>
-      <a class="vlink" href="qr/">입퇴실 QR</a>
     </nav>
     <span id="room" class="room"></span>
     <div id="clock"></div>
