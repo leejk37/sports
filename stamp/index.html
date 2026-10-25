@@ -220,13 +220,14 @@ const md = d => { const [, m, dd] = String(d).split('-'); return m ? `${+m}/${+d
 /* 내 포인트: 남은 포인트 · 다음 선물 · 뱃지 · 최근 내역 (Points.gs) */
 function pointsHtml(d) {
   const p = d.points; if (!p) return '';
-  const nextGift = p.gifts.find(g => g.cost > p.bal);
-  const can = p.gifts.filter(g => g.cost <= p.bal);
-  const prev = can.length ? can[can.length - 1].cost : 0;
-  const nextHtml = nextGift ? `<div class="next">🎁 ${esc(nextGift.name)}까지 <span style="color:var(--yellow)">${fmtP(nextGift.cost - p.bal)}P</span> 남았어요
-      <div class="prog"><i style="width:${Math.max(0, Math.min(100, (p.bal - prev) / (nextGift.cost - prev) * 100))}%"></i></div></div>`
+  const my = g => g.share || g.cost;                    // 모둠 선물은 내 몫(나눠 낸 값)
+  const nextGift = p.gifts.find(g => my(g) > p.bal);
+  const can = p.gifts.filter(g => my(g) <= p.bal);
+  const prev = can.length ? my(can[can.length - 1]) : 0;
+  const nextHtml = nextGift ? `<div class="next">🎁 ${esc(nextGift.name)}${nextGift.share ? '(모둠)' : ''}까지 <span style="color:var(--yellow)">${fmtP(my(nextGift) - p.bal)}P</span> 남았어요
+      <div class="prog"><i style="width:${Math.max(0, Math.min(100, (p.bal - prev) / (my(nextGift) - prev) * 100))}%"></i></div></div>`
     : p.gifts.length ? '<div class="next">🎁 모든 선물로 바꿀 수 있어요! 선생님께 말해요</div>' : '';
-  const gifts = p.gifts.map(g => `<span class="gift${g.cost <= p.bal ? ' can' : ''}">${esc(g.name)} ${fmtP(g.cost)}P</span>`).join('');
+  const gifts = p.gifts.map(g => `<span class="gift${my(g) <= p.bal ? ' can' : ''}">${g.share ? `🤝 ${esc(g.name)} ${fmtP(g.cost)}P · 내 몫 ${fmtP(g.share)}P` : `${esc(g.name)} ${fmtP(g.cost)}P`}</span>`).join('');
   const got = p.badges.filter(b => b.got).length;
   const badges = p.badges.map(b => `<div class="bd${b.got ? ' got' : ''}" title="${esc(b.name)}"><i>${b.icon}</i><b>${esc(b.name)}</b>${b.got
       ? `<small>${md(b.got)} 받음</small>` : `<small>${fmtP(b.have)}/${fmtP(b.n)}</small><div class="bb"><u style="width:${b.have / b.n * 100}%"></u></div>`}</div>`).join('');
@@ -259,7 +260,8 @@ function pointsHtml(d) {
       · 연속 3일 ${p.rules['연속 3일']}P · 7일마다 ${p.rules['연속 7일마다']}P · 기록 경신 ${p.rules['기록 경신']}P · 바른 자세 ${p.rules['바른 자세']}P<br>
       · 오늘 운동한 포인트는 <b>밤 1시</b>에 확정돼요. 내일 아침에 보면 들어와 있어요<br>
       · '오늘 +○P 예정'은 지금까지 통과한 종목과 도장 포인트예요. 내 최고 기록을 넘었거나 바른 자세로 했다면 밤에 포인트가 더 들어와요<br>
-      · 선물은 선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>만 줄고, 모은 포인트와 뱃지는 그대로예요
+      · 선물은 선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>만 줄고, 모은 포인트와 뱃지는 그대로예요<br>
+      · 🤝 모둠 선물은 모둠원 모두가 똑같이 나눠 내요. 모두 '내 몫'만큼 남은 포인트가 있어야 바꿀 수 있어요
     </div>
   </section>`;
 }

@@ -69,6 +69,10 @@
   .g small{color:var(--soft);font-weight:700;margin-left:4px}
   .g.no{opacity:.45}
   .g.pick{border-color:var(--yellow);background:rgba(245,197,24,.2)}
+  .gtag{font-size:11px;font-weight:900;padding:1px 6px;border-radius:999px;background:#9ff0b0;color:#0d3b1a;margin-right:5px;vertical-align:1px}
+  .split{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .split span{font-size:13px;font-weight:800;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.08)}
+  .split span.lack{background:rgba(255,157,138,.2);color:var(--red)}
   .confirm{margin-top:10px;display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:15px;font-weight:800}
   .confirm.show{display:flex}
   .msg{margin-top:8px;font-size:14px;font-weight:800}
@@ -208,8 +212,23 @@ function drawPanel(toGift, msg) {
   if (!cur) return;
   const s = cur.s, d = cur.d || s;
   const gifts = (data.gifts || []).slice().sort((a, b) => a.cost - b.cost);
-  const gl = gifts.map((g, i) => `<button class="g${g.cost > d.bal ? ' no' : ''}${pick === i ? ' pick' : ''}" data-i="${i}">${esc(g.name)}<small>${fmt(g.cost)}P</small></button>`).join('');
+  const mates = cur.d ? (cur.d.mates || []) : null;              // null = 아직 불러오는 중
+  const split = g => {                                            // 모둠 선물: 똑같이 나눔, 나머지 1P씩은 앞 번호부터 (서버와 같게)
+    const n = mates.length, base = Math.floor(g.cost / n), extra = g.cost - base * n;
+    return mates.map((m, i) => ({ ...m, share: base + (i < extra ? 1 : 0) }));
+  };
+  const lack = g => g.group ? (!mates || !mates.length || split(g).some(m => m.bal < m.share)) : g.cost > d.bal;
+  const gl = gifts.map((g, i) => `<button class="g${lack(g) ? ' no' : ''}${pick === i ? ' pick' : ''}" data-i="${i}">${g.group ? '<span class="gtag">모둠</span>' : ''}${esc(g.name)}<small>${fmt(g.cost)}P</small></button>`).join('');
   const g = pick != null ? gifts[pick] : null;
+  let ask = '', short = false, canGive = true;
+  if (g && !g.group) { ask = `${esc(g.name)} (${fmt(g.cost)}P)을 줄까요? → 남은 포인트 ${fmt(d.bal - g.cost)}P`; short = g.cost > d.bal; }
+  else if (g && !mates) { ask = '모둠원을 불러오는 중…'; canGive = false; }
+  else if (g && !mates.length) { ask = '모둠이 정해지지 않은 학생이에요 (학생명단 모둠 열)'; canGive = false; }
+  else if (g) {
+    const sp = split(g); short = sp.some(m => m.bal < m.share);
+    ask = `<div style="width:100%">${esc(s.group)}모둠 ${sp.length}명이 ${esc(g.name)} (${fmt(g.cost)}P)을 나눠 낼까요?
+      <div class="split">${sp.map(m => `<span class="${m.bal < m.share ? 'lack' : ''}">${esc(m.name)} −${fmt(m.share)} → ${fmt(m.bal - m.share)}P</span>`).join('')}</div></div>`;
+  }
   const badges = cur.d ? cur.d.badges.map(b => `<div class="bd${b.got ? ' got' : ''}"><i>${b.icon}</i>${esc(b.name)}<small>${b.got ? md(b.got) : fmt(b.have) + '/' + fmt(b.n)}</small></div>`).join('') : '<div style="color:var(--dim)">불러오는 중…</div>';
   const hist = cur.d ? [...cur.d.trades.map(t => ({ d: t.d, p: -t.p, t: '🎁 ' + t.gift })), ...cur.d.recent]
     .sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0)
@@ -225,19 +244,19 @@ function drawPanel(toGift, msg) {
     <div class="give" id="give">
       <h3>🎁 선물 주기</h3>
       ${gifts.length ? `<div class="gl">${gl}</div>` : '<div style="color:var(--soft);font-size:14px">시트의 선물목록 탭에 선물을 먼저 적어 주세요</div>'}
-      <div class="confirm${g ? ' show' : ''}">${g ? `${esc(g.name)} (${fmt(g.cost)}P)을 줄까요? → 남은 포인트 ${fmt(d.bal - g.cost)}P` : ''}
-        <button class="btn" id="giveGo"${g && g.cost > d.bal ? ' style="background:var(--red)"' : ''}>${g && g.cost > d.bal ? '모자라도 주기' : '주기'}</button><button class="btn ghost" id="giveNo">취소</button></div>
+      <div class="confirm${g ? ' show' : ''}">${ask}
+        ${canGive ? `<button class="btn" id="giveGo"${short ? ' style="background:var(--red)"' : ''}>${short ? '모자라도 주기' : '주기'}</button>` : ''}<button class="btn ghost" id="giveNo">취소</button></div>
       ${msg ? `<div class="msg ${msg.ok ? 'ok' : 'err'}">${esc(msg.t)}</div>` : ''}
     </div>
     <div class="sec">뱃지 ${cur.d ? cur.d.badges.filter(b => b.got).length + '/' + cur.d.badges.length : ''}</div>
     <div class="badges">${badges}</div>
     <div class="sec">최근 내역</div>
     <div class="hist">${hist}</div>
-    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요</div>`;
+    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
   $('close').onclick = closePanel;
   document.querySelectorAll('.g').forEach(b => b.onclick = () => { pick = Number(b.dataset.i); drawPanel(); });
   if ($('giveNo')) $('giveNo').onclick = () => { pick = null; drawPanel(); };
-  if ($('giveGo')) $('giveGo').onclick = () => give(g, g.cost > d.bal);
+  if ($('giveGo')) $('giveGo').onclick = () => give(g, short);
   if (toGift) $('give').scrollIntoView({ block: 'nearest' });
 }
 
@@ -248,7 +267,15 @@ async function give(g, short) {
     const q = { action: 'gift', id, gift: g.name }; if (short) q.force = 1;
     const r = await jsonp(q);
     if (!cur || cur.id !== id) return;
-    if (r && r.ok) {
+    if (r && r.ok && r.group) {                                 // 모둠 선물: 모둠원 모두 남은 포인트 고침
+      const today = new Date().toISOString().slice(0, 10);
+      r.mates.forEach(m => {
+        const st = data.students.find(x => x.id === m.id); if (st) { st.bal = m.bal; st.spent += m.share; }
+        const mm = (cur.d.mates || []).find(x => x.id === m.id); if (mm) mm.bal = m.bal;
+        if (m.id === id) { cur.d.bal = m.bal; cur.d.spent += m.share; cur.d.trades.unshift({ d: today, gift: r.gift, p: m.share }); }
+      });
+      pick = null; drawPanel(false, { ok: true, t: `${r.gift}을(를) 줬어요. ${r.mates.map(m => m.name + ' ' + fmt(m.bal) + 'P').join(', ')}` }); render();
+    } else if (r && r.ok) {
       cur.s.bal = r.bal; cur.s.spent += r.cost;
       if (cur.d) { cur.d.bal = r.bal; cur.d.spent += r.cost; cur.d.trades.unshift({ d: new Date().toISOString().slice(0, 10), gift: r.gift, p: r.cost }); }
       pick = null; drawPanel(false, { ok: true, t: `${r.gift}을(를) 줬어요. 남은 포인트 ${fmt(r.bal)}P` }); render();

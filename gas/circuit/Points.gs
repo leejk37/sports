@@ -15,7 +15,7 @@
  *   포인트     : A 날짜 · B 학년 · C 반 · D 번호 · E 이름 · F 이메일 · G 종목P · H 도장P · I 모둠P · J 연속P · K 경신P · L 자세P · M 합계
  *                · N 도장(0/90/100) · O 모둠도장 · P 연속일수 · Q 경신수 · R 자세수 · S 내용
  *   포인트규칙 : A 항목 · B 포인트 · C 설명
- *   선물목록   : A 선물 · B 필요 포인트 · C 메모
+ *   선물목록   : A 선물 · B 필요 포인트 · C 메모 · D 모둠 선물(O) — O면 모둠원 모두의 남은 포인트에서 똑같이 나눠 뺌
  *   선물교환   : A 날짜 · B 학년 · C 반 · D 번호 · E 이름 · F 이메일 · G 선물 · H 포인트  (선생님만 적음)
  *   포인트현황 : 학생별 누적·사용·남은 포인트·뱃지 수 (밤마다 새로 씀, 선생님 확인용)
  *************************************************************/
@@ -289,9 +289,11 @@ function pointGiftSheet_(ss) {
   let sh = ss.getSheetByName(POINT.GIFTS);
   if (!sh) {
     sh = ss.insertSheet(POINT.GIFTS);
-    sh.getRange(1, 1, 1, 3).setValues([['선물', '필요 포인트', '메모']]).setFontWeight('bold');
-    sh.getRange(2, 1, 3, 3).setValues([['(예) 칭찬 쿠폰', 50, '이 줄은 예시예요. 고치거나 지워 주세요'], ['(예) 자리 바꾸기', 150, ''], ['(예) 학용품', 300, '']]);
+    sh.getRange(1, 1, 1, 4).setValues([['선물', '필요 포인트', '메모', '모둠 선물(O)']]).setFontWeight('bold');
+    sh.getRange(2, 1, 3, 4).setValues([['(예) 칭찬 쿠폰', 50, '이 줄은 예시예요. 고치거나 지워 주세요', ''], ['(예) 자리 바꾸기', 150, '', ''], ['(예) 피자', 400, '모둠원이 나눠 냄', 'O']]);
     sh.setFrozenRows(1); sh.setColumnWidth(1, 200);
+  } else if (!String(sh.getRange(1, 4).getValue()).trim()) {
+    sh.getRange(1, 4).setValue('모둠 선물(O)').setFontWeight('bold');   // 예전 탭에 제목만 더함
   }
   return sh;
 }
@@ -316,7 +318,8 @@ function pointGifts_(ss) {
   const sh = ss.getSheetByName(POINT.GIFTS); if (!sh) return [];
   return sh.getDataRange().getValues().slice(1)
     .filter(r => String(r[0]).trim() && isFinite(Number(r[1])) && Number(r[1]) > 0)
-    .map(r => ({ name: String(r[0]).trim(), cost: Number(r[1]), memo: String(r[2] || '').trim() }));
+    .map(r => ({ name: String(r[0]).trim(), cost: Number(r[1]), memo: String(r[2] || '').trim(),
+      group: /^(o|ㅇ|y|예|true|모둠)$/i.test(String(r[3] || '').trim()) }));
 }
 
 /** 선물교환 탭 → [{ id, d, gift, p }]. fill=true면 빈 이름·이메일·포인트·날짜를 채워 씀 */
@@ -412,7 +415,10 @@ function pointsForStamp_(ss, st, sum) {
     if (t.stamp && sum.streak === 3) today += R['연속 3일'];
     if (t.stamp && sum.streak && sum.streak % 7 === 0) today += R['연속 7일마다'];
   }
-  const gifts = (all.__gifts || []).slice().sort((a, b) => a.cost - b.cost);
+  const n = st.gkey ? stampRoster_(ss).list.filter(m => m.gkey === st.gkey).length : 0;
+  const gifts = (all.__gifts || []).filter(g => !g.group || n)            // 모둠이 없으면 모둠 선물은 안 보임
+    .map(g => g.group ? Object.assign({}, g, { members: n, share: Math.ceil(g.cost / n) }) : g)
+    .sort((a, b) => (a.share || a.cost) - (b.share || b.cost));
   return {
     earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0, today,
     badges: pointBadgeList_(x), recent: x ? x.recent.slice(0, 7) : [], trades: x ? x.trades : [], gifts,
@@ -470,9 +476,11 @@ function pointsTeacher_(p) {
     return {
       ok: true, id, name: st.name, grade: st.grade, cls: st.cls, no: st.no, group: st.group,
       earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
-      badges: pointBadgeList_(x), recent: x ? x.recent : [], trades: x ? x.trades : []
+      badges: pointBadgeList_(x), recent: x ? x.recent : [], trades: x ? x.trades : [],
+      mates: pointMates_(ss, roster, staff, st)
     };
   }
+  try { pointGiftSheet_(ss); } catch (e) {}                    // 선물목록에 '모둠 선물' 제목 칸 챙기기
   const list = roster.list.filter(st => !staff.has(st.id));
   const all = pointGet_(ss, list.map(st => st.id));
   return {
@@ -502,6 +510,7 @@ function pointsGive_(p) {
   try {
     const cache = CacheService.getScriptCache();
     cache.remove('pt1__at');                                   // 최신 남은 포인트로 확인
+    if (gift.group) return pointsGiveGroup_(ss, roster, st, gift, String(p.force) === '1');
     const x = pointGet_(ss, [id])[id];
     const bal = x ? x.bal : 0;
     if (bal < gift.cost && String(p.force) !== '1') return { ok: false, short: true, bal, cost: gift.cost, error: `남은 포인트(${bal}P)가 모자라요` };
@@ -513,4 +522,36 @@ function pointsGive_(p) {
     cache.remove('pt1__at');                                   // 다음 요청(학생 화면 포함)부터 바로 반영
     return { ok: true, gift: gift.name, cost: gift.cost, bal: bal - gift.cost };
   } finally { lock.releaseLock(); }
+}
+
+/** 모둠원 목록과 남은 포인트 (선생님 화면에서 모둠 선물 나눠 내기 미리 보기) */
+function pointMates_(ss, roster, staff, st) {
+  if (!st.gkey) return [];
+  const mates = roster.list.filter(m => m.gkey === st.gkey && !staff.has(m.id)).sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
+  const all = pointGet_(ss, mates.map(m => m.id));
+  return mates.map(m => ({ id: m.id, name: m.name, no: m.no, bal: all[m.id] ? all[m.id].bal : 0 }));
+}
+
+/** 모둠 선물: 값을 모둠원 수로 똑같이 나눠(나머지 1P씩은 앞 번호부터) 각자의 남은 포인트에서 뺌.
+ *  한 명이라도 모자라면 거절(force면 그래도). 선물교환 탭에 모둠원마다 한 줄, 선물 이름은 '피자 (모둠 4명)' */
+function pointsGiveGroup_(ss, roster, st, gift, force) {
+  if (!st.gkey) return { ok: false, error: '모둠이 정해지지 않은 학생이에요 (학생명단 모둠 열)' };
+  const staff = pointStaffIds_(ss);
+  const mates = pointMates_(ss, roster, staff, st);
+  const n = mates.length;
+  const base = Math.floor(gift.cost / n), extra = gift.cost - base * n;
+  mates.forEach((m, i) => m.share = base + (i < extra ? 1 : 0));
+  const short = mates.filter(m => m.bal < m.share);
+  if (short.length && !force) return { ok: false, short: true, group: true, mates, error: short.map(m => `${m.name} ${m.bal}P`).join(', ') + ' — 포인트가 모자라요' };
+  const sh = pointTradeSheet_(ss);
+  const today = stampFmt_(new Date(), 'yyyy-MM-dd'), label = `${gift.name} (모둠 ${n}명)`;
+  const row = sh.getLastRow() + 1;
+  sh.getRange(row, 1, n, 1).setNumberFormat('@');
+  sh.getRange(row, 1, n, 8).setValues(mates.map(m => {
+    const r = roster.byId[m.id];
+    return [today, r.grade, r.cls, r.no, r.name, r.id + SQUAT_CONFIG.DOMAIN, label, m.share];
+  }));
+  SpreadsheetApp.flush();
+  CacheService.getScriptCache().remove('pt1__at');
+  return { ok: true, group: true, gift: label, cost: gift.cost, mates: mates.map(m => ({ id: m.id, name: m.name, share: m.share, bal: m.bal - m.share })) };
 }
