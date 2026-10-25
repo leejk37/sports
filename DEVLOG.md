@@ -9,7 +9,7 @@
   - GAS: `Setup.gs` 새 파일 — '설정' 탭, `getConfig()`, `설치()`(= `setupAll()`). `Main.gs`의 TOKEN·DOMAIN, 트레드밀·행잉 DOMAIN은 설정 탭을 읽는 getter로. QR 인쇄 주소는 설정 웹앱주소 → 배포 주소 순. 인도어라이딩 시트 ID는 설정 탭 → 예전 스크립트 속성 순(`rideSheetId_`).
   - 동작·저장 형식·열 구조는 그대로. 아직 코드에 남은 학년도·운영 값(POINT.FROM, RIDE_TABS 등)은 INSTALL.md 끝 목록 → 다음 단계.
   - `INSTALL.md`: 다른 학교 교사용 설치 안내서.
-  - 토큰을 `26cp4s_squat` → `cp_smart_sports`로 바꿈(앱 전체가 자세 인식 기반이라 스쿼트 이름이 맞지 않음, 학년도가 바뀌어도 그대로 쓰도록 연도는 뺌). `config.js`와 `설정` 탭을 함께 바꿔야 저장됨.
+  - 토큰을 `26cp4s_squat` → `cpe_smart_sports`로 바꿈(앱 전체가 자세 인식 기반이라 스쿼트 이름이 맞지 않음, 학년도가 바뀌어도 그대로 쓰도록 연도는 뺌). `config.js`와 `설정` 탭을 함께 바꿔야 저장됨.
 
 ## 2026-10-23
 

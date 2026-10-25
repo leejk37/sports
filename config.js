@@ -15,7 +15,7 @@ window.SITE = Object.freeze({
   GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
 
   // 운동 앱과 GAS가 함께 쓰는 확인값. GAS '설정' 시트의 토큰과 같게. 비밀값이 아닙니다
-  TOKEN: 'cp_smart_sports',
+  TOKEN: 'cpe_smart_sports',
 
   // 인도어라이딩 기록판 GAS 웹앱 주소 (gas/ride 를 배포한 …/exec). 쓰지 않으면 ''
   RIDE_GAS_URL: 'https://script.google.com/macros/s/AKfycbwbHFh2YXxqtg5d99KSq32ioD1fMbCXOs9PVDrSCmJwwPq32qHURyBz85zLLIN9iPa8/exec'
