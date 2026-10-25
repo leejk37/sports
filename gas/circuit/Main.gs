@@ -1,17 +1,17 @@
 /*************************************************************
  * Main.gs — 서킷트레이닝 GAS 프로젝트의 공통 부분
- *  (스프레드시트 26_청평_스마트스포츠실)
- *  - 공통 설정(SQUAT_CONFIG): 토큰·도메인·학생명단 열 위치
+ *  (스마트스포츠실 운동 기록 스프레드시트)
+ *  - 공통 설정(SQUAT_CONFIG): 학생명단 열 위치. 토큰·도메인은 '설정' 시트에서 읽음(Setup.gs)
  *  - 받는 창구(doPost): 운동 앱이 보낸 type을 보고 각 파일로 나눠 줌
  *  - 명단 찾기(lookupStudent_), 응답(squatJson_)
  *  새 운동을 추가할 때는 doPost에 한 줄만 넣으면 됩니다.
  *  ※ SQUAT_CONFIG·squatJson_ 이름은 다른 파일들이 함께 쓰므로 그대로 둡니다.
  *************************************************************/
 const SQUAT_CONFIG = {
-  TOKEN: '26cp4s_squat',       // 운동 앱 index.html 의 TOKEN 과 똑같이
+  get TOKEN() { return getConfig('토큰'); },        // '설정' 시트 (Setup.gs). 화면 config.js 의 TOKEN 과 같게
   SS_ID: '',                   // 시트에 연결된 스크립트면 '' 그대로
   SHEET_NAME: '스쿼트',
-  DOMAIN: '@cpe.es.kr',
+  get DOMAIN() { return getConfig('학교도메인'); },  // '설정' 시트 (Setup.gs). 예: '@school.es.kr'
   // 학생명단 시트의 열 번호 (A=1, B=2, C=3 ...)
   ROSTER_SHEET: '학생명단',
   ROSTER_GRADE_COL: 1,         // 학년

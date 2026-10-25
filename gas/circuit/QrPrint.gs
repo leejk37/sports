@@ -1,5 +1,5 @@
 /**
- * QR 이름표 인쇄 — 서킷트레이닝(26_청평_스마트스포츠실) GAS 프로젝트에 새 파일로 추가
+ * QR 이름표 인쇄 — 스마트스포츠실(운동 기록) GAS 프로젝트에 새 파일로 추가
  *  - '학생명단' 탭을 읽어 학년·반별(또는 교직원) QR 이름표 인쇄 화면(QrPrintPage.html)을 보여 줍니다.
  *  - QR 안에는 구글 아이디만(@ 앞부분) 넣습니다. 입퇴실·허브 로그인과 같은 이름표를 씁니다.
  *  - 열기: 웹앱 주소(…/exec) 뒤에 ?page=qr  (선생님 계정으로 로그인한 상태)
@@ -9,8 +9,13 @@
 const QR_CONFIG = {
   ROSTER_SHEET: '학생명단',   // A학년 B반 C번호 D이름 E이메일 F구분(학생/교직원) — 1행은 제목
   COL: { grade: 1, cls: 2, no: 3, name: 4, email: 5, kind: 6 },
-  // 학교 계정으로 열리도록 /a/macros/cpe.es.kr/ 형식 (여러 계정 로그인 시 '파일을 열 수 없습니다' 방지)
-  WEBAPP_URL: 'https://script.google.com/a/macros/cpe.es.kr/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec'
+  // 학교 계정으로 열리도록 /a/macros/<학교도메인>/ 형식 (여러 계정 로그인 시 '파일을 열 수 없습니다' 방지)
+  // '설정' 시트의 웹앱주소 → 없으면 이 프로젝트의 배포 주소
+  get WEBAPP_URL() {
+    const url = getConfig('웹앱주소') || ScriptApp.getService().getUrl() || '';
+    const dom = String(SQUAT_CONFIG.DOMAIN).replace(/^@/, '');
+    return url.indexOf('/a/macros/') < 0 && dom ? url.replace('/macros/s/', '/a/macros/' + dom + '/s/') : url;
+  }
 };
 
 /* ===== 시트 메뉴: 스마트스포츠실 → QR 이름표 인쇄 =====
@@ -24,6 +29,8 @@ function addQrMenu_() {
   SpreadsheetApp.getUi()
     .createMenu('스마트스포츠실')
     .addItem('QR 이름표 인쇄', 'openQrPrint')
+    .addSeparator()
+    .addItem('설치·점검 (설정 시트 확인)', '설치')
     .addToUi();
 }
 function openQrPrint() {

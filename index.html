@@ -161,11 +161,12 @@
     #closePicker{font-size:16px;padding:10px;margin-top:12px}
   }
 </style>
+<script src="config.js"></script>
 </head>
 <body>
 <div id="app">
   <header>
-    <h1>청평 스마트스포츠</h1>
+    <h1 data-school>스마트스포츠</h1>
     <nav id="views" aria-label="함께 보기">
       <a class="vlink" href="board/">현황판</a>
       <a class="vlink" href="rank/?ex=auto">종목 순위</a>
@@ -212,9 +213,9 @@
 <script>
 /* ===== 설정 ===== */
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN: '26cp4s_squat',
-  DOMAIN: '@cpe.es.kr',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN: SITE.TOKEN,
+  DOMAIN: SITE.DOMAIN,
   LOGIN_HOURS: 3,           // 로그인 유지 시간(시간). 지나면 자동 로그아웃
   REFRESH_SEC: 10,          // 공용 모드에서 목록을 다시 불러오는 간격(초)
   STORE_KEY: 'hubStudents', // 이 기기 모드의 로그인 목록 저장 이름

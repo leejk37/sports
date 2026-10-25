@@ -77,6 +77,7 @@
   #saveState.fail{color:var(--warn)}
   @media (max-width:820px){#main{flex-direction:column}#stage{border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto}}
 </style>
+<script src="../config.js"></script>
 </head>
 <body>
 <div id="app">
@@ -170,10 +171,10 @@ import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@m
 
 /* ===== 설정: 스쿼트·윗몸말아올리기·점핑잭과 같은 GAS_URL, TOKEN ===== */
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN:   '26cp4s_squat',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN:   SITE.TOKEN,
   TYPE:    'lunge',
-  DOMAIN:  '@cpe.es.kr',
+  DOMAIN:  SITE.DOMAIN,
 
   // ---- 판정 기준 (처음 측정할 때 화면 왼쪽 위 숫자를 보며 조정) ----
   // 내려간 비율 = 엉덩이가 내려간 거리 ÷ 다리 길이(선 자세의 엉덩이~발목)

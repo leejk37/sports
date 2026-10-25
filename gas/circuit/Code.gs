@@ -229,7 +229,7 @@ function getRoster_() {
   sh.getRange(2, 1, n - 1, cols).getDisplayValues().forEach(r => {
     let email = String(r[4]).trim().toLowerCase();
     if (!email) return;
-    if (email.indexOf('@') < 0) email += '@cpe.es.kr';      // 아이디만 적혀 있어도 찾기
+    if (email.indexOf('@') < 0) email += SQUAT_CONFIG.DOMAIN;      // 아이디만 적혀 있어도 찾기
     const grade = String(r[0]).trim(), cls = String(r[1]).trim();
     const staff = String(r[5]).trim() === '교직원' || !grade;
     map[email] = {

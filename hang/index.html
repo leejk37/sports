@@ -64,6 +64,7 @@
   #saveState.fail{color:var(--warn)}
   @media (max-width:820px), (orientation:portrait){#main{flex-direction:column}#stage{border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto;max-height:42%}}
 </style>
+<script src="../config.js"></script>
 </head>
 <body>
 <div id="app">
@@ -130,10 +131,10 @@ import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@m
 
 /* ===== 설정: 다른 운동 앱과 같은 GAS_URL, TOKEN ===== */
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN:   '26cp4s_squat',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN:   SITE.TOKEN,
   TYPE:    'hang',
-  DOMAIN:  '@cpe.es.kr',
+  DOMAIN:  SITE.DOMAIN,
 
   // ---- 판정 기준 (길이는 어깨너비 S에 대한 비율) ----
   // 화면에는 철봉부터 허리까지만 보이면 돼요 (발은 안 보여도 됨)

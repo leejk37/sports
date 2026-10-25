@@ -7,7 +7,7 @@
  *************************************************************/
 const TREADMILL_CONFIG = {
   SHEET_NAME: '트레드밀',
-  DOMAIN: '@cpe.es.kr'
+  get DOMAIN() { return SQUAT_CONFIG.DOMAIN; }   // '설정' 시트의 학교도메인
 };
 
 function handleTreadmill_(d) {

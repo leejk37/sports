@@ -63,6 +63,7 @@
   #net { position:fixed; right:12px; bottom:12px; z-index:6; font-size:15px; padding:6px 12px;
          border-radius:999px; background:var(--stop); color:#fff; }
 </style>
+<script src="../config.js"></script>
 </head>
 <body>
 <div id="cam"><div id="guide"></div></div>
@@ -87,7 +88,7 @@
 
 <script>
 // ① 서킷트레이닝 GAS 배포 주소(…/exec) — 운동 앱들과 같은 주소 (입퇴실 GAS에서 통합)
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec';
+const GAS_URL = SITE.GAS_URL;
 
 const $ = id => document.getElementById(id);
 const msg = $('msg');

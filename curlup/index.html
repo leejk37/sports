@@ -77,6 +77,7 @@
   #saveState.fail{color:var(--warn)}
   @media (max-width:820px){#main{flex-direction:column}#stage{border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto}}
 </style>
+<script src="../config.js"></script>
 </head>
 <body>
 <div id="app">
@@ -168,10 +169,10 @@ import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@m
 
 /* ===== 설정: 스쿼트 index.html과 같은 GAS_URL, TOKEN을 그대로 복사 ===== */
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN:   '26cp4s_squat',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN:   SITE.TOKEN,
   TYPE:    'curlup',
-  DOMAIN:  '@cpe.es.kr',
+  DOMAIN:  SITE.DOMAIN,
 
   // ---- 판정 기준(각도 단위: 도) ----
   LYING_TORSO_MAX: 25,  // 몸통이 바닥과 이루는 각이 이 값 이하 → 누운 자세

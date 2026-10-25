@@ -289,7 +289,7 @@ function dashBuild_(pastDay) {
 
 /** 인도어라이딩 '2026' 탭 → { todayKm, todayPeople, sinceKm(START_DATE부터) } 또는 null */
 function dashRide_(today) {
-  const id = PropertiesService.getScriptProperties().getProperty('RIDE_SHEET_ID');
+  const id = rideSheetId_();   // Setup.gs: '설정' 시트 → 스크립트 속성
   if (!id) return null;
   try {
     const book = SpreadsheetApp.openById(id);

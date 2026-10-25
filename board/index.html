@@ -159,12 +159,13 @@
   @media (max-width:900px){.pageSwitch{font-size:13px;padding:5px 12px}}
 </style>
 <script>try { if (window.top !== window) document.documentElement.classList.add('inFrame'); } catch (e) { document.documentElement.classList.add('inFrame'); }</script>
+<script src="../config.js"></script>
 </head>
 <body>
 <div id="app">
   <header>
     <h1 id="title">스마트스포츠실 오늘</h1>
-    <a class="pageSwitch" href="../ride/" title="청평 인도어사이클 챌린지로">🚴 라이딩 ›</a>
+    <a class="pageSwitch" href="../ride/" title="인도어사이클 챌린지로">🚴 라이딩 ›</a>
     <span id="pastBadge">지난 기록</span>
     <span id="date"></span>
     <div id="dnav">
@@ -219,8 +220,8 @@
 <script>
 /* ===== 설정 ===== */
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN: '26cp4s_squat',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN: SITE.TOKEN,
   REFRESH_SEC: 60,          // 새로 불러오는 간격(초). GAS도 60초 캐시
   RELOAD_HOURS: 6,          // 오래 켜 두는 화면이라 가끔 페이지를 새로 고침
   BACK_TO_TODAY_MIN: 3,     // 지난 날짜를 보다가 이 시간(분) 동안 손대지 않으면 오늘로 돌아감

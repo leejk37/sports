@@ -64,6 +64,7 @@
     background:#d9480f;font-size:22px;font-weight:800;opacity:0;transition:opacity .2s;pointer-events:none}
   #flash.on{opacity:1}
 </style>
+<script src="../config.js"></script>
 </head>
 <body>
 <div id="app">
@@ -127,10 +128,10 @@
 <script>
 /* ===== 설정: 다른 운동 앱과 같은 GAS_URL, TOKEN ===== */
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN:   '26cp4s_squat',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN:   SITE.TOKEN,
   TYPE:    'rowing',
-  DOMAIN:  '@cpe.es.kr',
+  DOMAIN:  SITE.DOMAIN,
   MAX_SEC: 3600,         // 60분
   MAX_KM:  20,
   SAVE_TIMEOUT_MS: 30000

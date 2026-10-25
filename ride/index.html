@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>청평 인도어사이클 챌린지</title>
+<title data-school>인도어사이클 챌린지</title>
 <meta name="theme-color" content="#1f4e8c">
 <link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
@@ -147,10 +147,11 @@
   @media (max-width:900px){.pageSwitch{font-size:13px;padding:5px 12px}}
 </style>
 <script>try { if (window.top !== window) document.documentElement.classList.add('inFrame'); } catch (e) { document.documentElement.classList.add('inFrame'); }</script>
+<script src="../config.js"></script>
 </head>
 <body>
 <header>
-  <h1>청평 인도어사이클 챌린지</h1>
+  <h1 data-school>인도어사이클 챌린지</h1>
     <a class="pageSwitch" href="../board/" title="스마트스포츠실 현황판으로">📊 현황판 ›</a>
   <span id="date"></span>
   <span id="clock">--:--</span>
@@ -177,7 +178,7 @@
 /* ===== 설정 ===== */
 const CONFIG = {
   // 인도어라이딩 GAS 웹앱 (2026_인도어라이딩 시트에 붙은 스크립트, ?format=json&callback= 으로 JSONP)
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbwbHFh2YXxqtg5d99KSq32ioD1fMbCXOs9PVDrSCmJwwPq32qHURyBz85zLLIN9iPa8/exec',
+  GAS_URL: SITE.RIDE_GAS_URL,
   REFRESH_MIN: 10,         // 다시 불러오는 간격(분)
   RELOAD_HOURS: 6
 };

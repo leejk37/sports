@@ -49,6 +49,11 @@
 
 ## 공통 규칙
 
+- **학교별 값은 두 곳에만** (2026-10-25~, 다른 학교 이식용. 설치 순서는 `INSTALL.md`)
+  - 화면: 저장소 맨 위 `config.js` → `window.SITE` (`SCHOOL_NAME`·`DOMAIN`·`GAS_URL`·`TOKEN`·`RIDE_GAS_URL`). 모든 화면이 `<script src="../config.js">`로 읽고 `CONFIG`에서 `SITE.GAS_URL` 처럼 씀. 제목에 학교 이름은 `data-school` 속성
+  - GAS: 시트 `설정` 탭(항목·값·설명) → `getConfig('토큰')`·`getConfig('학교도메인')` (`Setup.gs`, 5분 캐시, 바로 반영 `clearConfigCache()`). `SQUAT_CONFIG.TOKEN`·`.DOMAIN`은 이 값을 읽는 getter
+  - **코드에 도메인·웹앱 주소·토큰·시트 ID를 직접 쓰지 않습니다.** 새 화면도 config.js를 읽게 만듭니다
+  - `설치()`(시트 메뉴 '스마트스포츠실 → 설치·점검'): 설정 탭·입퇴실·포인트 탭, `DASH_KEY`, 트리거 4개(warmStamp·fillDashArchive·closeOpenCheckins·pointsNightly)를 한 번에. 여러 번 실행해도 됨
 - **QR 이름표에는 구글 아이디만** 들어 있습니다(@cpe.es.kr 없음). 받는 쪽에서 `@` 앞부분만 비교하거나 `DOMAIN`을 붙입니다.
 - **공통 부분은 `gas/circuit/Main.gs`**: 설정(`SQUAT_CONFIG`), 받는 창구(`doPost`), 명단 찾기, 응답(`squatJson_`). 운동별 파일은 저장만 맡습니다.
 - **학생 찾기는 `lookupStudent_(ss, email)`** 하나로만 합니다(명단에 아이디·이메일이 섞여 있어도 찾음, 10분 캐시).

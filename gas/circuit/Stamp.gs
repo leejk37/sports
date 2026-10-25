@@ -406,7 +406,7 @@ function stampCriteria_(ss) {
  *  3행에 제목 '이메일' 칸이 있으면 구글 계정으로, 없으면 학년·반·번호, 그다음 같은 학년의 이름으로 찾음. 시트가 없거나 권한이 없으면 늘 {} */
 function stampRide_() {
   const none = () => ({});
-  const id = PropertiesService.getScriptProperties().getProperty('RIDE_SHEET_ID');
+  const id = rideSheetId_();   // Setup.gs: '설정' 시트 → 스크립트 속성
   if (!id) return none;
   try {
     const book = SpreadsheetApp.openById(id);

@@ -115,6 +115,7 @@
   #tickTrack .msg{padding:0 1.6vw;font-size:1.2vw;font-weight:700;color:var(--soft)}
 </style>
 <script>try { if (window.top !== window) document.documentElement.classList.add('inFrame'); } catch (e) { document.documentElement.classList.add('inFrame'); }</script>
+<script src="../config.js"></script>
 </head>
 <body>
 <div id="app">
@@ -175,8 +176,8 @@
 <script>
 /* ===== 설정 ===== */
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN: '26cp4s_squat',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN: SITE.TOKEN,
   REFRESH_SEC: 60,       // 데이터 새로 불러오는 간격(초)
   TAB_SEC: 10,           // 최고 기록 → 성장 → 꾸준함 넘기는 간격(초)
   // 종목이 여러 개(?ex=auto 등)면 최고 기록 → 성장 → 꾸준함을 한 번씩 보여 준 뒤 다음 종목으로 넘어감 (종목당 TAB_SEC × 3초)

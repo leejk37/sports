@@ -61,6 +61,7 @@
   .empty{padding:60px 20px;text-align:center;font-size:20px;font-weight:800;line-height:1.6}
   .empty a{color:var(--yellow)}
 </style>
+<script src="../config.js"></script>
 </head>
 <body>
 <header>
@@ -76,8 +77,8 @@
 
 <script>
 const CONFIG = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbzZIU-UeiWcXuN47lW4XSSwvD9EgP06NdJYrX5NKDf96oqEnfsqaI0B2B3YrvZ6Yw0eVw/exec',
-  TOKEN: '26cp4s_squat',
+  GAS_URL: SITE.GAS_URL,
+  TOKEN: SITE.TOKEN,
   REFRESH_SEC: 60
 };
 const $ = id => document.getElementById(id);
