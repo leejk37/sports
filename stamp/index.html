@@ -231,7 +231,7 @@ function pointsHtml(d) {
   const badges = p.badges.map(b => `<div class="bd${b.got ? ' got' : ''}" title="${esc(b.name)}"><i>${b.icon}</i><b>${esc(b.name)}</b>${b.got
       ? `<small>${md(b.got)} 받음</small>` : `<small>${fmtP(b.have)}/${fmtP(b.n)}</small><div class="bb"><u style="width:${b.have / b.n * 100}%"></u></div>`}</div>`).join('');
   const hist = [
-    ...(p.today ? [{ d: d.today, p: p.today, t: '오늘 (예정 · 밤에 확정)' }] : []),
+    ...(p.today ? [{ d: d.today, p: p.today, t: '오늘 지금까지 (밤 1시에 확정)' }] : []),
     ...p.trades.map(t => ({ d: t.d, p: -t.p, t: '🎁 ' + t.gift })),
     ...p.recent
   ].sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0).slice(0, 8)
@@ -257,8 +257,9 @@ function pointsHtml(d) {
     <div class="rules">
       · 종목 통과 ${p.rules['종목 통과']}P · 하루 도장 ${p.rules['하루 도장']}P (완벽 +${p.rules['완벽 도장']}) · 모둠 도장 ${p.rules['모둠 도장']}P (완벽 +${p.rules['완벽 모둠 도장']})
       · 연속 3일 ${p.rules['연속 3일']}P · 7일마다 ${p.rules['연속 7일마다']}P · 기록 경신 ${p.rules['기록 경신']}P · 바른 자세 ${p.rules['바른 자세']}P<br>
-      · 포인트는 매일 밤 확정돼요. 오늘 예정 포인트에는 기록 경신·바른 자세가 아직 들어 있지 않아요<br>
-      · 선물은 선생님께 말하면 바꿔 줘요. 선물로 바꿔도 모은 포인트와 뱃지는 그대로예요
+      · 오늘 운동한 포인트는 <b>밤 1시</b>에 확정돼요. 내일 아침에 보면 들어와 있어요<br>
+      · '오늘 +○P 예정'은 지금까지 통과한 종목과 도장 포인트예요. 내 최고 기록을 넘었거나 바른 자세로 했다면 밤에 포인트가 더 들어와요<br>
+      · 선물은 선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>만 줄고, 모은 포인트와 뱃지는 그대로예요
     </div>
   </section>`;
 }
