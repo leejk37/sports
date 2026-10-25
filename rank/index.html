@@ -61,7 +61,8 @@
   #tabs .t{font-size:1.15vw;font-weight:800;padding:.35vw 1vw;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);cursor:pointer;border:0;font-family:inherit}
   #tabs .t{flex:none;white-space:nowrap}
   #tabs .t.on{background:#fff;color:var(--blue-d)}
-  #tabs .why{margin-left:auto;min-width:0;font-size:.95vw;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tabs .why{margin-left:auto;min-width:0;font-size:.9vw;line-height:1.3;color:var(--soft);text-align:right;text-wrap:balance;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}   /* 길면 두 줄로 (잘리지 않게) */
   #tabBar{height:.25vw;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
   #tabBar i{display:block;height:100%;width:0;background:var(--yellow)}
   #bands{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.9vw;min-height:0}
