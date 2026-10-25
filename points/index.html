@@ -17,35 +17,35 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;-webkit-tap-highlight-color:transparent}
   header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:4px solid var(--yellow);position:sticky;top:0;background:var(--blue);z-index:3}
-  header h1{margin:0;font-size:22px;font-weight:900;letter-spacing:-.5px;margin-right:auto}
+  header h1{margin:0;font-size:26px;font-weight:900;letter-spacing:-.5px;margin-right:auto}
   select,input,button{font:inherit}
-  .sel{font-size:15px;font-weight:800;padding:8px 10px;border-radius:10px;border:0;background:var(--blue-dd);color:#fff}
-  .search{font-size:15px;font-weight:700;padding:8px 12px;border-radius:10px;border:0;background:var(--blue-dd);color:#fff;width:130px}
+  .sel{font-size:18px;font-weight:800;padding:8px 10px;border-radius:10px;border:0;background:var(--blue-dd);color:#fff}
+  .search{font-size:18px;font-weight:700;padding:8px 12px;border-radius:10px;border:0;background:var(--blue-dd);color:#fff;width:160px}
   .search::placeholder{color:var(--dim)}
   main{max-width:1200px;margin:0 auto;padding:14px 16px}
   .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px}
   .sum div{background:var(--blue-d);border-radius:14px;padding:10px 12px}
-  .sum b{display:block;font-size:24px;font-weight:900;color:var(--yellow)}
-  .sum span{font-size:13px;font-weight:700;color:var(--soft)}
+  .sum b{display:block;font-size:29px;font-weight:900;color:var(--yellow)}
+  .sum span{font-size:16px;font-weight:700;color:var(--soft)}
   .groups{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-  .gchip{font-size:14px;font-weight:800;padding:6px 12px;border-radius:999px;background:var(--blue-d);color:var(--soft)}
+  .gchip{font-size:17px;font-weight:800;padding:6px 12px;border-radius:999px;background:var(--blue-d);color:var(--soft)}
   .gchip b{color:var(--yellow)}
   table{width:100%;border-collapse:collapse;background:var(--blue-d);border-radius:16px;overflow:hidden}
-  th,td{padding:10px 8px;text-align:right;font-size:15px;white-space:nowrap}
-  th{font-size:13px;font-weight:800;color:var(--soft);background:var(--blue-dd);cursor:pointer;user-select:none}
+  th,td{padding:12px 10px;text-align:right;font-size:18px;white-space:nowrap}
+  th{font-size:16px;font-weight:800;color:var(--soft);background:var(--blue-dd);cursor:pointer;user-select:none}
   th.on{color:var(--yellow)}
   th:nth-child(-n+3),td:nth-child(-n+3){text-align:left}
   tbody tr{border-top:1px solid var(--line);cursor:pointer}
   tbody tr:hover{background:rgba(255,255,255,.06)}
-  td.bal{font-size:18px;font-weight:900;color:var(--yellow)}
+  td.bal{font-size:22px;font-weight:900;color:var(--yellow)}
   td.zero{color:var(--dim)}
-  td .gbtn{font-size:13px;font-weight:900;padding:5px 10px;border-radius:999px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
-  @media (max-width:700px){ .hide-s{display:none} th,td{padding:9px 5px;font-size:14px} }
-  #status{font-size:13px;color:var(--dim);text-align:right;max-width:1200px;margin:0 auto;padding:0 16px 14px}
-  .empty{padding:60px 20px;text-align:center;font-size:19px;font-weight:800;line-height:1.7}
+  td .gbtn{font-size:16px;font-weight:900;padding:5px 10px;border-radius:999px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
+  @media (max-width:700px){ .hide-s{display:none} th,td{padding:9px 5px;font-size:17px} }
+  #status{font-size:16px;color:var(--dim);text-align:right;max-width:1200px;margin:0 auto;padding:0 16px 14px}
+  .empty{padding:60px 20px;text-align:center;font-size:23px;font-weight:800;line-height:1.7}
   .keybox{display:flex;gap:8px;justify-content:center;margin-top:16px}
-  .keybox input{font-size:17px;padding:10px 14px;border-radius:12px;border:0;width:220px}
-  .btn{font-size:16px;font-weight:900;padding:10px 18px;border-radius:12px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
+  .keybox input{font-size:20px;padding:10px 14px;border-radius:12px;border:0;width:220px}
+  .btn{font-size:19px;font-weight:900;padding:10px 18px;border-radius:12px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
   .btn.ghost{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.5)}
   .btn:disabled{opacity:.5;cursor:default}
 
@@ -55,41 +55,41 @@
   body.open #shade{display:block}
   body.open #panel{transform:none}
   .ph{display:flex;align-items:center;gap:10px}
-  .ph h2{margin:0;font-size:22px;font-weight:900;flex:1}
-  .x{font-size:22px;font-weight:900;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
+  .ph h2{margin:0;font-size:26px;font-weight:900;flex:1}
+  .x{font-size:26px;font-weight:900;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
   .psum{display:flex;gap:8px;margin-top:12px}
   .psum div{flex:1;background:var(--blue-dd);border-radius:12px;padding:9px;text-align:center}
-  .psum b{display:block;font-size:24px;font-weight:900}
-  .psum .big b{font-size:32px;color:var(--yellow)}
-  .psum span{font-size:12px;font-weight:700;color:var(--soft)}
+  .psum b{display:block;font-size:29px;font-weight:900}
+  .psum .big b{font-size:38px;color:var(--yellow)}
+  .psum span{font-size:14px;font-weight:700;color:var(--soft)}
   .give{margin-top:14px;background:var(--blue-dd);border-radius:14px;padding:12px}
-  .give h3,.sec{margin:0 0 8px;font-size:16px;font-weight:900}
+  .give h3,.sec{margin:0 0 8px;font-size:19px;font-weight:900}
   .gl{display:flex;flex-wrap:wrap;gap:6px}
-  .g{font-size:14px;font-weight:800;padding:8px 12px;border-radius:12px;border:2px solid transparent;background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
+  .g{font-size:17px;font-weight:800;padding:8px 12px;border-radius:12px;border:2px solid transparent;background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
   .g small{color:var(--soft);font-weight:700;margin-left:4px}
   .g.no{opacity:.45}
   .g.pick{border-color:var(--yellow);background:rgba(245,197,24,.2)}
-  .gtag{font-size:11px;font-weight:900;padding:1px 6px;border-radius:999px;background:#9ff0b0;color:#0d3b1a;margin-right:5px;vertical-align:1px}
+  .gtag{font-size:13px;font-weight:900;padding:1px 6px;border-radius:999px;background:#9ff0b0;color:#0d3b1a;margin-right:5px;vertical-align:1px}
   .split{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-  .split span{font-size:13px;font-weight:800;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.08)}
+  .split span{font-size:16px;font-weight:800;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.08)}
   .split span.lack{background:rgba(255,157,138,.2);color:var(--red)}
-  .confirm{margin-top:10px;display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:15px;font-weight:800}
+  .confirm{margin-top:10px;display:none;align-items:center;gap:8px;flex-wrap:wrap;font-size:18px;font-weight:800}
   .confirm.show{display:flex}
-  .msg{margin-top:8px;font-size:14px;font-weight:800}
+  .msg{margin-top:8px;font-size:17px;font-weight:800}
   .msg.ok{color:var(--green)} .msg.err{color:var(--red)}
   .sec{margin-top:16px}
   .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px}
-  .bd{border-radius:12px;padding:8px 4px;text-align:center;background:rgba(255,255,255,.06);font-size:12px;font-weight:800;line-height:1.25}
-  .bd i{display:block;font-style:normal;font-size:24px}
+  .bd{border-radius:12px;padding:8px 4px;text-align:center;background:rgba(255,255,255,.06);font-size:14px;font-weight:800;line-height:1.25}
+  .bd i{display:block;font-style:normal;font-size:29px}
   .bd small{display:block;color:var(--soft);font-weight:700}
   .bd.got{background:rgba(245,197,24,.2);box-shadow:inset 0 0 0 2px rgba(245,197,24,.6)}
   .bd:not(.got){color:var(--dim)} .bd:not(.got) i{filter:grayscale(1);opacity:.35}
-  .hist div{display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+  .hist div{display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:17px}
   .hist .dd{flex:none;width:44px;color:var(--soft);font-weight:800}
   .hist .pp{flex:none;width:44px;text-align:right;font-weight:900;color:var(--green)}
   .hist .pp.minus{color:var(--red)}
   .hist .tt{flex:1;color:var(--soft)}
-  .note{margin-top:14px;font-size:12px;color:var(--dim);line-height:1.6}
+  .note{margin-top:14px;font-size:14px;color:var(--dim);line-height:1.6}
 </style>
 </head>
 <body>
