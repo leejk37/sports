@@ -28,6 +28,8 @@
   .hbtn{font:inherit;font-size:15px;font-weight:700;padding:8px 12px;border-radius:8px;
     border:1.5px solid rgba(255,255,255,.75);background:transparent;color:#fff;cursor:pointer}
 
+  .hbtn[aria-pressed="true"]{background:var(--yellow);color:var(--blue);border-color:var(--yellow)}
+  #stage.editing{cursor:crosshair;touch-action:none}
   #main{flex:1;display:flex;min-height:0}
 
   /* 카메라 영역 */
@@ -83,6 +85,7 @@
 <div id="app">
   <header>
     <h1>점핑잭 측정</h1>
+    <button class="hbtn" id="zoneBtn" aria-pressed="false" title="운동 구역 정하기 (선생님)">구역</button>
     <button class="hbtn" id="flip">카메라 전환</button>
     <button class="hbtn" id="cancel">처음으로</button>
   </header>
@@ -299,11 +302,76 @@ function drawPose(r) {
   ctx.fillText('다리 ' + sLeg.toFixed(2) + '배', 24, 84);
 }
 
+
+/* ===== 운동 구역: 이 틀 안에 엉덩이가 있는 사람만 측정 (옆 친구는 세지 않음) =====
+ * '구역' 버튼 → 화면을 드래그해 틀 그리기 → '구역' 다시 누르면 끝. 이 기기에 기억됨. 기본은 화면 전체 */
+const ZONE_KEY = 'jjZone', ZONE_ALL = { x0: 0, y0: 0, x1: 1, y1: 1 };
+let zone = (() => {
+  try { const z = JSON.parse(localStorage.getItem(ZONE_KEY)); if (z && z.x1 > z.x0 && z.y1 > z.y0) return z; } catch (e) {}
+  return { ...ZONE_ALL };
+})();
+let zoneEditing = false, dragFrom = null;
+// 여러 사람 중: 엉덩이 가운데가 틀 안에 있는 사람 → 그중 가장 크게(카메라에 가깝게) 보이는 사람
+function pickPerson(people) {
+  let best = null, bestSize = 0;
+  for (const lm of people) {
+    const hx = (lm[23].x + lm[24].x) / 2, hy = (lm[23].y + lm[24].y) / 2;
+    if (hx < zone.x0 || hx > zone.x1 || hy < zone.y0 || hy > zone.y1) continue;
+    const ys = lm.filter(p => (p.visibility ?? 1) > 0.3).map(p => p.y);
+    const size = ys.length ? Math.max(...ys) - Math.min(...ys) : 0;
+    if (size > bestSize) { best = lm; bestSize = size; }
+  }
+  return best;
+}
+function drawZone() {
+  const all = zone.x0 <= 0 && zone.y0 <= 0 && zone.x1 >= 1 && zone.y1 >= 1;
+  if (all && !zoneEditing) return;
+  const W = canvas.width, H = canvas.height;
+  const xa = mirror() ? (1 - zone.x1) * W : zone.x0 * W, xb = mirror() ? (1 - zone.x0) * W : zone.x1 * W;
+  const y0 = zone.y0 * H, y1 = zone.y1 * H;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,.45)';                  // 틀 바깥은 어둡게
+  ctx.fillRect(0, 0, W, y0); ctx.fillRect(0, y1, W, H - y1);
+  ctx.fillRect(0, y0, xa, y1 - y0); ctx.fillRect(xb, y0, W - xb, y1 - y0);
+  ctx.strokeStyle = '#f5c518'; ctx.lineWidth = zoneEditing ? 8 : 5; ctx.setLineDash([24, 14]);
+  ctx.strokeRect(xa, y0, xb - xa, y1 - y0);
+  ctx.restore();
+}
+// 화면 위 손가락 위치 → 영상 안의 비율(0~1). 거울 모드와 여백(object-fit: contain)을 계산
+function toVideoXY(ev) {
+  const r = canvas.getBoundingClientRect();
+  const vw = video.videoWidth, vh = video.videoHeight, sc = Math.min(r.width / vw, r.height / vh);
+  const ox = (r.width - vw * sc) / 2, oy = (r.height - vh * sc) / 2;
+  let x = (ev.clientX - r.left - ox) / (vw * sc), y = (ev.clientY - r.top - oy) / (vh * sc);
+  if (mirror()) x = 1 - x;
+  return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+}
+const stageEl = $('stage');
+stageEl.addEventListener('pointerdown', ev => { if (!zoneEditing) return; dragFrom = toVideoXY(ev); stageEl.setPointerCapture(ev.pointerId); });
+stageEl.addEventListener('pointermove', ev => {
+  if (!zoneEditing || !dragFrom) return;
+  const p = toVideoXY(ev);
+  zone = { x0: Math.min(dragFrom.x, p.x), y0: Math.min(dragFrom.y, p.y), x1: Math.max(dragFrom.x, p.x), y1: Math.max(dragFrom.y, p.y) };
+});
+stageEl.addEventListener('pointerup', () => {
+  if (!zoneEditing || !dragFrom) return;
+  dragFrom = null;
+  if (zone.x1 - zone.x0 < 0.1 || zone.y1 - zone.y0 < 0.2) zone = { ...ZONE_ALL };   // 너무 작게(톡 누르기) → 화면 전체로
+  try { localStorage.setItem(ZONE_KEY, JSON.stringify(zone)); } catch (e) {}
+});
+$('zoneBtn').onclick = () => {
+  zoneEditing = !zoneEditing;
+  $('zoneBtn').setAttribute('aria-pressed', String(zoneEditing));
+  stageEl.classList.toggle('editing', zoneEditing);
+  $('zoneBtn').textContent = zoneEditing ? '구역 완료' : '구역';
+};
+
 /* ===== 메인 루프 ===== */
 function loop() {
   requestAnimationFrame(loop);
   if (!video.videoWidth) return;
   drawVideo();
+  if (mode !== 'scan') drawZone();
   const now = performance.now();
 
   if (mode === 'scan' && now - lastQr > 250) { lastQr = now; scanQr(); return; }
@@ -312,7 +380,7 @@ function loop() {
   lastVideoTime = video.currentTime;
 
   const res = pose.detectForVideo(video, now);
-  const lm = res.landmarks?.[0];
+  const lm = pickPerson(res.landmarks || []);
   if (!lm) { setHint('머리부터 발끝까지 화면에 들어오게 해 주세요'); setGauge(); return; }
   const r = analyze(lm);
   sArm = sArm == null ? r.arm : sArm + CONFIG.SMOOTH * (r.arm - sArm);
@@ -531,7 +599,7 @@ $('flip').onclick = async () => {
         modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
         delegate: 'GPU'
       },
-      runningMode: 'VIDEO', numPoses: 1
+      runningMode: 'VIDEO', numPoses: 3   // 여러 명 중 운동 구역 안의 사람만
     });
     try { await navigator.wakeLock?.request('screen'); } catch (e) {}
     if (!startFromParams()) show('scan');
