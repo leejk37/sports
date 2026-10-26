@@ -457,6 +457,39 @@ function pointsReport_(ss) {
 /** 편집기에서 실행: 선물교환 정리 + 포인트현황 새로 (선물을 바꿔 준 직후 확인용) */
 function pointsReport() { pointsReport_(SpreadsheetApp.getActiveSpreadsheet()); }
 
+/* ===== 운동 시간 (2026-10-27) =====
+ *  종목 탭의 측정시간 열을 학생별로 더함 → 누적(10월 19일부터)·이달·오늘
+ *  포인트 원장과 따로, 실시간(2분 캐시). 실내자전거(km만 있음)는 아직 빠짐 → 나중에 보완
+ *  열 위치는 Stamp.gs STAMP_EX의 time + 도장 종목이 아닌 레그레이즈·버피 */
+const POINT_TIME_EX = STAMP_EX.map(ex => ({ sheet: ex.sheet, time: ex.time })).concat([
+  { sheet: '레그레이즈', time: 6 },
+  { sheet: '버피테스트', time: 6 }
+]);
+const POINT_TIME_MAX = 3600;     // 한 기록이 1시간을 넘으면 잘못 누른 것으로 보고 1시간까지만
+
+function pointTimeAll_(ss) {
+  const out = {};
+  const dayOf = v => v instanceof Date ? stampFmt_(v, 'yyyy-MM-dd') : String(v).trim().slice(0, 10);
+  const now = new Date(), today = stampFmt_(now, 'yyyy-MM-dd'), month = today.slice(0, 7);
+  POINT_TIME_EX.forEach(ex => {
+    const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
+    const n = sh.getLastRow() - 1; if (n < 1) return;
+    sh.getRange(2, 1, n, ex.time + 1).getValues().forEach(r => {
+      const id = stampIdOf_(r[5]); if (!id) return;
+      const d = dayOf(r[0]); if (!d || d < POINT.FROM) return;
+      let s = Number(r[ex.time]); if (!isFinite(s) || s <= 0) return;
+      s = Math.min(s, POINT_TIME_MAX);
+      const x = out[id] = out[id] || { all: 0, month: 0, today: 0 };
+      x.all += s; if (d.slice(0, 7) === month) x.month += s; if (d === today) x.today += s;
+    });
+  });
+  Object.keys(out).forEach(id => { const x = out[id]; x.all = Math.round(x.all); x.month = Math.round(x.month); x.today = Math.round(x.today); });
+  return out;
+}
+function pointTimeGet_(ss, ids) {
+  return stampShared_(ss, 'tm1', 120, ids, () => pointTimeAll_(ss));
+}
+
 /* ===== 선생님 화면 (…/sports/points/) — 열쇠(스크립트 속성 DASH_KEY)가 맞을 때만 ===== */
 function pointKeyOk_(key) {
   const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
@@ -474,9 +507,11 @@ function pointsTeacher_(p) {
     const id = stampIdOf_(p.id), st = roster.byId[id];
     if (!st) return { ok: false, error: '명단에 없는 학생이에요' };
     const x = pointGet_(ss, [id])[id] || null;
+    const tm = pointTimeGet_(ss, [id])[id] || { all: 0, month: 0, today: 0 };
     return {
       ok: true, id, name: st.name, grade: st.grade, cls: st.cls, no: st.no, group: st.group,
       earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
+      time: tm.all, timeMonth: tm.month, timeToday: tm.today,
       badges: pointBadgeList_(x), recent: x ? x.recent : [], trades: x ? x.trades : [],
       mates: pointMates_(ss, roster, staff, st)
     };
@@ -484,12 +519,14 @@ function pointsTeacher_(p) {
   try { pointGiftSheet_(ss); } catch (e) {}                    // 선물목록에 '모둠 선물' 제목 칸 챙기기
   const list = roster.list.filter(st => !staff.has(st.id));
   const all = pointGet_(ss, list.map(st => st.id));
+  const tms = pointTimeGet_(ss, list.map(st => st.id));
   return {
     ok: true, updated: stampFmt_(new Date(), 'HH:mm'), gifts: pointGifts_(ss),   // 선물목록은 매번 새로
     students: list.map(st => {
-      const x = all[st.id];
+      const x = all[st.id], tm = tms[st.id] || { all: 0, month: 0, today: 0 };
       return {
         id: st.id, grade: st.grade, cls: st.cls, no: st.no, name: st.name, group: st.group,
+        time: tm.all, timeMonth: tm.month, timeToday: tm.today,
         earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
         badges: x ? Object.keys(x.got).length : 0, stamp: x ? x.c.stamp : 0, perfect: x ? x.c.perfect : 0, streak: x ? x.c.streak : 0
       };

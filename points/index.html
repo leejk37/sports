@@ -39,6 +39,7 @@
   tbody tr:hover{background:rgba(255,255,255,.06)}
   td.bal{font-size:22px;font-weight:900;color:var(--yellow)}
   td.zero{color:var(--dim)}
+  td.tm{font-weight:800} td.tm small{color:var(--green);font-weight:800;font-size:15px}
   td .gbtn{font-size:16px;font-weight:900;padding:5px 10px;border-radius:999px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
   @media (max-width:700px){ .hide-s{display:none} th,td{padding:9px 5px;font-size:17px} }
   #status{font-size:16px;color:var(--dim);text-align:right;max-width:1200px;margin:0 auto;padding:0 16px 14px}
@@ -113,6 +114,7 @@ const CONFIG = {
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => Number(n || 0).toLocaleString('ko-KR');
+const hm = sec => { const m = Math.round((Number(sec) || 0) / 60); return m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간 ${m % 60}분`; };
 const md = d => { const [, m, dd] = String(d).split('-'); return m ? `${+m}/${+dd}` : ''; };
 const store = {
   get: k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
@@ -157,11 +159,11 @@ function render() {
     no: (a, b) => num(a.grade) - num(b.grade) || String(a.cls).localeCompare(String(b.cls)) || num(a.no) - num(b.no),
     group: (a, b) => (num(a.group) || 99) - (num(b.group) || 99) || num(a.no) - num(b.no),
     bal: (a, b) => b.bal - a.bal, earned: (a, b) => b.earned - a.earned, month: (a, b) => b.month - a.month,
-    badges: (a, b) => b.badges - a.badges, stamp: (a, b) => b.stamp - a.stamp, streak: (a, b) => b.streak - a.streak
+    badges: (a, b) => b.badges - a.badges, time: (a, b) => (b.time || 0) - (a.time || 0), stamp: (a, b) => b.stamp - a.stamp, streak: (a, b) => b.streak - a.streak
   }[sortBy] || (() => 0);
   list = list.slice().sort((a, b) => by(a, b) || num(a.no) - num(b.no));
 
-  const tot = list.reduce((t, s) => (t.e += s.earned, t.b += s.bal, t.s += s.spent, t.m += s.month, t), { e: 0, b: 0, s: 0, m: 0 });
+  const tot = list.reduce((t, s) => (t.e += s.earned, t.b += s.bal, t.s += s.spent, t.m += s.month, t.t += s.time || 0, t), { e: 0, b: 0, s: 0, m: 0, t: 0 });
   const groups = {};
   if (ck !== 'all') list.forEach(s => { if (s.group) groups[s.group] = (groups[s.group] || 0) + s.earned; });
   const gHtml = Object.keys(groups).sort((a, b) => num(a) - num(b)).map(g => `<span class="gchip">${esc(g)}모둠 <b>${fmt(groups[g])}P</b></span>`).join('');
@@ -169,7 +171,7 @@ function render() {
   const rows = list.map(s => `<tr data-id="${esc(s.id)}">
       <td>${ck === 'all' ? `${esc(s.grade)}-${esc(s.cls)} ` : ''}${esc(s.no)}</td><td><b>${esc(s.name)}</b></td><td class="hide-s">${s.group ? esc(s.group) + '모둠' : ''}</td>
       <td class="bal${s.bal ? '' : ' zero'}">${fmt(s.bal)}</td><td>${fmt(s.earned)}</td><td class="hide-s">${fmt(s.month)}</td>
-      <td>${s.badges}</td><td class="hide-s">${s.stamp}${s.perfect ? ` <small style="color:var(--yellow)">★${s.perfect}</small>` : ''}</td><td class="hide-s">${s.streak}</td>
+      <td class="tm">${hm(s.time)}${s.timeToday ? ` <small>+${hm(s.timeToday)}</small>` : ''}</td><td>${s.badges}</td><td class="hide-s">${s.stamp}${s.perfect ? ` <small style="color:var(--yellow)">★${s.perfect}</small>` : ''}</td><td class="hide-s">${s.streak}</td>
       <td><button class="gbtn" data-give="${esc(s.id)}">선물</button></td></tr>`).join('');
   $('app').innerHTML = `
     <div class="sum">
@@ -178,9 +180,10 @@ function render() {
       <div><b>${fmt(tot.e)}</b><span>모은 포인트 합</span></div>
       <div><b>${fmt(tot.m)}</b><span>이달 포인트 합</span></div>
       <div><b>${fmt(tot.s)}</b><span>선물로 쓴 포인트</span></div>
+      <div><b>${hm(tot.t)}</b><span>운동 시간 합</span></div>
     </div>
     ${gHtml ? `<div class="groups">${gHtml}</div>` : ''}
-    ${list.length ? `<table><thead><tr>${th('no', '번호')}${th('no', '이름')}${th('group', '모둠', 'hide-s')}${th('bal', '남은 P')}${th('earned', '모은 P')}${th('month', '이달', 'hide-s')}${th('badges', '뱃지')}${th('stamp', '도장', 'hide-s')}${th('streak', '최고 연속', 'hide-s')}<th></th></tr></thead>
+    ${list.length ? `<table><thead><tr>${th('no', '번호')}${th('no', '이름')}${th('group', '모둠', 'hide-s')}${th('bal', '남은 P')}${th('earned', '모은 P')}${th('month', '이달', 'hide-s')}${th('time', '운동 시간')}${th('badges', '뱃지')}${th('stamp', '도장', 'hide-s')}${th('streak', '최고 연속', 'hide-s')}<th></th></tr></thead>
       <tbody>${rows}</tbody></table>` : '<div class="empty">학생이 없어요</div>'}`;
   document.querySelectorAll('th[data-k]').forEach(t => t.onclick = () => { sortBy = t.dataset.k; store.set('ptSort', sortBy); render(); });
   document.querySelectorAll('tbody tr').forEach(r => r.onclick = e => openStudent(r.dataset.id, !!e.target.dataset.give));
@@ -242,6 +245,11 @@ function drawPanel(toGift, msg) {
       <div><b>${fmt(d.spent)}</b><span>쓴</span></div>
       <div><b>${fmt(d.month)}</b><span>이달</span></div>
     </div>
+    <div class="psum">
+      <div class="big"><b>${hm(d.time)}</b><span>운동 시간 (10/19부터)</span></div>
+      <div><b>${hm(d.timeMonth)}</b><span>이달</span></div>
+      <div><b>${hm(d.timeToday)}</b><span>오늘</span></div>
+    </div>
     <div class="give" id="give">
       <h3>🎁 선물 주기</h3>
       ${gifts.length ? `<div class="gl">${gl}</div>` : '<div style="color:var(--soft);font-size:14px">시트의 선물목록 탭에 선물을 먼저 적어 주세요</div>'}
@@ -253,7 +261,7 @@ function drawPanel(toGift, msg) {
     <div class="badges">${badges}</div>
     <div class="sec">최근 내역</div>
     <div class="hist">${hist}</div>
-    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
+    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 운동 시간은 바로 반영돼요 (각 기록의 측정시간 합, 실내자전거는 아직 빠짐)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
   $('close').onclick = closePanel;
   document.querySelectorAll('.g').forEach(b => b.onclick = () => { pick = Number(b.dataset.i); drawPanel(); });
   if ($('giveNo')) $('giveNo').onclick = () => { pick = null; drawPanel(); };
