@@ -175,11 +175,12 @@ const CONFIG = {
   DOMAIN:  SITE.DOMAIN,
 
   // ---- 판정 기준 (처음 측정할 때 화면 왼쪽 위 숫자를 보며 조정) ----
-  // 다리 각도 = 어깨–엉덩이–발목 (누워서 다리를 펴면 약 175°, 다리를 세우면 약 90°)
+  // 다리 높이 = 엉덩이→발목 선이 바닥(화면 가로)과 이루는 각 (바닥에 내리면 0°, 수직으로 세우면 90°)
   // 무릎 각도 = 엉덩이–무릎–발목
-  LOW: 150,          // 다리가 이 이상(바닥 가까이)으로 내려오면 → 1회 완성
-  START: 140,        // 이 아래로 들리면 → 한 번 시작
-  TOP: 100,          // 이 아래까지 들어야 → 충분히 올림 (직각 90°에 여유 10°). 아니면 '덜 올림'
+  LOW: 15,           // 다리가 이 아래(발뒤꿈치가 바닥 가까이)까지 내려와야 → 1회 완성. 2026-10-26 '어깨–엉덩이–발목 150°'(바닥에서 30°)는 너무 느슨
+  START: 25,         // 이 위로 들리면 → 한 번 시작
+  TOP: 75,           // 이 위까지 들어야 → 충분히 올림 (직각 90°에 여유 15°). 아니면 '덜 올림'
+  REDO: 15,          // 바닥까지 안 내리고 이만큼 다시 들면 → '바닥까지 내려요' 알림 (횟수 없음)
   KNEE_MIN: 140,     // 무릎 각도가 이보다 작으면 → 무릎 굽힘
   BENT_RATIO: 0.35,  // 한 번 하는 동안 무릎이 굽은 시간이 이 비율을 넘어야 '무릎 굽힘' (순간 흔들림 무시)
   LYING_MAX: 35,     // 어깨–엉덩이 선이 바닥과 이루는 각이 이보다 작아야 '누운 자세' (서서 하는 동작은 세지 않음)
@@ -205,7 +206,7 @@ let mode = 'loading';
 let pose, stream, facing = localStorage.getItem('legraiseFacing') || 'user';
 let email = '', duration = 30, endAt = 0, target = 0, runStart = 0, runEnd = 0;
 let counts = { good: 0, badDepth: 0, badBody: 0 };
-let phase = 'low', rep = null, sLeg = null, sKnee = null, readySince = null;
+let phase = 'low', rep = null, sLeg = null, sKnee = null, readySince = null;   // sLeg: 다리 높이(°)
 let lastQr = 0, lastVideoTime = -1, clientId = '';
 let audio;
 
@@ -229,7 +230,7 @@ $('gaugeTarget').style.bottom = (100 / GAUGE_MAX) + '%';
 function setGauge() {
   const fill = $('gaugeFill');
   if (mode !== 'measure' || sLeg == null) { fill.style.height = '0'; fill.classList.remove('reached'); return; }
-  const r = Math.max(0, Math.min(GAUGE_MAX, (175 - sLeg) / (175 - CONFIG.TOP)));
+  const r = Math.max(0, Math.min(GAUGE_MAX, sLeg / CONFIG.TOP));
   fill.style.height = (r / GAUGE_MAX * 100) + '%';
   fill.classList.toggle('reached', r >= 1);
 }
@@ -279,7 +280,7 @@ function analyze(lm) {
   if (side == null || score(other) - score(side) > CONFIG.SIDE_SWITCH) side = score('l') >= score('r') ? 'l' : 'r';
   const s = side;
   const ok = parts(s).every(k => P[k].v > CONFIG.VIS_MIN);
-  const leg = angle(P[s + 's'], P[s + 'h'], P[s + 'a']);
+  const leg = Math.max(0, Math.atan2(P[s + 'h'].y - P[s + 'a'].y, Math.abs(P[s + 'a'].x - P[s + 'h'].x)) * 180 / Math.PI);   // 다리 높이
   const knee = angle(P[s + 'h'], P[s + 'k'], P[s + 'a']);
   // 누웠는지: 어깨–엉덩이 선이 바닥(가로)과 이루는 각
   const dx = Math.abs(P[s + 's'].x - P[s + 'h'].x), dy = Math.abs(P[s + 's'].y - P[s + 'h'].y);
@@ -311,7 +312,7 @@ function drawPose(r) {
   // 교사용 확인 수치(기준값 조정할 때 참고)
   ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 300, 84);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 28px Pretendard, sans-serif';
-  ctx.fillText('다리 ' + Math.round(sLeg) + '°', 24, 48);
+  ctx.fillText('다리 높이 ' + Math.round(sLeg) + '°', 24, 48);
   ctx.fillText('무릎 ' + Math.round(sKnee) + '°', 24, 84);
 }
 
@@ -343,7 +344,7 @@ function loop() {
 
   if (mode === 'ready') {
     // 다리를 내리고 누운 자세로 1초 가만히 있으면 준비 완료
-    if (!r.ok || !lying || sLeg < CONFIG.LOW) { readySince = null; $('readyState').textContent = '누워서 다리를 쭉 펴요…'; return; }
+    if (!r.ok || !lying || sLeg > CONFIG.LOW) { readySince = null; $('readyState').textContent = '누워서 다리를 쭉 펴요…'; return; }
     readySince ??= now;
     $('readyState').textContent = now - readySince > 300 ? '✓ 그대로 가만히…' : '다리를 내린 채 가만히 있어요…';
     if (now - readySince > CONFIG.STABLE_MS) startCountdown();
@@ -402,16 +403,21 @@ function measure(now) {
   if (tickGoal(now)) return;
   if (sLeg == null) return;
   if (phase === 'low') {
-    if (lying && sLeg < CONFIG.START) { phase = 'lift'; rep = { start: now, minLeg: sLeg, frames: 0, bent: 0 }; }
+    if (lying && sLeg > CONFIG.START) { phase = 'lift'; rep = { start: now, maxLeg: sLeg, low: sLeg, warned: false, frames: 0, bent: 0 }; }
   } else {
-    rep.minLeg = Math.min(rep.minLeg, sLeg);
+    rep.maxLeg = Math.max(rep.maxLeg, sLeg);
+    // 올린 뒤 바닥까지 안 내리고 다시 들면 알림 (1회로 세지 않음)
+    if (rep.maxLeg >= CONFIG.TOP) {
+      rep.low = Math.min(rep.low, sLeg);
+      if (!rep.warned && sLeg - rep.low > CONFIG.REDO) { rep.warned = true; flash('발뒤꿈치를 바닥까지!'); beep(220, 150); }
+    } else rep.low = sLeg;
     rep.frames++; if (sKnee < CONFIG.KNEE_MIN) rep.bent++;
-    if (sLeg > CONFIG.LOW) { judge(now); phase = 'low'; rep = null; }   // 다리를 다시 내려야 1회 완성
+    if (sLeg <= CONFIG.LOW) { judge(now); phase = 'low'; rep = null; }   // 발뒤꿈치가 바닥 가까이 와야 1회 완성
   }
 }
 function judge(now) {
   if (now - rep.start < CONFIG.MIN_REP_MS) return;
-  const highOk = rep.minLeg <= CONFIG.TOP;
+  const highOk = rep.maxLeg >= CONFIG.TOP;
   const kneeOk = !rep.frames || rep.bent / rep.frames <= CONFIG.BENT_RATIO;   // 굽은 '시간 비율'로 판정
   if (highOk && kneeOk) { counts.good++; beep(1320, 70); }
   else if (!highOk) { counts.badDepth++; flash('다리를 더 높이!'); beep(220, 150); }   // 둘 다 부족하면 높이 우선
