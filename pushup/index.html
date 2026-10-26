@@ -178,10 +178,13 @@ const CONFIG = {
   DOMAIN:  SITE.DOMAIN,
 
   // ---- 판정 기준 (처음 측정할 때 화면 왼쪽 위 숫자를 보며 조정) ----
-  // 팔꿈치 각도 = 어깨–팔꿈치–손목, 몸 각도 = 어깨–엉덩이–발목(일반) / 어깨–엉덩이–무릎(무릎 대고)
-  UP: 145,           // 팔꿈치가 이 이상 펴지면 → 올라온 자세 (1회 완성). 150 → 145 (2026-10-26, 무릎 대고는 팔을 끝까지 안 펴는 학생이 많음)
-  START: 130,        // 이 아래로 굽혀지면 → 한 번 시작. 135 → 130 (UP과 간격 유지)
-  DOWN: 105,         // 이 아래까지 굽혀야 → 충분히 내려감 (아니면 '덜 내려감'). 95 → 105 (2026-10-23, 정확도 중앙값 50%로 너무 엄격)
+  // 내려간 정도 = 어깨가 손목보다 얼마나 높은지(세로 거리)를 팔 편 자세 때와 비교한 % (2026-10-26)
+  //   팔꿈치 각도는 쓰지 않음: 팔꿈치를 옆으로 벌려 굽히면 옆에서 볼 때 팔이 일자로 보여 각도가 안 변함
+  //   100% = 준비 때 팔 편 높이, 50% = 어깨가 그 절반 높이까지 내려옴
+  UP_RATIO: 0.85,    // 어깨 높이가 이 이상으로 올라오면 → 1회 완성
+  START_RATIO: 0.8,  // 이 아래로 내려가면 → 한 번 시작
+  DOWN_RATIO: 0.6,   // 이 아래까지 내려가야 → 충분히 내려감 (아니면 '덜 내려감')
+  LYING_MAX: 45,     // 어깨–엉덩이 선이 바닥과 이루는 각이 이보다 작아야 엎드린 자세
   BODY_MIN: 140,     // 몸 각도가 이보다 작으면 → 몸이 꺾임(엉덩이 처짐·솟음). 150 → 140 (무릎 대고는 엉덩이가 조금 접히는 게 자연스러움)
   BENT_RATIO: 0.35,  // 한 번 하는 동안 몸이 꺾인 시간이 이 비율을 넘어야 '몸이 꺾임' (순간 흔들림 무시)
   MIN_REP_MS: 500,   // 이보다 짧은 움직임은 흔들림으로 무시
@@ -190,7 +193,8 @@ const CONFIG = {
   MODEL: 'full',     // 인식 모델: 'full'(정확, 기본) / 'lite'(가벼움). 느린 태블릿은 주소 끝에 ?model=lite
   SIDE_SWITCH: 1.0,  // 반대쪽이 이만큼(신뢰도 합) 더 잘 보여야 보는 쪽을 바꿈 (좌우 튐 방지)
   HOLD_MS: 400,      // 관절이 안 보이는 프레임은 이 시간까지 직전 값을 유지
-  STABLE_MS: 1000,   // 팔을 편 자세로 이만큼 가만히 있으면 준비 완료
+  STABLE_MS: 1000,   // 팔을 편 자세로 이만큼 가만히 있으면 준비 완료 (그때 어깨 높이 = 100%)
+  STILL: 0.08,       // 준비: 어깨 높이가 이 비율 안에서만 움직이면 가만히 있는 것
   SAVE_TIMEOUT_MS: 30000,
   MAX_SEC: 180       // 횟수 모드에서 이 시간이 지나면 자동 종료
 };
@@ -207,7 +211,7 @@ let mode = 'loading', kind = 'knee';   // 자세는 무릎 대고만 (일반 자
 let pose, stream, facing = localStorage.getItem('pushupFacing') || 'user';
 let email = '', duration = 30, endAt = 0, target = 0, runStart = 0, runEnd = 0;
 let counts = { good: 0, badDepth: 0, badBody: 0 };
-let phase = 'up', rep = null, sElbow = null, sBody = null, readySince = null, useSide = 'l';
+let phase = 'up', rep = null, sH = null, sBody = null, readySince = null, readyH = 0, baseH = 0, lying = false;   // sH: 어깨가 손목보다 높은 정도(px), baseH: 팔 편 높이
 let lastQr = 0, lastVideoTime = -1, clientId = '';
 let audio;
 
@@ -225,13 +229,13 @@ const HINTS = {
 };
 function setHint(text) { $('hint').textContent = text || HINTS[mode] || ''; }
 
-/* 게이지: 팔꿈치를 얼마나 굽혔는지 (목표선 = DOWN) */
+/* 게이지: 어깨가 얼마나 내려왔는지 (목표선 = DOWN_RATIO) */
 const GAUGE_MAX = 1.25;
 $('gaugeTarget').style.bottom = (100 / GAUGE_MAX) + '%';
 function setGauge() {
   const fill = $('gaugeFill');
-  if (mode !== 'measure' || sElbow == null) { fill.style.height = '0'; fill.classList.remove('reached'); return; }
-  const r = Math.max(0, Math.min(GAUGE_MAX, (170 - sElbow) / (170 - CONFIG.DOWN)));
+  if (mode !== 'measure' || sH == null || !baseH) { fill.style.height = '0'; fill.classList.remove('reached'); return; }
+  const r = Math.max(0, Math.min(GAUGE_MAX, (1 - sH / baseH) / (1 - CONFIG.DOWN_RATIO)));
   fill.style.height = (r / GAUGE_MAX * 100) + '%';
   fill.classList.toggle('reached', r >= 1);
 }
@@ -275,16 +279,18 @@ function analyze(lm) {
   for (const k in IDX) { const q = lm[IDX[k]]; P[k] = { x: q.x * W, y: q.y * H, v: q.visibility ?? 0 }; }
   // 옆에서 찍으면 먼 쪽 팔·다리가 가려짐 → 카메라에 가까운(더 잘 보이는) 쪽 한 줄만 씀
   const end = kind === 'knee' ? 'k' : 'a';                 // 몸 끝점: 무릎 또는 발목
-  const parts = s => [s + 's', s + 'e', s + 'w', s + 'h', s + end];
+  const parts = s => [s + 's', s + 'w', s + 'h', s + end];   // 팔꿈치는 몸에 가려질 수 있어 판정에 쓰지 않음
   const score = s => parts(s).reduce((t, k) => t + P[k].v, 0);
   // 보는 쪽(왼/오른)을 고정: 반대쪽이 확실히 더 잘 보일 때만 바꿈 (매 프레임 바뀌면 각도가 튐)
   const other = side === 'l' ? 'r' : 'l';
   if (side == null || score(other) - score(side) > CONFIG.SIDE_SWITCH) side = score('l') >= score('r') ? 'l' : 'r';
   const s = side;
   const ok = parts(s).every(k => P[k].v > CONFIG.VIS_MIN);
-  const elbow = angle(P[s + 's'], P[s + 'e'], P[s + 'w']);
+  const h = P[s + 'w'].y - P[s + 's'].y;                    // 어깨가 손목보다 높은 정도(px, 화면 아래가 +)
+  const dx = Math.abs(P[s + 's'].x - P[s + 'h'].x), dy = Math.abs(P[s + 's'].y - P[s + 'h'].y);
+  const isLying = Math.atan2(dy, dx) * 180 / Math.PI < CONFIG.LYING_MAX;
   const body = angle(P[s + 's'], P[s + 'h'], P[s + end]);
-  return { ok, elbow, body, side: s, end, P };
+  return { ok, h, body, lying: isLying, side: s, end, P };
 }
 
 /* ===== 그리기 ===== */
@@ -312,7 +318,7 @@ function drawPose(r) {
   // 교사용 확인 수치(기준값 조정할 때 참고)
   ctx.fillStyle = 'rgba(20,30,50,.75)'; ctx.fillRect(12, 12, 300, 84);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 28px Pretendard, sans-serif';
-  ctx.fillText('팔꿈치 ' + Math.round(sElbow) + '°', 24, 48);
+  ctx.fillText('어깨 높이 ' + (baseH ? Math.round(sH / baseH * 100) + '%' : '-'), 24, 48);
   ctx.fillText('몸 일자 ' + Math.round(sBody) + '°', 24, 84);
 }
 
@@ -335,17 +341,18 @@ function loop() {
   const r = analyze(lm);
   const ease = (s, v) => s == null ? v : s + CONFIG.SMOOTH * (v - s);
   // 관절이 잘 보이는 프레임만 각도에 반영 (잘못 읽은 프레임이 횟수를 흔들지 않게)
-  if (r.ok) { sElbow = ease(sElbow, r.elbow); sBody = ease(sBody, r.body); lastOkAt = now; }
-  else if (now - lastOkAt > CONFIG.HOLD_MS && mode !== 'measure') { sElbow = null; sBody = null; }
-  if (sElbow == null) { setHint('어깨·팔꿈치·손목·엉덩이·무릎이 잘 보이게 해 주세요'); setGauge(); return; }
+  if (r.ok) { sH = ease(sH, r.h); sBody = ease(sBody, r.body); lastOkAt = now; lying = r.lying; }
+  else if (now - lastOkAt > CONFIG.HOLD_MS && mode !== 'measure') { sH = null; sBody = null; }
+  if (sH == null) { setHint('어깨·손목·엉덩이·무릎이 잘 보이게 해 주세요'); setGauge(); return; }
   drawPose(r);
-  setHint(r.ok ? '' : '어깨·팔꿈치·손목·엉덩이·' + (kind === 'knee' ? '무릎' : '발목') + '이 잘 보이게 해 주세요');
+  setHint(r.ok ? '' : '어깨·손목·엉덩이·' + (kind === 'knee' ? '무릎' : '발목') + '이 잘 보이게 해 주세요');
   setGauge();
 
   if (mode === 'ready') {
-    // 팔을 편 엎드린 자세로 1초 가만히 있으면 준비 완료
-    if (!r.ok || sElbow < CONFIG.UP) { readySince = null; $('readyState').textContent = '팔을 쭉 펴고 엎드려요…'; return; }
-    readySince ??= now;
+    // 엎드려 팔을 편 채(어깨가 손목 위) 1초 가만히 → 그때 어깨 높이를 100%로 기억
+    if (!r.ok || !lying || sH <= 0 || (readySince != null && Math.abs(sH - readyH) > CONFIG.STILL * readyH)) { readySince = null; readyH = Math.max(0, sH || 0); $('readyState').textContent = '팔을 쭉 펴고 엎드려요…'; return; }
+    if (readySince == null) { readySince = now; readyH = sH; }
+    baseH = Math.max(readyH, sH);
     $('readyState').textContent = now - readySince > 300 ? '✓ 그대로 가만히…' : '팔을 편 채 가만히 있어요…';
     if (now - readySince > CONFIG.STABLE_MS) startCountdown();
   } else if (mode === 'measure') {
@@ -377,7 +384,7 @@ function toReady(sec, reps = 0) {
   target = reps;                 // 0이면 시간 모드, 숫자면 횟수 모드
   duration = reps ? CONFIG.MAX_SEC : sec;
   counts = { good: 0, badDepth: 0, badBody: 0 };
-  sElbow = sBody = null; readySince = null; side = null; lastOkAt = 0;   // 학생이 바뀌면 보는 쪽도 새로 고름
+  sH = sBody = null; readySince = null; readyH = 0; baseH = 0; side = null; lastOkAt = 0;   // 학생이 바뀌면 보는 쪽도 새로 고름
   $('readyText').innerHTML = kind === 'knee'
     ? '몸 옆면이 카메라에 보이게 엎드려요.<br>무릎을 바닥에 대고, 어깨–엉덩이–무릎이 일자가 되게 해요.<br>팔을 펴고 가만히 있으면 3-2-1이 시작돼요.'
     : '몸 옆면이 카메라에 보이게 엎드려요.<br>머리부터 발끝까지 일자가 되게 해요.<br>팔을 펴고 가만히 있으면 3-2-1이 시작돼요.';
@@ -395,6 +402,7 @@ function startCountdown() {
   tick();
 }
 function startMeasure() {
+  if (!baseH && sH > 0) baseH = sH;   // '바로 시작'으로 준비를 건너뛴 경우: 지금 어깨 높이를 100%로
   phase = 'up'; rep = null;
   endAt = performance.now() + duration * 1000;
   runStart = performance.now();
@@ -408,19 +416,21 @@ function startMeasure() {
 }
 function measure(now) {
   if (tickGoal(now)) return;
-  if (sElbow == null) return;
+  if (sH == null || !baseH) return;
+  const ratio = sH / baseH;
   if (phase === 'up') {
-    if (sElbow < CONFIG.START) { phase = 'down'; rep = { start: now, minElbow: sElbow, minBody: sBody, frames: 0, bent: 0 }; }
+    if (ratio > 1) baseH = baseH + 0.2 * (sH - baseH);   // 준비 때 팔을 덜 폈으면 기준을 천천히 올림
+    if (ratio < CONFIG.START_RATIO) { phase = 'down'; rep = { start: now, minRatio: ratio, minBody: sBody, frames: 0, bent: 0 }; }
   } else {
-    rep.minElbow = Math.min(rep.minElbow, sElbow);
+    rep.minRatio = Math.min(rep.minRatio, ratio);
     rep.minBody = Math.min(rep.minBody, sBody);
     rep.frames++; if (sBody < CONFIG.BODY_MIN) rep.bent++;
-    if (sElbow > CONFIG.UP) { judge(now); phase = 'up'; rep = null; }   // 팔을 다시 펴야 1회 완성
+    if (ratio > CONFIG.UP_RATIO) { judge(now); phase = 'up'; rep = null; }   // 다시 올라와야 1회 완성
   }
 }
 function judge(now) {
   if (now - rep.start < CONFIG.MIN_REP_MS) return;
-  const deepOk = rep.minElbow <= CONFIG.DOWN;
+  const deepOk = rep.minRatio <= CONFIG.DOWN_RATIO;
   const bodyOk = !rep.frames || rep.bent / rep.frames <= CONFIG.BENT_RATIO;   // 꺾인 '시간 비율'로 판정
   if (deepOk && bodyOk) { counts.good++; beep(1320, 70); }
   else if (!deepOk) { counts.badDepth++; flash('더 내려가요!'); beep(220, 150); }   // 둘 다 부족하면 깊이 우선
