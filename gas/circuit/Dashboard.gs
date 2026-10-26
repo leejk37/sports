@@ -49,6 +49,8 @@ const DASH_EX = [
   { key: 'lunge',       name: '런지',           sheet: '런지',           email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
   { key: 'jumpingjack', name: '점핑잭',         sheet: '점핑잭',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
   { key: 'highknee',    name: '하이니',         sheet: '하이니',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8] } },
+  { key: 'legraise',    name: '레그레이즈',     sheet: '레그레이즈',     email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
+  { key: 'burpee',      name: '버피테스트',     sheet: '버피테스트',     email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
   { key: 'curlup',      name: '윗몸말아올리기', sheet: '윗몸말아올리기', email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
   { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     email: 5, value: 8, unit: '회', sum: true, pbBy: 7, acc: { good: 8, bad: [9, 10] } },
   { key: 'plank',       name: '플랭크',         sheet: '플랭크',         email: 5, value: 8, unit: '초', sum: true, pbBy: null, decimals: 1, acc: { good: 8, total: 9 } },

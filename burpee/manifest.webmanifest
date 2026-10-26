@@ -1,0 +1,27 @@
+{
+  "name": "버피테스트 측정",
+  "short_name": "버피",
+  "description": "기본 버피(쪼그려 앉기·다리 뒤로·점프) 횟수와 자세를 자동으로 측정해 기록합니다.",
+  "id": "/sports/burpee/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#1f4e8c",
+  "theme_color": "#1f4e8c",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

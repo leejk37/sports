@@ -236,6 +236,8 @@ const ICON = {
   plank: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="58" cy="40" r="6" fill="currentColor"/><path d="M52 46L10 56M50 48v8h8"/><circle cx="30" cy="20" r="9" stroke-width="4"/><path d="M30 14v6l4 3" stroke-width="4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   jumprope: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="12" r="6" fill="currentColor"/><path d="M36 20v22M36 26l-12 10M36 26l12 10M36 42l-6 14M36 42l6 14"/><path d="M24 36C14 52 20 66 36 66s22-14 12-30" stroke="#f5c518" stroke-width="3"/></svg>',
   highknee: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="34" cy="10" r="6" fill="currentColor"/><path d="M34 18v22M34 40l-2 22M34 40h14v14M34 25l-10 9M34 25l11-6"/><path d="M10 64h52" stroke="#f5c518"/></svg>',
+  legraise: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="52" r="6" fill="currentColor"/><path d="M22 54h20V18M28 54l2 8"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
+  burpee: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="14" r="6" fill="currentColor"/><path d="M36 22v18M24 6l12 20 12-20M28 54l8-14 8 14"/><path d="M10 66h52" stroke="#f5c518"/></svg>',
   hanging: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>'
 };
 const EXERCISES = [
@@ -247,6 +249,8 @@ const EXERCISES = [
   { id: 'highknee',    name: '하이니',         desc: '무릎 높이 들기 · 횟수 측정', url: 'highknee/', ready: true,  tag: '카메라 · 앞에서' },
   { id: 'jumprope',    name: '줄넘기',         desc: '뛴 횟수 · 1분 빠르기',   url: 'jumprope/',    ready: true,  tag: '카메라 · 앞에서' },
   { id: 'lunge',       name: '런지',           desc: '자세 인식 · 횟수 측정', url: 'lunge/',       ready: true,  tag: '카메라 · 옆에서' },
+  { id: 'burpee',      name: '버피테스트',     desc: '기본 버피 · 횟수 측정', url: 'burpee/',   ready: true, tag: '카메라 · 옆에서' },
+  { id: 'legraise',    name: '레그레이즈',     desc: '다리 직각 들기 · 횟수 측정', url: 'legraise/', ready: true, tag: '카메라 · 옆에서' },
   { id: 'pushup',      name: '팔굽혀펴기',     desc: '무릎 대고 · 횟수 측정', url: 'pushup/', ready: true, tag: '카메라 · 옆에서' },
   { id: 'plank',       name: '플랭크',         desc: '바른 자세로 버틴 시간',   url: 'plank/',  ready: true, tag: '카메라 · 옆에서' },
   { id: 'treadmill',   name: '트레드밀',       desc: '운동 시간 · 거리 기록', url: 'treadmill/', ready: true, tag: '타이머' },

@@ -32,6 +32,8 @@ const RANK_EX = {
   jumpingjack: { sheet: '점핑잭',         value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   curlup:      { sheet: '윗몸말아올리기', value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   highknee:    { sheet: '하이니',         value: 7, cond: 6, acc: { good: 7, bad: [8] } },
+  legraise:    { sheet: '레그레이즈',     value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
+  burpee:      { sheet: '버피테스트',     value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   pushup:      { sheet: '팔굽혀펴기',     value: 8, cond: 7, acc: { good: 8, bad: [9, 10] } },
   plank:       { sheet: '플랭크',         value: 8, acc: { good: 8, total: 9 } },   // 버틴 시간(초), 유지율
   hanging:     { sheet: '행잉',           value: 9 },               // 매달린 시간(초)
