@@ -27,7 +27,7 @@ const RANK = {
 /* id는 rank/index.html EX의 id와 같게. value: 대표 기록 열, cond: 측정 조건 열(같은 조건끼리만 최고 기록 비교) */
 const RANK_EX = {
   // acc: 정확도 = 정확(good 열 합) ÷ 전체(good + bad 열들 합) / plank는 버틴 시간 ÷ 전체 시간(total 열)
-  squat:       { sheet: '스쿼트',         value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
+  squat:       { sheet: '스쿼트',         value: 7, cond: 11, acc: { good: 7, bad: [8, 9] } },
   lunge:       { sheet: '런지',           value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   jumpingjack: { sheet: '점핑잭',         value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   curlup:      { sheet: '윗몸말아올리기', value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },

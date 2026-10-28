@@ -99,6 +99,8 @@
   .sub { margin: 0; opacity: .85; line-height: 1.6; }
 
   .seg { display: flex; gap: 8px; }
+  .segLabel { margin: 0 0 -6px; font-size: .95rem; opacity: .85; }
+  #timer.rest { color: var(--line); }
   .seg button {
     flex: 1; padding: 12px; font-size: 1.1rem; border-radius: 10px; cursor: pointer;
     background: transparent; color: var(--chalk); border: 2px solid rgba(255,255,255,.5);
@@ -166,12 +168,19 @@
     <section id="readyPanel" hidden>
       <p class="lead">옆으로 서서<br>온몸이 보이게 해요</p>
       <p class="sub">무릎이 노란 막대의 초록 선 아래까지 내려가야 1회로 세요. 허리는 곧게!</p>
-      <div class="seg" role="group" aria-label="측정 방법">
-        <button type="button" data-sec="30" aria-pressed="true">30초</button>
-        <button type="button" data-sec="60" aria-pressed="false">1분</button>
-        <button type="button" data-reps="10" aria-pressed="false">10회</button>
-        <button type="button" data-reps="20" aria-pressed="false">20회</button>
+      <p class="segLabel">한 세트 횟수</p>
+      <div class="seg" role="group" aria-label="한 세트 횟수" data-pick="reps">
+        <button type="button" data-v="10" aria-pressed="true">10회</button>
+        <button type="button" data-v="15" aria-pressed="false">15회</button>
+        <button type="button" data-v="20" aria-pressed="false">20회</button>
       </div>
+      <p class="segLabel">세트</p>
+      <div class="seg" role="group" aria-label="세트" data-pick="sets">
+        <button type="button" data-v="1" aria-pressed="true">1세트</button>
+        <button type="button" data-v="2" aria-pressed="false">2세트</button>
+        <button type="button" data-v="3" aria-pressed="false">3세트</button>
+      </div>
+      <p class="sub" id="planText">정확한 스쿼트 10회 · 세트 사이 10초 쉬고 저절로 다시 시작해요</p>
       <button class="primary" id="startBtn" type="button">측정 시작</button>
       <button class="secondary" id="changeStudent" type="button">다른 학생으로 바꾸기</button>
     </section>
@@ -219,7 +228,8 @@ const CONFIG = {
   IGNORE_ANGLE: 135,   // 이보다 덜 굽히면 흔들림으로 보고 무시
   MAX_LEAN: 50,        // 상체가 수직에서 이 각도보다 더 숙여지면 '허리 숙임'
   MIN_VISIBILITY: 0.5, // 관절이 이만큼 확실히 보여야 측정
-  MAX_SEC: 180,        // 횟수 모드에서 이 시간이 지나면 자동 종료(멈춘 학생 대비)
+  MAX_SEC: 180,        // 한 세트가 이 시간을 넘으면 끝냄(멈춘 학생 대비). 저장 시간은 마지막 동작까지만
+  REST_SEC: 10,        // 세트 사이 쉬는 시간(초) → 끝나면 저절로 다음 세트 시작
   // 운동 구역: 이 틀 안에 엉덩이가 있는 사람만 측정 (화면 비율 0~1). '구역' 버튼으로 드래그해 바꾸면 이 기기에 기억됨
   ZONE: { x0: 0.2, y0: 0.02, x1: 0.8, y1: 0.98 },
   MAX_PEOPLE: 3        // 한 화면에서 찾아볼 최대 인원(이 중 틀 안에서 가장 크게 보이는 사람을 측정)
@@ -232,11 +242,11 @@ const scanCanvas = document.createElement("canvas");
 const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true });
 
 let landmarker, drawer, facing = "user";
-let mode = "loading";            // loading | scan | ready | countdown | run | result
-let student = null, studentName = "", duration = 30;
-let target = 0, runStart = 0, runEnd = 0;   // target: 0이면 시간 모드, 숫자면 횟수 모드
-const elapsedSec = () => Math.max(1, Math.round((runEnd - runStart) / 1000));
-let good = 0, badDepth = 0, badBack = 0;
+let mode = "loading";            // loading | scan | ready | countdown | run | rest | result
+let student = null, studentName = "";
+let reps = 10, sets = 1;          // 한 세트 횟수 · 세트 수
+let setNo = 1, setGood = 0, setsDone = 0, runStart = 0, lastRepAt = 0, workMs = 0, restEnd = 0, restBeep = 0;
+let good = 0, badDepth = 0, badBack = 0;   // 모든 세트 합계
 let rep = { down: false, minKnee: 180, maxLean: 0 };
 let smoothKnee = null, endTime = 0, lastScan = 0, lastVideoTime = -1;
 let lastPayload = null;
@@ -396,9 +406,10 @@ function analyze(lm) {
     } else if (rep.maxLean > CONFIG.MAX_LEAN) {
       badBack++; flash("허리 펴기!", "bad"); beep(260);
     } else {
-      good++; flash("좋아요!", "good"); beep(880);
+      good++; setGood++; flash("좋아요!", "good"); beep(880);
     }
-    $("goodNow").textContent = good; $("depthNow").textContent = badDepth; $("backNow").textContent = badBack;
+    lastRepAt = performance.now();
+    $("goodNow").textContent = setGood; $("depthNow").textContent = badDepth; $("backNow").textContent = badBack;
   }
 }
 
@@ -488,40 +499,68 @@ function loop() {
       }
     }
 
-    if (mode === "run") {
-      const left = Math.max(0, Math.ceil((endTime - now) / 1000));
-      if (target) {                       // 횟수 모드: 걸린 시간이 올라감, 목표에 닿으면 끝
-        $("timer").textContent = Math.floor((now - runStart) / 1000) + "초";
-        if (good >= target || left === 0) finish();
-      } else {                            // 시간 모드: 남은 시간이 줄어듦
-        $("timer").textContent = left;
-        if (left === 0) finish();
-      }
+    if (mode === "run") {                 // 걸린 시간이 올라감, 목표 횟수에 닿으면 세트 끝
+      $("timer").textContent = Math.floor((now - runStart) / 1000) + "초";
+      if (setGood >= reps) endSet(false);
+      else if (now - runStart > CONFIG.MAX_SEC * 1000) endSet(true);
+    } else if (mode === "rest") {         // 쉬는 시간: 줄어들다 0이 되면 다음 세트
+      const left = Math.max(0, Math.ceil((restEnd - now) / 1000));
+      $("timer").textContent = `쉬는 시간 ${left}`;
+      if (left <= 3 && left > 0 && restBeep !== left) { restBeep = left; beep(520); }
+      if (left === 0) { setNo++; beep(990, 250); startSet(); }
     }
   }
   requestAnimationFrame(loop);
 }
 
 /* ---------- 측정 흐름 ---------- */
+const modeName = () => `${reps}회×${sets}세트`;   // 시트 L열 '방식' (같은 방식끼리 기록 비교)
 document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
-  target = Number(b.dataset.reps || 0);
-  duration = target ? CONFIG.MAX_SEC : Number(b.dataset.sec);
-  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  const seg = b.parentElement;
+  if (seg.dataset.pick === "reps") reps = Number(b.dataset.v); else sets = Number(b.dataset.v);
+  seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  $("planText").textContent = sets > 1
+    ? `정확한 스쿼트 ${reps}회 × ${sets}세트 = ${reps * sets}회 · 세트 사이 ${CONFIG.REST_SEC}초 쉬고 저절로 다시 시작해요`
+    : `정확한 스쿼트 ${reps}회`;
 }));
+
+function startSet() {
+  setGood = 0; rep = { down: false, minKnee: 180, maxLean: 0 };
+  $("goodNow").textContent = 0; $("timer").textContent = "0초"; $("timer").classList.remove("rest");
+  $("runLabel").textContent = `정확한 스쿼트 · ${sets > 1 ? `${setNo}/${sets}세트 · ` : ""}목표 ${reps}회`;
+  runStart = lastRepAt = performance.now(); mode = "run";
+}
+// 세트 끝: 운동한 시간만 더함(쉬는 시간 빼고). 시간 초과면 마지막 동작까지만 세고 전체를 끝냄
+function endSet(timeout) {
+  const now = performance.now();
+  workMs += (timeout ? lastRepAt : now) - runStart;
+  if (setGood >= reps) setsDone++;
+  if (timeout || setNo >= sets) { finish(); return; }
+  mode = "rest"; restEnd = now + CONFIG.REST_SEC * 1000; restBeep = 0; beep(660, 300);
+  $("timer").classList.add("rest");
+  $("runLabel").textContent = `${setNo}세트 끝! 숨 고르기 · 다음은 ${setNo + 1}/${sets}세트`;
+  flash(`${setNo}세트 완료!`, "good");
+}
 
 $("startBtn").addEventListener("click", async () => {
   if (actx && actx.state === "suspended") actx.resume();
   beep(1, 1); // 첫 터치로 소리 켜기
-  good = badDepth = badBack = 0; rep = { down: false, minKnee: 180, maxLean: 0 };
+  good = badDepth = badBack = 0; setNo = 1; setsDone = 0; workMs = 0;
   $("goodNow").textContent = 0; $("depthNow").textContent = 0; $("backNow").textContent = 0;
-  $("timer").textContent = target ? "0초" : duration;
-  $("runLabel").textContent = target ? `정확한 스쿼트 · 목표 ${target}회` : "정확한 스쿼트";
+  $("timer").textContent = "0초"; $("timer").classList.remove("rest");
+  $("runLabel").textContent = `정확한 스쿼트 · ${sets > 1 ? `1/${sets}세트 · ` : ""}목표 ${reps}회`;
   show("runPanel"); mode = "countdown";
   for (const n of [3, 2, 1]) { $("countdown").textContent = n; beep(520); await new Promise(r => setTimeout(r, 1000)); }
   $("countdown").textContent = ""; beep(990, 250);
-  runStart = performance.now(); endTime = runStart + duration * 1000; mode = "run";
+  startSet();
 });
-$("stopBtn").addEventListener("click", () => { mode = "ready"; goReady(); });
+// 그만하기: 한 번이라도 했으면 한 것까지 저장, 아무것도 안 했으면 취소
+$("stopBtn").addEventListener("click", () => {
+  if (mode === "countdown") return;
+  if (good + badDepth + badBack === 0) { mode = "ready"; goReady(); return; }
+  if (mode === "run") workMs += lastRepAt - runStart;
+  finish();
+});
 $("changeStudent").addEventListener("click", backOrScan);
 $("nextStudent").addEventListener("click", backOrScan);
 $("again").addEventListener("click", goReady);
@@ -532,13 +571,14 @@ $("switchCam").addEventListener("click", async () => {
 });
 
 function finish() {
-  mode = "result"; beep(990, 400); runEnd = performance.now();
-  $("timeFinal").hidden = !target;
-  $("timeFinal").textContent = target ? `걸린 시간 ${elapsedSec()}초` : "";
+  mode = "result"; beep(990, 400); $("timer").classList.remove("rest");
+  const duration = Math.max(1, Math.round(workMs / 1000));
+  $("timeFinal").hidden = false;
+  $("timeFinal").textContent = `${sets > 1 ? `${setsDone}/${sets}세트 완료 · ` : ""}운동한 시간 ${duration}초`;
   $("goodFinal").textContent = good; $("depthFinal").textContent = badDepth; $("backFinal").textContent = badBack;
   show("resultPanel"); setHint("");
   lastPayload = { type: "squat", token: CONFIG.TOKEN, email: student,
-    duration: target ? elapsedSec() : duration, target, good, badDepth, badBack,
+    duration, target: reps, sets, setsDone, mode: modeName(), good, badDepth, badBack,
     clientId: crypto.randomUUID?.() || String(Date.now()) + Math.random() };   // 다시 저장해도 중복되지 않게
   send(lastPayload);
 }

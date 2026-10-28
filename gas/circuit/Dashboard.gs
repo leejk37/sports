@@ -45,7 +45,7 @@ const DASH = {
 /* 운동별 탭 읽는 법: 날짜·이메일·값이 몇 번째 칸인지 (0부터)
  * acc: 정확도 = 정확(good 열) ÷ (good + bad 열들) / 플랭크는 버틴 시간 ÷ 전체 시간(total 열) — Rank.gs와 같음 */
 const DASH_EX = [
-  { key: 'squat',       name: '스쿼트',         sheet: '스쿼트',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
+  { key: 'squat',       name: '스쿼트',         sheet: '스쿼트',         email: 5, value: 7, unit: '회', sum: true, pbBy: 11, acc: { good: 7, bad: [8, 9] } },
   { key: 'lunge',       name: '런지',           sheet: '런지',           email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
   { key: 'jumpingjack', name: '점핑잭',         sheet: '점핑잭',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
   { key: 'highknee',    name: '하이니',         sheet: '하이니',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8] } },

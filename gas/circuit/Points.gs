@@ -25,11 +25,13 @@ const POINT = {
   LEDGER: '포인트', RULES: '포인트규칙', GIFTS: '선물목록', TRADE: '선물교환', REPORT: '포인트현황',
   ACC_MIN_COUNT: 20,           // 바른 자세 포인트: 그날 그 종목을 이만큼 이상 했을 때만 (횟수 종목)
   ACC_MIN_SEC: 60,             //   플랭크는 전체 시간(초)
+  SQUAT_PER: 20,               // 스쿼트: 정확한 횟수 이만큼마다 '스쿼트 20회' 포인트 (L열 방식에 '세트'가 있는 기록만)
   CACHE_SEC: 600               // 화면용 합계 캐시 (선물 교환은 10분 안에 화면에 반영)
 };
 /* 기본 규칙 [항목, 포인트, 설명] — 탭에서 숫자만 고치면 됨. 항목 이름은 바꾸지 않음 */
 const POINT_RULES = [
   ['종목 통과', 1, '통과기준 이상 한 종목마다 (하루 종목당 한 번)'],
+  ['스쿼트 20회', 1, '세트 방식 스쿼트의 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
   ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
   ['모둠 도장', 5, '모둠원 모두 도장 (모둠원 각자에게)'],
@@ -80,10 +82,12 @@ function pointRules_(ss) {
       sh.setFrozenRows(1); sh.setColumnWidth(1, 160); sh.setColumnWidth(3, 420);
     } catch (e) {}
   } else {
+    const seen = new Set();
     sh.getDataRange().getValues().slice(1).forEach(r => {
-      const k = String(r[0]).trim(), v = Number(r[1]);
+      const k = String(r[0]).trim(), v = Number(r[1]); seen.add(k);
       if (k in out && String(r[1]).trim() !== '' && isFinite(v) && v >= 0) out[k] = v;
     });
+    POINT_RULES.filter(r => !seen.has(r[0])).forEach(r => { try { sh.appendRow(r); } catch (e) {} });   // 새로 생긴 규칙은 탭 아래에 추가
   }
   try { c.put('prule1', JSON.stringify(out), 60); } catch (e) {}
   return out;
@@ -104,6 +108,7 @@ function pointCompute_(ss, from, to) {
   const best = {};          // id → 날짜 → 종목 → 최고 측정시간
   const val = {};           // id|종목|조건 → 날짜 → 그날 최고 기록
   const acc = {};           // id → 날짜 → 종목 → { g, t }
+  const sq = {};            // id → 날짜 → 세트 방식 스쿼트 정확한 횟수 합
   DASH_EX.forEach(ex => {
     const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
     const n = sh.getLastRow() - 1; if (n < 1) return;
@@ -117,6 +122,9 @@ function pointCompute_(ss, from, to) {
       if (!ex.noPb) {
         const k = id + '|' + ex.key + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]), v = num(r[ex.value]);
         if (v > 0) { const m = val[k] = val[k] || {}; m[d] = Math.max(m[d] || 0, v); }
+      }
+      if (ex.key === 'squat' && String(r[11] || '').indexOf('세트') >= 0) {
+        const q = sq[id] = sq[id] || {}; q[d] = (q[d] || 0) + num(r[7]);
       }
       if (ex.acc) {
         const g = num(r[ex.acc.good]);
@@ -188,7 +196,8 @@ function pointCompute_(ss, from, to) {
         const x = a[k];
         if (x.t >= (x.sec ? POINT.ACC_MIN_SEC : POINT.ACC_MIN_COUNT) && x.g / x.t * 100 >= accPct) accList.push(exName[k]);
       });
-      const pEx = pass * R['종목 통과'];
+      const sqN = (sq[st.id] || {})[d] || 0, sqP = Math.floor(sqN / POINT.SQUAT_PER) * R['스쿼트 20회'];
+      const pEx = pass * R['종목 통과'] + sqP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const pG = g ? R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0) : 0;
       const pSk = s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 7 === 0 ? R['연속 7일마다'] : 0) : 0;
@@ -196,7 +205,7 @@ function pointCompute_(ss, from, to) {
       const pAc = accList.length * R['바른 자세'];
       const total = pEx + pSt + pG + pSk + pPb + pAc;
       if (!total) return;
-      const memo = [pass ? `종목 ${pass}` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
+      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
         pSk ? `연속 ${streak}일` : '', pbList.length ? '경신: ' + pbList.join(', ') : '', accList.length ? '자세: ' + accList.join(', ') : '']
         .filter(Boolean).join(' · ');
       rows.push([d, st.grade, st.cls, st.no, st.name, st.id + SQUAT_CONFIG.DOMAIN, pEx, pSt, pG, pSk, pPb, pAc, total,
