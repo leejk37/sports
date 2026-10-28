@@ -171,8 +171,10 @@
       <p class="segLabel">한 세트 횟수</p>
       <div class="seg" role="group" aria-label="한 세트 횟수" data-pick="reps">
         <button type="button" data-v="10" aria-pressed="true">10회</button>
-        <button type="button" data-v="15" aria-pressed="false">15회</button>
         <button type="button" data-v="20" aria-pressed="false">20회</button>
+        <button type="button" data-v="30" aria-pressed="false">30회</button>
+        <button type="button" data-v="40" aria-pressed="false">40회</button>
+        <button type="button" data-v="50" aria-pressed="false">50회</button>
       </div>
       <p class="segLabel">세트</p>
       <div class="seg" role="group" aria-label="세트" data-pick="sets">
@@ -228,7 +230,7 @@ const CONFIG = {
   IGNORE_ANGLE: 135,   // 이보다 덜 굽히면 흔들림으로 보고 무시
   MAX_LEAN: 50,        // 상체가 수직에서 이 각도보다 더 숙여지면 '허리 숙임'
   MIN_VISIBILITY: 0.5, // 관절이 이만큼 확실히 보여야 측정
-  MAX_SEC: 180,        // 한 세트가 이 시간을 넘으면 끝냄(멈춘 학생 대비). 저장 시간은 마지막 동작까지만
+  IDLE_SEC: 60,        // 이 시간 동안 한 번도 앉았다 일어서지 않으면 끝냄(멈춘 학생 대비). 저장 시간은 마지막 동작까지만
   REST_SEC: 10,        // 세트 사이 쉬는 시간(초) → 끝나면 저절로 다음 세트 시작
   // 운동 구역: 이 틀 안에 엉덩이가 있는 사람만 측정 (화면 비율 0~1). '구역' 버튼으로 드래그해 바꾸면 이 기기에 기억됨
   ZONE: { x0: 0.2, y0: 0.02, x1: 0.8, y1: 0.98 },
@@ -502,7 +504,7 @@ function loop() {
     if (mode === "run") {                 // 걸린 시간이 올라감, 목표 횟수에 닿으면 세트 끝
       $("timer").textContent = Math.floor((now - runStart) / 1000) + "초";
       if (setGood >= reps) endSet(false);
-      else if (now - runStart > CONFIG.MAX_SEC * 1000) endSet(true);
+      else if (now - lastRepAt > CONFIG.IDLE_SEC * 1000) endSet(true);
     } else if (mode === "rest") {         // 쉬는 시간: 줄어들다 0이 되면 다음 세트
       const left = Math.max(0, Math.ceil((restEnd - now) / 1000));
       $("timer").textContent = `쉬는 시간 ${left}`;
