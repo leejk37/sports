@@ -99,6 +99,7 @@
   .sub { margin: 0; opacity: .85; line-height: 1.6; }
 
   .seg { display: flex; gap: 8px; }
+  .pointNote { color: var(--line); font-weight: 700; }
   .segLabel { margin: 0 0 -6px; font-size: .95rem; opacity: .85; }
   #timer.rest { color: var(--line); }
   .seg button {
@@ -182,7 +183,8 @@
         <button type="button" data-v="2" aria-pressed="false">2세트</button>
         <button type="button" data-v="3" aria-pressed="false">3세트</button>
       </div>
-      <p class="sub" id="planText">정확한 스쿼트 10회 · 세트 사이 10초 쉬고 저절로 다시 시작해요</p>
+      <p class="sub" id="planText">정확한 스쿼트 10회</p>
+      <p class="sub pointNote" id="pointText">⭐ 정확한 스쿼트 20회마다 1점 (하루 합계)</p>
       <button class="primary" id="startBtn" type="button">측정 시작</button>
       <button class="secondary" id="changeStudent" type="button">다른 학생으로 바꾸기</button>
     </section>
@@ -524,6 +526,8 @@ document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click"
   $("planText").textContent = sets > 1
     ? `정확한 스쿼트 ${reps}회 × ${sets}세트 = ${reps * sets}회 · 세트 사이 ${CONFIG.REST_SEC}초 쉬고 저절로 다시 시작해요`
     : `정확한 스쿼트 ${reps}회`;
+  const pt = Math.floor(reps * sets / 20);
+  $("pointText").textContent = `⭐ 정확한 스쿼트 20회마다 1점 · 다 하면 ${pt}점` + (pt ? "" : " (하루 합계 20회부터)");
 }));
 
 function startSet() {
@@ -576,7 +580,8 @@ function finish() {
   mode = "result"; beep(990, 400); $("timer").classList.remove("rest");
   const duration = Math.max(1, Math.round(workMs / 1000));
   $("timeFinal").hidden = false;
-  $("timeFinal").textContent = `${sets > 1 ? `${setsDone}/${sets}세트 완료 · ` : ""}운동한 시간 ${duration}초`;
+  $("timeFinal").textContent = `${sets > 1 ? `${setsDone}/${sets}세트 완료 · ` : ""}운동한 시간 ${duration}초`
+    + ` · ⭐ 정확한 ${good}회 → ${Math.floor(good / 20)}점 (내일 아침 반영)`;
   $("goodFinal").textContent = good; $("depthFinal").textContent = badDepth; $("backFinal").textContent = badBack;
   show("resultPanel"); setHint("");
   lastPayload = { type: "squat", token: CONFIG.TOKEN, email: student,
