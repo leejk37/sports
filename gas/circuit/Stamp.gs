@@ -3,11 +3,11 @@
  *
  *  규칙 (2026-10-22 결정)
  *   - 90% 도장: 그날 해야 할 종목을 '모두' 통과
- *       평일: 아래 STAMP_EX 11종목 전부
- *       휴일(토·일 + '휴일' 탭의 공휴일·재량휴업일): 스포츠실 전용(트레드밀·로잉머신·행잉)은 빼고 8종목
+ *       평일: 아래 STAMP_EX 13종목 전부 (2026-10-29 레그레이즈·버피테스트 추가)
+ *       휴일(토·일 + '휴일' 탭의 공휴일·재량휴업일): 스포츠실 전용(트레드밀·로잉머신·행잉)은 빼고 10종목
  *       통과 = 그날 그 종목 기록 중 측정시간이 '통과기준' 탭의 최소시간(기본 30초) 이상인 기록이 하나라도 있음
  *   - 100% 완벽 도장: 90% + 실내자전거 그날 5km 이상 (5km = 10분으로 간주). 1·2학년은 1km(마이후쉬)
- *       휴일에는 스포츠실·자전거를 쓸 수 없으므로 8종목을 모두 하면 바로 완벽 도장 (2026-10-24 결정: 꾸준히 운동하게)
+ *       휴일에는 스포츠실·자전거를 쓸 수 없으므로 10종목을 모두 하면 바로 완벽 도장 (2026-10-24 결정: 꾸준히 운동하게)
  *       자전거는 인도어라이딩 시트에 모아서 입력하므로 오늘 도장에는 17시부터 반영
  *       (지난 날짜는 언제나 반영)
  *
@@ -50,10 +50,15 @@ const STAMP_EX = [
   { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     time: 7 },
   { key: 'plank',       name: '플랭크',         sheet: '플랭크',         time: 8 },   // 버틴 시간(초)
   { key: 'jumprope',    name: '줄넘기',         sheet: '줄넘기',         time: 8 },
+  { key: 'legraise',    name: '레그레이즈',     sheet: '레그레이즈',     time: 6, from: '2026-10-30' },
+  { key: 'burpee',      name: '버피테스트',     sheet: '버피테스트',     time: 6, from: '2026-10-30' },
   { key: 'hanging',     name: '행잉',           sheet: '행잉',           time: 9, room: true },
   { key: 'treadmill',   name: '트레드밀',       sheet: '트레드밀',       time: 6, room: true },
   { key: 'rowing',      name: '로잉머신',       sheet: '로잉머신',       time: 7, room: true }
 ];
+
+/* from: 이날부터 도장 종목 (그 전 날짜의 도장은 그대로 둠) */
+const stampExOn_ = (ex, d) => !ex.from || d >= ex.from;
 
 /* ===== 공통 엔진: 여러 학생을 한 번에 판정 (시트는 종목당 한 번만 읽음) ===== */
 const stampFmt_ = (d, p) => Utilities.formatDate(d, STAMP.TZ, p);
@@ -69,7 +74,7 @@ function stampCtx_(ss, ids, roster) {
   };
   const list = [...ids];
   list.forEach(id => { const st = roster.byId[id]; if (st) ctx.grade[id] = st.grade; });
-  ctx.best = stampShared_(ss, 'sb3', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
+  ctx.best = stampShared_(ss, 'sb4', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
   ctx.bike = stampShared_(ss, 'rd5', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
   return ctx;
 }
@@ -112,7 +117,7 @@ function stampShared_(ss, prefix, sec, ids, build) {
   }
 }
 
-/** 11개 종목 탭을 읽어 모든 학생의 best[아이디][날짜][종목] = 그날 가장 긴 측정시간(초) */
+/** 도장 종목 탭을 읽어 모든 학생의 best[아이디][날짜][종목] = 그날 가장 긴 측정시간(초) */
 function stampReadAllBest_(ss) {
   const best = {};
   const dayOf = v => v instanceof Date ? stampFmt_(v, 'yyyy-MM-dd') : String(v).trim().slice(0, 10);
@@ -146,7 +151,7 @@ function warmStamp() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
   const roster = stampRoster_(ss);
   const ids = roster.list.map(x => x.id);
-  stampShared_(ss, 'sb3', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
+  stampShared_(ss, 'sb4', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
   stampShared_(ss, 'rd5', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
   try { pointGet_(ss, []); } catch (e) {}              // Points.gs 포인트 합계 캐시
   console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
@@ -163,7 +168,7 @@ function stampJudge_(ctx, id, d) {
   const w = Number(stampFmt_(new Date(d + 'T12:00:00+09:00'), 'u'));   // 1=월 … 7=일
   const holiday = (ctx.holi || {})[d] || '';                         // 공휴일 이름 (주말이 아닌 휴일)
   const weekend = w >= 6 || !!holiday;                               // 휴일: 스포츠실 종목 빼고, 모두 하면 완벽 도장
-  const need = STAMP_EX.filter(ex => !(weekend && ctx.crit[ex.key].weekendOff));
+  const need = STAMP_EX.filter(ex => stampExOn_(ex, d) && !(weekend && ctx.crit[ex.key].weekendOff));
   const b = ((ctx.best[id] || {})[d]) || {};
   const items = need.map(ex => {
     const s = b[ex.key] || 0, min = ctx.crit[ex.key].min;
@@ -462,7 +467,7 @@ function diagStamp() {
 /** 편집기에서 시간 재기: 공유 캐시를 비우고 처음 계산 → 캐시 사용 순서로 (학년·반은 바꿔서) */
 function diagStampTime() {
   const ym = Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'), c = CacheService.getScriptCache();
-  c.removeAll(['sb3__at', 'rd5__at', 'sroster1', 'team3_4_해_' + ym]);
+  c.removeAll(['sb4__at', 'rd5__at', 'sroster1', 'team3_4_해_' + ym]);
   let t = Date.now(); const r = stampTeam_({ grade: '4', cls: '해' });
   Logger.log('처음 계산(시트 읽기): ' + (Date.now() - t) + 'ms, ok=' + r.ok + (r.error ? ' ' + r.error : ''));
   c.remove('team3_4_해_' + ym);

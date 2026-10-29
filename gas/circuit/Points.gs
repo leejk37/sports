@@ -25,13 +25,13 @@ const POINT = {
   LEDGER: '포인트', RULES: '포인트규칙', GIFTS: '선물목록', TRADE: '선물교환', REPORT: '포인트현황',
   ACC_MIN_COUNT: 20,           // 바른 자세 포인트: 그날 그 종목을 이만큼 이상 했을 때만 (횟수 종목)
   ACC_MIN_SEC: 60,             //   플랭크는 전체 시간(초)
-  SQUAT_PER: 20,               // 스쿼트: 정확한 횟수 이만큼마다 '스쿼트 20회' 포인트 (L열 방식에 '세트'가 있는 기록만)
+  SQUAT_PER: 20,               // 스쿼트: 그날 정확한 횟수(H열) 합 이만큼마다 '스쿼트 20회' 포인트. 스쿼트는 '종목 통과' 포인트 없음 (2026-10-29)
   CACHE_SEC: 600               // 화면용 합계 캐시 (선물 교환은 10분 안에 화면에 반영)
 };
 /* 기본 규칙 [항목, 포인트, 설명] — 탭에서 숫자만 고치면 됨. 항목 이름은 바꾸지 않음 */
 const POINT_RULES = [
-  ['종목 통과', 1, '통과기준 이상 한 종목마다 (하루 종목당 한 번)'],
-  ['스쿼트 20회', 1, '세트 방식 스쿼트의 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
+  ['종목 통과', 1, '통과기준 이상 한 종목마다 (하루 종목당 한 번, 스쿼트는 빼고 아래 20회 규칙으로)'],
+  ['스쿼트 20회', 1, '스쿼트 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
   ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
   ['모둠 도장', 5, '모둠원 모두 도장 (모둠원 각자에게)'],
@@ -108,7 +108,7 @@ function pointCompute_(ss, from, to) {
   const best = {};          // id → 날짜 → 종목 → 최고 측정시간
   const val = {};           // id|종목|조건 → 날짜 → 그날 최고 기록
   const acc = {};           // id → 날짜 → 종목 → { g, t }
-  const sq = {};            // id → 날짜 → 세트 방식 스쿼트 정확한 횟수 합
+  const sq = {};            // id → 날짜 → 스쿼트 정확한 횟수 합
   DASH_EX.forEach(ex => {
     const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
     const n = sh.getLastRow() - 1; if (n < 1) return;
@@ -123,7 +123,7 @@ function pointCompute_(ss, from, to) {
         const k = id + '|' + ex.key + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]), v = num(r[ex.value]);
         if (v > 0) { const m = val[k] = val[k] || {}; m[d] = Math.max(m[d] || 0, v); }
       }
-      if (ex.key === 'squat' && String(r[11] || '').indexOf('세트') >= 0) {
+      if (ex.key === 'squat') {
         const q = sq[id] = sq[id] || {}; q[d] = (q[d] || 0) + num(r[7]);
       }
       if (ex.acc) {
@@ -160,14 +160,14 @@ function pointCompute_(ss, from, to) {
   }
   const active = roster.list.filter(st => !staff.has(st.id) && (best[st.id] || ctx.bike[st.id]));
   const stampOf = {};       // id → 날짜 → 0/90/100
-  const passOf = {};        // id → 날짜 → 통과 종목 수(주말 제외 없이 모든 종목)
+  const passOf = {};        // id → 날짜 → 통과 종목 수(주말 제외 없이 모든 종목, 스쿼트는 20회 규칙으로 따로)
   active.forEach(st => {
     const s = stampOf[st.id] = {}, p = passOf[st.id] = {};
     days.forEach(d => {
       if (!(best[st.id] && best[st.id][d]) && !(ctx.bike[st.id] && ctx.bike[st.id][d])) { s[d] = 0; p[d] = 0; return; }
       s[d] = stampJudge_(ctx, st.id, d).stamp;
       const b = (best[st.id] || {})[d] || {};
-      p[d] = STAMP_EX.filter(ex => (b[ex.key] || 0) >= ctx.crit[ex.key].min).length;
+      p[d] = STAMP_EX.filter(ex => ex.key !== 'squat' && stampExOn_(ex, d) && (b[ex.key] || 0) >= ctx.crit[ex.key].min).length;
     });
   });
   const groupOf = {};       // gkey → 날짜 → 0/90/100
@@ -469,11 +469,8 @@ function pointsReport() { pointsReport_(SpreadsheetApp.getActiveSpreadsheet()); 
 /* ===== 운동 시간 (2026-10-27) =====
  *  종목 탭의 측정시간 열을 학생별로 더함 → 누적(10월 19일부터)·이달·오늘
  *  포인트 원장과 따로, 실시간(2분 캐시). 실내자전거(km만 있음)는 아직 빠짐 → 나중에 보완
- *  열 위치는 Stamp.gs STAMP_EX의 time + 도장 종목이 아닌 레그레이즈·버피 */
-const POINT_TIME_EX = STAMP_EX.map(ex => ({ sheet: ex.sheet, time: ex.time })).concat([
-  { sheet: '레그레이즈', time: 6 },
-  { sheet: '버피테스트', time: 6 }
-]);
+ *  열 위치는 Stamp.gs STAMP_EX의 time */
+const POINT_TIME_EX = STAMP_EX.map(ex => ({ sheet: ex.sheet, time: ex.time }));
 const POINT_TIME_MAX = 3600;     // 한 기록이 1시간을 넘으면 잘못 누른 것으로 보고 1시간까지만
 
 function pointTimeAll_(ss) {
