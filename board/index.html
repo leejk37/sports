@@ -45,7 +45,9 @@
   #stats .s b small{font-size:.9vw;font-weight:800;margin-left:.1vw;color:var(--soft)}
   .big.now b{color:var(--yellow)}
   #feedBox{display:flex;flex-direction:column;overflow:hidden}
-  #feed{list-style:none;margin:.5vw 0 0;padding:0;display:flex;flex-direction:column;gap:.45vw;overflow:hidden}
+  #feed{list-style:none;margin:.5vw 0 0;padding:0;display:flex;flex-direction:column;gap:.45vw;overflow:hidden;flex:1;min-height:0}
+  #feed li{flex:none}
+  #feed.rolled li{animation:none}
   #feed li{font-size:.95vw;font-weight:600;line-height:1.3;padding:.45vw .7vw;border-radius:.7vw;background:rgba(255,255,255,.08);
     border-left:.35vw solid var(--yellow);animation:pop .6s ease both}
   #feed li.empty{border-left-color:var(--dim);color:var(--soft)}
@@ -78,6 +80,15 @@
   .tile .p .acc.hi{color:#9ff0b0}
   .tile .p .acc.lo{color:#ffb3a1}
   .tile.zero{opacity:.45}
+  .tile[data-key].has{cursor:pointer;transition:background .2s}
+  .tile[data-key].has:hover,.tile[data-key].on{background:#20508f}
+  /* 종목 칸에 마우스를 올리면 참여한 친구 */
+  #tip{position:fixed;z-index:6;display:none;max-width:34vw;max-height:60vh;overflow:auto;background:#102f57;border:.2vw solid var(--yellow);
+    border-radius:.9vw;padding:.8vw 1vw;box-shadow:0 1vw 3vw rgba(0,0,0,.35);pointer-events:none}
+  #tip.on{display:block}
+  #tip b{display:block;font-size:1.1vw;font-weight:800;margin-bottom:.4vw}
+  #tip .tg{font-size:1vw;line-height:1.5;margin-bottom:.25vw}
+  #tip .tg span{color:var(--yellow);font-weight:800;margin-right:.4vw}
   .tile.zero .v{color:var(--soft)}
   .tile.sum{background:var(--yellow);color:var(--blue-d)}
   .tile.sum .n,.tile.sum .p{color:var(--blue-d)}
@@ -212,6 +223,8 @@
   </div>
 </div>
 
+<div id="tip" role="tooltip"></div>
+
 <div id="who" role="dialog" aria-label="다녀간 친구 명단">
   <div class="top"><b id="whoTitle">오늘 다녀간 친구</b><span id="whoSub"></span><button id="whoClose" title="닫기 (Esc)">닫기 ✕</button></div>
   <div id="whoList"></div>
@@ -229,7 +242,8 @@ const CONFIG = {
   ROOM: 'gym',              // 허브 공용 모드 방 이름(허브를 ?room=gym 으로 열었던 그 이름)
   LOGIN_HOURS: 3,           // 허브와 같게: 입실 후 이 시간이 지나면 명단에서 빠짐
   TICKER_SEC: 20,           // 이름 띠를 새로 불러오는 간격(초)
-  TICKER_SPEED: 9           // 이름이 흐르는 빠르기(1초에 화면 너비의 몇 % 이동). 크면 빨라짐
+  TICKER_SPEED: 9,          // 이름이 흐르는 빠르기(1초에 화면 너비의 몇 % 이동). 크면 빨라짐
+  FEED_ROLL_SEC: 4          // 축하해요가 넘치면 이 간격(초)마다 한 줄씩 위로 올라감
 };
 
 /* ===== 선생님 열쇠 (이 기기에만 저장) =====
@@ -323,6 +337,7 @@ function jsonp(params, timeout = 20000) {
 
 /* ===== 그리기 ===== */
 function render(d) {
+  lastData = d;
   const past = !!d.past;
   const W = past ? '이날' : '오늘';
   $('now').textContent = d.now == null ? '-' : d.now;
@@ -355,13 +370,14 @@ function render(d) {
   const by = Object.fromEntries((d.totals || []).map(t => [t.key, t]));
   const tiles = ORDER.filter(k => by[k]).map(k => {
     const t = by[k];
-    return `<div class="tile${t.value ? '' : ' zero'}">${ICON[k] || ''}<div class="n">${esc(t.name)}</div>
+    return `<div class="tile${t.value ? '' : ' zero'}${t.people ? ' has' : ''}" data-key="${esc(k)}">${ICON[k] || ''}<div class="n">${esc(t.name)}</div>
       <div class="v">${val(t)}</div><div class="p">${t.people ? t.people + '명 참여' + (t.acc != null ? ` · <span class="acc${t.acc >= 90 ? ' hi' : t.acc < 60 ? ' lo' : ''}">🎯${t.acc}%</span>` : '') : (past ? '기록 없음' : '아직 없어요')}</div></div>`;
   });
   const kinds = (d.totals || []).filter(t => t.people).length;
   tiles.push(`<div class="tile sum"><div class="n">${W} 해 본 종목</div><div class="v">${kinds}<small>종목</small></div><div class="p">모두 ${ORDER.length}종목</div></div>`);
   $('tiles').style.gridTemplateColumns = `repeat(${Math.ceil(tiles.length / 2)},1fr)`;   // 두 줄에 맞춰 칸 수 (종목 12 + 합계 1 → 7칸)
   $('tiles').innerHTML = tiles.join('');
+  if (tipKey) showTip(tipKey);   // 열려 있던 명단은 새 숫자로 다시 그림
 
   // 반별 참여율
   const cls = (d.classes || []).slice().sort((a, b) => a.cls.localeCompare(b.cls, 'ko', { numeric: true }));
@@ -391,8 +407,49 @@ function render(d) {
   // 축하 소식
   const feed = d.feed || [];
   const html = feed.length ? feed.map(f => `<li>${feedHtml(f)}</li>`).join('') : (past ? '<li class="empty">이날은 축하 소식이 없어요</li>' : '<li class="empty">오늘 첫 기록을 기다리고 있어요</li>');
-  if ($('feed').dataset.last !== html) { $('feed').innerHTML = html; $('feed').dataset.last = html; }
+  if ($('feed').dataset.last !== html) { $('feed').innerHTML = html; $('feed').dataset.last = html; $('feed').scrollTop = 0; $('feed').classList.remove('rolled'); }
 }
+
+/* ===== 축하해요: 넘치면 일정한 간격으로 한 줄씩 위로 ===== */
+let feedHover = false;
+$('feedBox').addEventListener('mouseenter', () => feedHover = true);
+$('feedBox').addEventListener('mouseleave', () => feedHover = false);
+setInterval(() => {
+  const ul = $('feed'), first = ul.firstElementChild;
+  if (feedHover || !first || first.classList.contains('empty') || ul.scrollHeight <= ul.clientHeight + 2) return;
+  ul.classList.add('rolled');                        // 맨 끝으로 옮길 때 다시 튀어나오지 않게
+  const step = first.offsetHeight + parseFloat(getComputedStyle(ul).rowGap || 0);
+  ul.scrollTo({ top: step, behavior: 'smooth' });
+  setTimeout(() => { ul.appendChild(first); ul.scrollTop = 0; }, 700);   // 맨 위 줄을 맨 아래로 → 끝없이 돌아감
+}, CONFIG.FEED_ROLL_SEC * 1000);
+
+/* ===== 종목별 참여한 친구 (마우스를 올리면) ===== */
+let tipKey = null;
+function showTip(key) {
+  const tile = document.querySelector(`.tile[data-key="${key}"]`);
+  const list = lastData && lastData.exPeople && lastData.exPeople[key];
+  document.querySelectorAll('.tile.on').forEach(t => t.classList.remove('on'));
+  if (!tile || !list || !list.length) { hideTip(); return; }
+  tipKey = key; tile.classList.add('on');
+  const groups = {};
+  list.forEach(p => (groups[p.w] = groups[p.w] || []).push(p.n));
+  const name = tile.querySelector('.n').textContent;
+  $('tip').innerHTML = `<b>${esc(name)} · ${list.length}명</b>` +
+    Object.keys(groups).map(g => `<div class="tg"><span>${esc(g)}</span>${groups[g].map(esc).join(', ')}</div>`).join('');
+  const tp = $('tip'); tp.classList.add('on');
+  const r = tile.getBoundingClientRect(), w = tp.offsetWidth, h = tp.offsetHeight, m = 8;
+  let x = Math.min(Math.max(m, r.left + r.width / 2 - w / 2), innerWidth - w - m);
+  let y = r.bottom + m; if (y + h > innerHeight - m) y = Math.max(m, r.top - h - m);   // 아래 자리가 없으면 위로
+  tp.style.left = x + 'px'; tp.style.top = y + 'px';
+}
+function hideTip() { tipKey = null; $('tip').classList.remove('on'); document.querySelectorAll('.tile.on').forEach(t => t.classList.remove('on')); }
+$('tiles').addEventListener('mouseover', e => { const t = e.target.closest('.tile[data-key]'); if (t && t.dataset.key !== tipKey) showTip(t.dataset.key); });
+$('tiles').addEventListener('mouseleave', hideTip);
+$('tiles').addEventListener('click', e => {         // 터치 화면: 누르면 열고, 다시 누르면 닫음
+  const t = e.target.closest('.tile[data-key]'); if (!t) return;
+  e.stopPropagation(); t.dataset.key === tipKey ? hideTip() : showTip(t.dataset.key);
+});
+document.addEventListener('click', hideTip);
 
 /* ===== 다녀간 친구 명단 ===== */
 let lastData = null, whoMode = null, hoverTimer = null;
