@@ -32,6 +32,7 @@ const POINT = {
 const POINT_RULES = [
   ['종목 통과', 1, '통과기준 이상 한 종목마다 (하루 종목당 한 번, 스쿼트는 빼고 아래 20회 규칙으로)'],
   ['스쿼트 20회', 1, '스쿼트 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
+  ['자전거 추가 1km', 0.5, '실내자전거 그날 통과 거리(5km, 1·2학년 1km)를 넘은 1km마다, 소수점 버림 (예: 20km = 7점, 종목P에 더함, 도장과 관계없이)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
   ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
   ['모둠 도장', 5, '모둠원 모두 도장 (모둠원 각자에게)'],
@@ -70,7 +71,7 @@ const POINT_HEAD = ['날짜', '학년', '반', '번호', '이름', '이메일', 
 
 /* ===== 규칙 읽기 ===== */
 function pointRules_(ss) {
-  const c = CacheService.getScriptCache(), hit = c.get('prule1');
+  const c = CacheService.getScriptCache(), hit = c.get('prule2');
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   const out = {}; POINT_RULES.forEach(r => out[r[0]] = r[1]);
   let sh = ss.getSheetByName(POINT.RULES);
@@ -89,7 +90,7 @@ function pointRules_(ss) {
     });
     POINT_RULES.filter(r => !seen.has(r[0])).forEach(r => { try { sh.appendRow(r); } catch (e) {} });   // 새로 생긴 규칙은 탭 아래에 추가
   }
-  try { c.put('prule1', JSON.stringify(out), 60); } catch (e) {}
+  try { c.put('prule2', JSON.stringify(out), 60); } catch (e) {}
   return out;
 }
 
@@ -197,7 +198,9 @@ function pointCompute_(ss, from, to) {
         if (x.t >= (x.sec ? POINT.ACC_MIN_SEC : POINT.ACC_MIN_COUNT) && x.g / x.t * 100 >= accPct) accList.push(exName[k]);
       });
       const sqN = (sq[st.id] || {})[d] || 0, sqP = Math.floor(sqN / POINT.SQUAT_PER) * R['스쿼트 20회'];
-      const pEx = pass * R['종목 통과'] + sqP;
+      const km = (ctx.bike[st.id] || {})[d] || 0;
+      const bkP = Math.floor(Math.max(0, km - stampBikeKm_(st.grade)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
+      const pEx = pass * R['종목 통과'] + sqP + bkP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const pG = g ? R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0) : 0;
       const pSk = s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 7 === 0 ? R['연속 7일마다'] : 0) : 0;
@@ -205,7 +208,7 @@ function pointCompute_(ss, from, to) {
       const pAc = accList.length * R['바른 자세'];
       const total = pEx + pSt + pG + pSk + pPb + pAc;
       if (!total) return;
-      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
+      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
         pSk ? `연속 ${streak}일` : '', pbList.length ? '경신: ' + pbList.join(', ') : '', accList.length ? '자세: ' + accList.join(', ') : '']
         .filter(Boolean).join(' · ');
       rows.push([d, st.grade, st.cls, st.no, st.name, st.id + SQUAT_CONFIG.DOMAIN, pEx, pSt, pG, pSk, pPb, pAc, total,
@@ -274,7 +277,7 @@ function pointsNightly() {
 /** 처음 한 번, 또는 규칙 숫자를 고친 뒤: 시작일(POINT.FROM)부터 어제까지 모두 다시 계산 (편집기에서 실행) */
 function rebuildPoints() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
-  CacheService.getScriptCache().remove('prule1');
+  CacheService.getScriptCache().remove('prule2');
   const yest = stampFmt_(new Date(Date.now() - 864e5), 'yyyy-MM-dd');
   const sh = pointLedger_(ss);
   if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);   // 시작일 전 줄까지 모두 지우고 새로
