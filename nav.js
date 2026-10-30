@@ -13,6 +13,7 @@
     ['현황판', 'board/'],
     ['종목 순위', 'rank/?ex=auto'],
     ['인도어사이클', 'ride/'],
+    ['도장·포인트 규칙', 'rules/'],       // 로그인 없이 누구나 (2026-10-31)
     ['포인트', 'points/']                 // 선생님용(열쇠 필요). 학생이 눌러도 열쇠 입력 화면만 나옴
   ];
   const css = document.createElement('style');
