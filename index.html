@@ -238,6 +238,7 @@ const CONFIG = {
 const ICON = {
   team: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="22" r="8" fill="currentColor"/><circle cx="48" cy="22" r="8" fill="currentColor"/><path d="M10 54c2-12 26-12 28 0M34 54c2-12 26-12 28 0"/><path d="M8 64h56" stroke="#f5c518"/></svg>',
   stamp: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="34" r="22" stroke="#f5c518"/><path d="M25 34l8 8 15-16"/><path d="M14 64h44"/></svg>',
+  rules: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 10h32l12 12v40H14z"/><path d="M24 30h24M24 42h24M24 54h14"/><circle cx="54" cy="56" r="10" fill="#f5c518" stroke="#f5c518"/><path d="M54 51v6M54 61v.5" stroke="#12305a" stroke-width="4"/></svg>',
   squat: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="12" r="6" fill="currentColor"/><path d="M30 20l-4 18 16 4 -4 18M26 38l-12 2M30 26l20-2"/><path d="M8 66h56" stroke="#f5c518"/></svg>',
   curlup: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="28" r="6" fill="currentColor"/><path d="M22 36l14 18 14-16 10 16M24 38l14-4"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   jumpingjack: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="14" r="6" fill="currentColor"/><path d="M36 22v20M36 28l-16-14M36 28l16-14M36 42l-12 18M36 42l12 18"/><path d="M12 66h48" stroke="#f5c518"/></svg>',
@@ -255,6 +256,7 @@ const ICON = {
 const EXERCISES = [
   { id: 'stamp',       name: '내 도장',        desc: '오늘 남은 종목 · 이번 달 도장', url: 'stamp/',  ready: true,  tag: '내 기록' },
   { id: 'team',        name: '우리 모둠',      desc: '반 모둠 도장 · 모둠원 도장', url: 'team/',   ready: true,  tag: '모둠 기록' },
+  { id: 'rules',       name: '도장·포인트 규칙', desc: '도장 받는 법 · 포인트 계산기', url: 'rules/', ready: true, tag: '안내', direct: true },   // 로그인 없이 바로
   { id: 'squat',       name: '스쿼트',         desc: '자세 인식 · 횟수 측정', url: 'squat/',       ready: true,  tag: '카메라 · 옆에서' },
   { id: 'curlup',      name: '윗몸말아올리기', desc: '자세 인식 · 횟수 측정', url: 'curlup/',      ready: true,  tag: '카메라 · 옆에서' },
   { id: 'jumpingjack', name: '점핑잭',         desc: '자세 인식 · 횟수 측정', url: 'jumpingjack/', ready: true,  tag: '카메라 · 앞에서' },
@@ -553,7 +555,7 @@ function renderMenu() {
     const b = document.createElement('button');
     b.className = 'card' + (ex.ready ? '' : ' soon');
     b.innerHTML = `<span class="tag">${ex.tag}</span>${ICON[ex.id] || ''}<b>${ex.name}</b><span>${ex.desc}</span>`;
-    b.onclick = () => ex.ready ? openPicker(ex) : toast(ex.name + '은 준비 중이에요');
+    b.onclick = () => !ex.ready ? toast(ex.name + '은 준비 중이에요') : ex.direct ? (location.href = ex.url) : openPicker(ex);
     grid.appendChild(b);
   });
 }

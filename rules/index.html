@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>도장·포인트 규칙</title>
+<meta name="theme-color" content="#1f4e8c">
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  /* 도장·포인트 규칙 안내 + 포인트 계산기 (2026-10-31). 숫자는 GAS action=rules(포인트규칙·통과기준 탭)에서 받아 옴 */
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --blue-dd:#12305a; --yellow:#f5c518; --green:#9ff0b0;
+    --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.45); --line:rgba(255,255,255,.16);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;-webkit-tap-highlight-color:transparent}
+  header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:4px solid var(--yellow);position:sticky;top:0;background:var(--blue);z-index:3}
+  header h1{margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px;flex:1}
+  .hbtn{font:inherit;font-size:15px;font-weight:800;padding:8px 14px;border-radius:999px;border:2px solid rgba(255,255,255,.6);background:transparent;color:#fff;text-decoration:none;cursor:pointer;white-space:nowrap}
+  #jump{display:flex;gap:8px;overflow-x:auto;padding:12px 16px 0;max-width:1200px;margin:0 auto;scrollbar-width:none}
+  #jump::-webkit-scrollbar{display:none}
+  #jump a{flex:none;font-size:15px;font-weight:800;color:#fff;text-decoration:none;background:rgba(255,255,255,.12);padding:7px 14px;border-radius:999px}
+  main{display:flex;flex-direction:column;gap:16px;padding:16px;max-width:1200px;margin:0 auto}
+  .card{background:var(--blue-d);border-radius:20px;padding:18px 20px;scroll-margin-top:84px}
+  .card > h2{margin:0 0 4px;font-size:22px;font-weight:900;letter-spacing:-.4px}
+  .card > .sub{margin:0 0 14px;font-size:15px;color:var(--soft);line-height:1.5}
+  .y{color:var(--yellow)} .g{color:var(--green)}
+  #status{font-size:13px;color:var(--dim);text-align:right;max-width:1200px;margin:0 auto;padding:0 18px 18px}
+
+  /* ===== 계산기 ===== */
+  .calc{display:grid;grid-template-columns:1fr;gap:16px}
+  @media (min-width:900px){ .calc{grid-template-columns:1.25fr 1fr;align-items:start} .result{position:sticky;top:84px} }
+  .q{margin-bottom:16px}
+  .q:last-child{margin-bottom:0}
+  .q > .t{font-size:16px;font-weight:800;margin-bottom:8px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .q > .t small{font-size:13px;font-weight:600;color:var(--dim)}
+  .q > .t .mini{margin-left:auto;font:inherit;font-size:13px;font-weight:800;color:#fff;background:rgba(255,255,255,.12);border:0;border-radius:999px;padding:5px 11px;cursor:pointer}
+  .seg{display:inline-flex;background:rgba(0,0,0,.2);border-radius:999px;padding:4px;gap:4px;flex-wrap:wrap}
+  .seg button{font:inherit;font-size:15px;font-weight:800;color:var(--soft);background:transparent;border:0;border-radius:999px;padding:8px 14px;cursor:pointer}
+  .seg button.on{background:var(--yellow);color:var(--blue-dd)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font:inherit;font-size:15px;font-weight:800;color:#fff;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.25);border-radius:12px;padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .chip i{font-style:normal;width:20px;height:20px;border-radius:6px;border:2px solid rgba(255,255,255,.5);display:grid;place-items:center;font-size:13px}
+  .chip.on{background:rgba(245,197,24,.18);border-color:var(--yellow)}
+  .chip.on i{background:var(--yellow);border-color:var(--yellow);color:var(--blue-dd)}
+  .chip.off{opacity:.45}
+  .chip small{font-size:12px;font-weight:700;color:var(--dim)}
+  .nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .num{background:rgba(0,0,0,.15);border-radius:14px;padding:10px 12px}
+  .num .t{font-size:15px;font-weight:800}
+  .num .t small{display:block;font-size:12px;font-weight:600;color:var(--dim);margin-top:2px;line-height:1.4}
+  .step{display:flex;align-items:center;gap:6px;margin-top:8px}
+  .step button{font:inherit;width:40px;height:40px;flex:none;border-radius:10px;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:22px;font-weight:900;cursor:pointer}
+  .step input{width:100%;min-width:0;height:40px;border-radius:10px;border:0;text-align:center;font:inherit;font-size:20px;font-weight:900;color:var(--blue-dd);background:#fff}
+  .step span{font-size:15px;font-weight:800;color:var(--soft);flex:none}
+
+  .result{background:var(--blue-dd);border-radius:18px;padding:18px;border:3px solid var(--yellow)}
+  .rtop{display:flex;align-items:center;gap:16px}
+  .seal{flex:none;width:96px;height:96px;border-radius:50%;display:grid;place-items:center;text-align:center;line-height:1.05;
+        border:4px dashed rgba(255,255,255,.35);color:var(--soft);font-weight:900;transform:rotate(-8deg);font-size:15px}
+  .seal b{display:block;font-size:28px}
+  .seal.s90{border:5px double var(--yellow);color:var(--yellow)}
+  .seal.s100{border:5px double #fff;background:var(--yellow);color:var(--blue-dd)}
+  .total{flex:1}
+  .total .k{font-size:15px;font-weight:800;color:var(--soft)}
+  .total b{display:block;font-size:52px;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums;color:var(--yellow)}
+  .total b small{font-size:22px;margin-left:3px}
+  .total .why{font-size:14px;color:var(--soft);line-height:1.45;margin-top:2px}
+  .lines{margin:14px 0 0;padding:0;list-style:none;border-top:1px solid var(--line)}
+  .lines li{display:flex;gap:10px;align-items:baseline;padding:8px 2px;border-bottom:1px solid var(--line);font-size:15px}
+  .lines li span{flex:1;color:var(--soft);line-height:1.4}
+  .lines li span em{font-style:normal;font-size:13px;color:var(--dim);display:block}
+  .lines li b{font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .lines li.zero{opacity:.45}
+  .tip{margin-top:12px;font-size:14px;line-height:1.5;background:rgba(245,197,24,.15);border-radius:12px;padding:10px 12px}
+  .gift{margin-top:10px;font-size:14px;color:var(--soft);line-height:1.5}
+
+  /* ===== 안내 ===== */
+  .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  .stp{background:rgba(0,0,0,.15);border-radius:16px;padding:14px 16px}
+  .stp h3{margin:0 0 6px;font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px}
+  .stp h3 .badge{font-size:13px;padding:3px 9px;border-radius:999px;background:var(--yellow);color:var(--blue-dd)}
+  .stp p{margin:0;font-size:15px;line-height:1.6;color:var(--soft)}
+  .exl{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .exl span{font-size:14px;font-weight:700;background:rgba(255,255,255,.1);border-radius:8px;padding:4px 9px}
+  .exl span small{color:var(--dim);font-weight:600}
+  .exl span.room{border:1px dashed rgba(255,255,255,.4)}
+  table{width:100%;border-collapse:collapse;font-size:16px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:14px;color:var(--dim);font-weight:800}
+  td.p{font-weight:900;color:var(--yellow);white-space:nowrap;font-variant-numeric:tabular-nums}
+  td.n{font-weight:800;white-space:nowrap}
+  td.h{color:var(--soft);line-height:1.5}
+  tr.grp td{padding-top:16px;font-size:14px;font-weight:900;color:var(--green);border-bottom:0}
+  .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .bd{background:rgba(0,0,0,.15);border-radius:14px;padding:10px;text-align:center}
+  .bd .i{font-size:30px}
+  .bd b{display:block;font-size:15px;margin-top:2px}
+  .bd small{font-size:13px;color:var(--dim)}
+  .gifts{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+  .gf{background:rgba(0,0,0,.15);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+  .gf b{flex:1;font-size:16px}
+  .gf b small{display:block;font-size:12px;color:var(--dim);font-weight:700}
+  .gf span{font-size:18px;font-weight:900;color:var(--yellow);white-space:nowrap}
+  /* 좁은 화면: 계산 결과가 아래에 있으니 바닥에 합계 띠 */
+  #mini{display:none}
+  @media (max-width:899px){
+    #mini{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:4;display:flex;align-items:center;gap:10px;
+      background:var(--blue-dd);border:3px solid var(--yellow);border-radius:16px;padding:10px 14px;box-shadow:0 8px 24px rgba(0,0,0,.35);
+      font:inherit;color:#fff;cursor:pointer;transition:opacity .2s,transform .2s}
+    #mini.hide{opacity:0;transform:translateY(20px);pointer-events:none}
+    #mini .s{font-size:15px;font-weight:900;color:var(--soft)}
+    #mini b{margin-left:auto;font-size:26px;font-weight:900;color:var(--yellow)}
+    #mini small{font-size:13px;font-weight:800;color:var(--soft)}
+    main{padding-bottom:90px}
+  }
+  .notes{margin:0;padding-left:20px;font-size:15px;line-height:1.7;color:var(--soft)}
+  @media (max-width:560px){
+    header h1{font-size:20px}
+    .card{padding:16px}
+    .total b{font-size:42px}
+    table{font-size:15px}
+    td.h{font-size:14px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>📖 도장·포인트 규칙</h1>
+  <a class="hbtn" id="back" href="../">← 허브</a>
+</header>
+<nav id="jump">
+  <a href="#calc">🧮 포인트 계산기</a>
+  <a href="#stamp">✅ 도장 받는 법</a>
+  <a href="#points">💎 포인트 표</a>
+  <a href="#badges">🏅 뱃지</a>
+  <a href="#gifts">🎁 선물</a>
+  <a href="#faq">❓ 알아 둘 것</a>
+</nav>
+
+<main>
+  <section class="card" id="calc">
+    <h2>🧮 포인트 계산기</h2>
+    <p class="sub">오늘 할 운동을 골라 보세요. 도장과 포인트가 몇 점인지 바로 보여 줘요.</p>
+    <div class="calc">
+      <div>
+        <div class="q"><div class="t">학년</div>
+          <div class="seg" id="segGrade"><button data-v="hi" class="on">3~6학년</button><button data-v="lo">1·2학년</button></div></div>
+        <div class="q"><div class="t">오늘은</div>
+          <div class="seg" id="segDay"><button data-v="weekday" class="on">평일</button><button data-v="holiday">주말·휴일</button></div></div>
+        <div class="q"><div class="t">통과한 종목 <small id="minTxt">각 종목 30초 이상</small><button class="mini" id="allOn">모두</button><button class="mini" id="allOff">지우기</button></div>
+          <div class="chips" id="exChips"></div></div>
+        <div class="q"><div class="t">숫자로 넣기</div>
+          <div class="nums" id="nums"></div></div>
+        <div class="q"><div class="t">우리 모둠</div>
+          <div class="seg" id="segGroup"><button data-v="0" class="on">아직</button><button data-v="90">모두 도장</button><button data-v="100">모두 완벽 도장</button></div></div>
+      </div>
+      <div class="result" id="result"></div>
+    </div>
+  </section>
+
+  <section class="card" id="stamp">
+    <h2>✅ 도장 받는 법</h2>
+    <p class="sub">하루에 하나씩 받아요. 도장을 받은 날이 이어지면 연속 일수가 늘어나요.</p>
+    <div class="steps" id="stampSteps"></div>
+  </section>
+
+  <section class="card" id="points">
+    <h2>💎 포인트 표</h2>
+    <p class="sub">운동한 만큼 포인트가 쌓여요. 모은 포인트로 선물을 바꿀 수 있어요.</p>
+    <table><thead><tr><th>이렇게 하면</th><th>포인트</th><th>자세히</th></tr></thead><tbody id="ptRows"></tbody></table>
+  </section>
+
+  <section class="card" id="badges">
+    <h2>🏅 뱃지</h2>
+    <p class="sub">기록이 쌓이면 저절로 받아요. 내 뱃지는 허브 '내 도장'에서 볼 수 있어요.</p>
+    <div class="badges" id="badgeList"></div>
+  </section>
+
+  <section class="card" id="gifts">
+    <h2>🎁 선물</h2>
+    <p class="sub">선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>만 줄고, 모은 포인트와 뱃지는 그대로예요.</p>
+    <div class="gifts" id="giftList"></div>
+  </section>
+
+  <section class="card" id="faq">
+    <h2>❓ 알아 둘 것</h2>
+    <ul class="notes" id="notes"></ul>
+  </section>
+</main>
+<div id="status">불러오는 중…</div>
+<button id="mini" class="hide" aria-label="계산 결과로"><span class="s" id="miniS"></span><b id="miniP">0점</b><small>결과 ▾</small></button>
+
+<script src="../config.js"></script>
+<script>
+const CONFIG = { GAS_URL: SITE.GAS_URL, TOKEN: SITE.TOKEN };
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const P = v => (Math.round(v * 10) / 10).toLocaleString();
+
+/* 허브에서 왔으면 '← 허브'가 뒤로 가기 */
+if (document.referrer && new URL(document.referrer).pathname.replace(/index\.html$/, '') === new URL('../', location.href).pathname)
+  $('back').onclick = e => { e.preventDefault(); history.back(); };
+
+/* ===== 기본값 (GAS를 못 읽어도 화면이 나오게. 실제 값은 시트 '포인트규칙'·'통과기준' 탭) ===== */
+let R = {
+  rules: { '종목 통과': 1, '스쿼트 20회': 1, '자전거 추가 1km': 0.5, '하루 도장': 10, '완벽 도장': 5, '모둠 도장': 5, '완벽 모둠 도장': 5,
+    '연속 3일': 5, '연속 7일마다': 15, '기록 경신': 2, '기록 경신 하루 최대': 3, '바른 자세': 1, '바른 자세 기준(%)': 80 },
+  exercises: [
+    ['squat', '스쿼트'], ['lunge', '런지'], ['jumpingjack', '점핑잭'], ['curlup', '윗몸말아올리기'], ['highknee', '하이니'],
+    ['pushup', '팔굽혀펴기'], ['plank', '플랭크'], ['jumprope', '줄넘기'], ['legraise', '레그레이즈'], ['burpee', '버피테스트'],
+    ['hanging', '행잉', 1], ['treadmill', '트레드밀', 1], ['rowing', '로잉머신', 1]
+  ].map(([key, name, room]) => ({ key, name, min: 30, weekendOff: !!room, from: '' })),
+  bikeKm: 5, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 17, bikeFrom: '2026-11-01',
+  squatPer: 20, accMinCount: 20, accMinSec: 60, badges: [], gifts: [], today: ''
+};
+
+/* ===== 계산기 상태 ===== */
+const S = { grade: 'hi', day: 'weekday', group: 0, done: new Set(), n: { squat: 0, bike: 0, streak: 1, pb: 0, acc: 0 } };
+const NUMS = [
+  { k: 'squat',  t: '🏋️ 스쿼트 정확한 횟수', unit: '회', step: 10, max: 500, help: () => `${R.squatPer}회마다 ${P(R.rules['스쿼트 20회'])}점 (그날 모두 더해서)` },
+  { k: 'bike',   t: '🚴 실내자전거',        unit: 'km', step: 1, max: 60,  help: () => `${bikeKm()}km 이상이면 완벽 도장 · 넘은 1km마다 ${P(R.rules['자전거 추가 1km'])}점` },
+  { k: 'streak', t: '🔥 오늘이 연속 며칠째', unit: '일', step: 1, max: 100, help: () => '오늘 도장을 받으면 며칠째인지' },
+  { k: 'pb',     t: '📈 내 최고 기록을 넘은 종목', unit: '개', step: 1, max: 13, help: () => `종목마다 ${P(R.rules['기록 경신'])}점 · 하루 ${R.rules['기록 경신 하루 최대']}개까지` },
+  { k: 'acc',    t: '🎯 바른 자세 종목',    unit: '개', step: 1, max: 13, help: () => `정확도 ${R.rules['바른 자세 기준(%)']}% 이상 · ${R.accMinCount}회(플랭크 ${R.accMinSec}초) 넘게 한 카메라 종목` }
+];
+const bikeKm = () => S.grade === 'lo' ? (R.bikeKmByGrade[1] != null ? R.bikeKmByGrade[1] : 1) : R.bikeKm;
+const exOn = ex => !ex.from || !R.today || R.today >= ex.from;       // 도장 종목이 된 날 전이면 빠짐
+const needList = () => R.exercises.filter(ex => exOn(ex) && !(S.day === 'holiday' && ex.weekendOff));
+
+function seg(id, key, conv = v => v) {
+  $(id).querySelectorAll('button').forEach(b => b.onclick = () => {
+    S[key] = conv(b.dataset.v);
+    $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    drawChips(); calc();
+  });
+}
+seg('segGrade', 'grade'); seg('segDay', 'day'); seg('segGroup', 'group', Number);
+$('allOn').onclick = () => { R.exercises.filter(exOn).forEach(ex => S.done.add(ex.key)); drawChips(); calc(); };
+$('allOff').onclick = () => { S.done.clear(); drawChips(); calc(); };
+
+function drawChips() {
+  const mins = [...new Set(R.exercises.map(e => e.min))];
+  $('minTxt').textContent = mins.length === 1 ? `각 종목 ${mins[0]}초 이상` : '종목마다 정한 시간 이상';
+  $('exChips').innerHTML = R.exercises.filter(exOn).map(ex => {
+    const free = S.day === 'holiday' && ex.weekendOff;
+    return `<button class="chip${S.done.has(ex.key) ? ' on' : ''}${free ? ' off' : ''}" data-k="${ex.key}"><i>${S.done.has(ex.key) ? '✓' : ''}</i>${esc(ex.name)}${free ? '<small>휴일엔 안 해도 돼요</small>' : ''}</button>`;
+  }).join('');
+  $('exChips').querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    const k = b.dataset.k; S.done.has(k) ? S.done.delete(k) : S.done.add(k);
+    drawChips(); calc();
+  });
+}
+function drawNums() {
+  $('nums').innerHTML = NUMS.map(x => `<div class="num"><div class="t">${x.t}<small id="h_${x.k}">${esc(x.help())}</small></div>
+    <div class="step"><button data-k="${x.k}" data-d="-1">−</button><input id="n_${x.k}" type="number" inputmode="decimal" min="0" max="${x.max}" value="${S.n[x.k]}"><span>${x.unit}</span><button data-k="${x.k}" data-d="1">+</button></div></div>`).join('');
+  $('nums').querySelectorAll('.step button').forEach(b => b.onclick = () => {
+    const x = NUMS.find(n => n.k === b.dataset.k);
+    setNum(x, (S.n[x.k] || 0) + x.step * Number(b.dataset.d));
+  });
+  NUMS.forEach(x => $('n_' + x.k).oninput = e => setNum(x, e.target.value, true));
+}
+function setNum(x, v, typing) {
+  v = Math.max(0, Math.min(x.max, Number(v) || 0));
+  if (x.k === 'streak' && !typing) v = Math.max(1, v);
+  S.n[x.k] = v;
+  if (!typing) $('n_' + x.k).value = v;
+  calc();
+}
+
+/* ===== 계산 (Points.gs pointCompute_ · Stamp.gs stampJudge_와 같은 규칙) ===== */
+function calc() {
+  const r = R.rules, need = needList();
+  const done = need.filter(ex => S.done.has(ex.key));
+  const all = done.length === need.length;
+  const bike = S.n.bike, bikeOk = bike >= bikeKm();
+  const stamp = all ? (bikeOk || S.day === 'holiday' ? 100 : 90) : 0;
+  // 종목 통과: 통과한 도장 종목(스쿼트 빼고) — 휴일에 한 스포츠실 종목도 셈
+  const pass = R.exercises.filter(ex => exOn(ex) && ex.key !== 'squat' && S.done.has(ex.key)).length;
+  const sqP = Math.floor(S.n.squat / R.squatPer) * r['스쿼트 20회'];
+  const bkP = Math.floor(Math.max(0, bike - bikeKm()) * r['자전거 추가 1km'] + 1e-9);
+  const stP = stamp ? r['하루 도장'] + (stamp === 100 ? r['완벽 도장'] : 0) : 0;
+  const g = stamp ? Math.min(S.group, stamp) : 0;            // 내 도장이 없으면 모둠 도장도 없음
+  const gP = g ? r['모둠 도장'] + (g === 100 ? r['완벽 모둠 도장'] : 0) : 0;
+  const st = S.n.streak;
+  const skP = stamp ? (st === 3 ? r['연속 3일'] : 0) + (st && st % 7 === 0 ? r['연속 7일마다'] : 0) : 0;
+  const pbN = Math.min(S.n.pb, r['기록 경신 하루 최대']), pbP = pbN * r['기록 경신'];
+  const acP = S.n.acc * r['바른 자세'];
+  const total = pass * r['종목 통과'] + sqP + bkP + stP + gP + skP + pbP + acP;
+
+  const left = need.filter(ex => !S.done.has(ex.key)).map(ex => ex.name);
+  const why = stamp === 100 ? (S.day === 'holiday' ? '휴일에는 해야 할 종목을 모두 하면 바로 완벽 도장!' : `모든 종목 + 자전거 ${bikeKm()}km로 완벽 도장!`)
+    : stamp ? `자전거 ${bikeKm()}km를 더 타면 완벽 도장이에요` : `${left.length}종목 남았어요`;
+  const line = (t, em, p) => `<li class="${p ? '' : 'zero'}"><span>${t}${em ? `<em>${em}</em>` : ''}</span><b>${p ? '+' + P(p) : '0'}</b></li>`;
+  const lines = [
+    line('종목 통과', `${pass}종목 × ${P(r['종목 통과'])}점 (스쿼트는 아래 횟수로)`, pass * r['종목 통과']),
+    line('스쿼트 횟수', `${S.n.squat}회 → ${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, sqP),
+    line('자전거 추가', bike > bikeKm() ? `${bikeKm()}km 넘은 ${P(bike - bikeKm())}km × ${P(r['자전거 추가 1km'])}점 (소수점 버림)` : `${bikeKm()}km 넘게 타면 생겨요`, bkP),
+    line(stamp === 100 ? '완벽 도장' : '하루 도장', stamp ? `하루 도장 ${P(r['하루 도장'])}${stamp === 100 ? ` + 완벽 ${P(r['완벽 도장'])}` : ''}점` : '해야 할 종목을 모두 통과하면', stP),
+    line('모둠 도장', g ? `모둠 도장 ${P(r['모둠 도장'])}${g === 100 ? ` + 완벽 ${P(r['완벽 모둠 도장'])}` : ''}점` : (S.group && !stamp ? '내 도장이 있어야 모둠 도장도 받아요' : '모둠원 모두 도장을 받으면'), gP),
+    line('연속 보너스', stamp ? `${st}일째 · 3일째 ${P(r['연속 3일'])}점, 7·14·21…일째 ${P(r['연속 7일마다'])}점` : '도장을 받은 날만', skP),
+    line('기록 경신', S.n.pb > pbN ? `${S.n.pb}개 중 하루 ${pbN}개까지` : `${pbN}개 × ${P(r['기록 경신'])}점`, pbP),
+    line('바른 자세', `${S.n.acc}개 × ${P(r['바른 자세'])}점`, acP)
+  ].join('');
+  // 다음 선물
+  const gifts = (R.gifts || []).filter(x => !x.group).sort((a, b) => a.cost - b.cost);
+  const gift = gifts.find(x => x.cost > total) || gifts[gifts.length - 1];
+  const giftTxt = gift && total > 0 ? `<div class="gift">🎁 이렇게 하루 ${P(total)}점이면 <b>${esc(gift.name)}</b>(${P(gift.cost)}점)까지 <b class="y">${Math.max(1, Math.ceil(gift.cost / total))}일</b>이에요</div>` : '';
+  const tip = !stamp && left.length && left.length <= 3 ? `<div class="tip">💡 <b>${left.map(esc).join(', ')}</b>만 하면 도장 +${P(r['하루 도장'])}점!</div>`
+    : stamp === 90 ? `<div class="tip">💡 자전거 ${bikeKm()}km를 타면 완벽 도장 +${P(r['완벽 도장'])}점!</div>`
+    : stamp && st < 3 ? `<div class="tip">💡 내일도 도장을 받으면 연속이 이어져요. 3일째에 +${P(r['연속 3일'])}점!</div>` : '';
+  $('result').innerHTML = `<div class="rtop">
+      <div class="seal${stamp === 100 ? ' s100' : stamp ? ' s90' : ''}">${stamp === 100 ? '<div><b>⭐</b>완벽</div>' : stamp ? '<div><b>✓</b>도장</div>' : `<div><b>${done.length}/${need.length}</b>종목</div>`}</div>
+      <div class="total"><div class="k">오늘 받을 포인트</div><b>${P(total)}<small>점</small></b><div class="why">${esc(why)}</div></div>
+    </div>
+    <ul class="lines">${lines}</ul>${tip}${giftTxt}`;
+  NUMS.forEach(x => { const h = $('h_' + x.k); if (h) h.textContent = x.help(); });
+  $('miniS').textContent = stamp === 100 ? '⭐ 완벽 도장' : stamp ? '✓ 하루 도장' : `도장까지 ${left.length}종목`;
+  $('miniP').textContent = P(total) + '점';
+}
+/* 바닥 합계 띠: 계산기를 보는 동안만, 결과 칸이 화면에 보이면 숨김 */
+$('mini').onclick = () => $('result').scrollIntoView({ behavior: 'smooth', block: 'center' });
+const vis = { calc: false, result: false };
+const io = new IntersectionObserver(es => {
+  es.forEach(e => vis[e.target.id] = e.isIntersecting);
+  $('mini').classList.toggle('hide', !vis.calc || vis.result);
+}, { threshold: 0 });
+io.observe($('calc')); io.observe($('result'));
+
+/* ===== 안내 ===== */
+function drawGuide() {
+  const r = R.rules, ex = R.exercises.filter(exOn);
+  const later = R.exercises.filter(e => !exOn(e));
+  const list = arr => arr.map(e => `<span class="${e.weekendOff ? 'room' : ''}">${esc(e.name)} <small>${e.min}초</small></span>`).join('');
+  const lo = R.bikeKmByGrade[1] != null ? R.bikeKmByGrade[1] : 1;
+  $('stampSteps').innerHTML = `
+    <div class="stp"><h3>✓ 하루 도장 <span class="badge">+${P(r['하루 도장'])}점</span></h3>
+      <p><b class="y">평일</b>: 아래 <b>${ex.length}종목</b>을 모두 통과해요. 통과는 그 종목을 정한 시간 이상 한 기록이 하나라도 있으면 돼요.</p>
+      <div class="exl">${list(ex)}</div>
+      ${later.length ? `<p style="margin-top:8px;font-size:14px">${later.map(e => esc(e.name)).join('·')}는 ${later[0].from.slice(5).replace('-', '월 ')}일부터 도장 종목이에요.</p>` : ''}</div>
+    <div class="stp"><h3>⭐ 완벽 도장 <span class="badge">+${P(r['완벽 도장'])}점 더</span></h3>
+      <p>하루 도장 + 그날 <b class="y">실내자전거 ${R.bikeKm}km</b> 이상 (약 10분, 1·2학년은 ${lo}km).<br>
+      자전거 기록은 모아서 입력하므로 오늘 도장에는 <b>${R.bikeFromHour}시부터</b> 보여요.</p></div>
+    <div class="stp"><h3>🏖️ 주말·휴일</h3>
+      <p>스포츠실에 갈 수 없으니 <b>${ex.filter(e => e.weekendOff).map(e => esc(e.name)).join('·')}</b>(점선)은 안 해도 돼요.
+      나머지 <b>${ex.filter(e => !e.weekendOff).length}종목</b>을 모두 하면 자전거 없이도 <b class="y">완벽 도장</b>!</p></div>
+    <div class="stp"><h3>🤝 모둠 도장 <span class="badge">+${P(r['모둠 도장'])}점</span></h3>
+      <p>우리 모둠 <b>모두</b> 그날 도장을 받으면 모둠원 모두에게 모둠 도장. 모두 완벽 도장이면 <b class="y">완벽 모둠 도장</b> +${P(r['완벽 모둠 도장'])}점 더.</p></div>
+    <div class="stp"><h3>🔥 연속 일수</h3>
+      <p>도장을 받은 날이 이어진 날 수예요. <b>주말·휴일도 도장이 없으면 끊겨요.</b> 하루 10분이면 되니까 매일 이어 가 봐요!</p></div>`;
+
+  const grp = t => `<tr class="grp"><td colspan="3">${t}</td></tr>`;
+  const row = (n, p, h) => `<tr><td class="n">${n}</td><td class="p">${p}</td><td class="h">${h}</td></tr>`;
+  $('ptRows').innerHTML =
+    grp('운동하기') +
+    row('종목 통과', `${P(r['종목 통과'])}점`, `통과한 종목마다 (하루에 종목당 한 번). 스쿼트는 빼고 아래 횟수로`) +
+    row('스쿼트', `${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, `그날 한 <b>정확한 횟수</b>를 모두 더해서. 예) 20회 × 3세트 = ${P(3 * r['스쿼트 20회'])}점`) +
+    row('실내자전거 더 타기', `1km마다 ${P(r['자전거 추가 1km'])}점`, `완벽 도장 거리(${R.bikeKm}km, 1·2학년 ${lo}km)를 넘은 만큼, 소수점 버림. 예) 20km = ${P(Math.floor(15 * r['자전거 추가 1km']))}점 · <b>${R.bikeFrom.slice(5).replace('-', '월 ')}일부터</b>`) +
+    grp('도장') +
+    row('하루 도장', `${P(r['하루 도장'])}점`, '해야 할 종목을 모두 통과') +
+    row('완벽 도장', `+${P(r['완벽 도장'])}점`, `하루 도장 + 실내자전거 (휴일은 하루 도장만으로)`) +
+    row('모둠 도장', `${P(r['모둠 도장'])}점`, '모둠원 모두 도장 (모둠원 각자에게)') +
+    row('완벽 모둠 도장', `+${P(r['완벽 모둠 도장'])}점`, '모둠원 모두 완벽 도장') +
+    grp('꾸준히') +
+    row('연속 3일', `${P(r['연속 3일'])}점`, '도장 연속 3일째 되는 날') +
+    row('연속 7일마다', `${P(r['연속 7일마다'])}점`, '도장 연속 7·14·21…일째 되는 날') +
+    grp('더 잘하기') +
+    row('기록 경신', `${P(r['기록 경신'])}점`, `전날까지 내 최고 기록을 넘은 종목마다 (하루 ${r['기록 경신 하루 최대']}종목까지, 처음 해 본 종목은 빼고)`) +
+    row('바른 자세', `${P(r['바른 자세'])}점`, `카메라 종목에서 그날 정확도 <b>${r['바른 자세 기준(%)']}% 이상</b>일 때 종목마다 (${R.accMinCount}회, 플랭크는 ${R.accMinSec}초 넘게 했을 때)`);
+
+  const what = { stamp: '도장', perfect: '완벽 도장', streak: '연속', group: '모둠 도장', pb: '기록 경신', acc: '바른 자세', earned: '모은 포인트' };
+  $('badgeList').innerHTML = (R.badges || []).length ? R.badges.map(b => `<div class="bd"><div class="i">${b.icon}</div><b>${esc(b.name)}</b><small>${what[b.what] || ''} ${b.n}${b.what === 'streak' ? '일' : b.what === 'earned' ? '점' : b.what === 'pb' || b.what === 'acc' ? '번' : '개'}</small></div>`).join('')
+    : '<div style="color:var(--dim)">뱃지 목록을 불러오는 중이에요</div>';
+  $('giftList').innerHTML = (R.gifts || []).length ? R.gifts.slice().sort((a, b) => a.cost - b.cost).map(g => `<div class="gf"><b>${esc(g.name)}${g.group ? '<small>🤝 모둠 선물 · 모둠원이 나눠 내요</small>' : ''}</b><span>${P(g.cost)}점</span></div>`).join('')
+    : '<div style="color:var(--dim)">선물 목록은 선생님이 정해요</div>';
+  $('notes').innerHTML = [
+    '오늘 운동한 포인트는 <b>밤 1시</b>에 확정돼요. 내일 아침에 \'내 도장\'에서 보면 들어와 있어요',
+    '자전거 기록은 선생님이 모아서 넣기 때문에 며칠 늦게 들어올 수 있어요. 밤마다 최근 7일을 다시 계산하니 걱정하지 않아도 돼요',
+    '\'내 도장\'의 <b>오늘 +○점 예정</b>은 지금까지 통과한 종목과 도장 포인트예요. 스쿼트 횟수·자전거·기록 경신·바른 자세 포인트는 밤에 더해져요',
+    '측정 앱으로 기록해야 통과로 셀 수 있어요. 집에서도 허브에 로그인하고 운동하면 똑같이 쌓여요',
+    '선물을 바꾸면 남은 포인트만 줄어요. 모은 포인트와 뱃지는 그대로예요. 🤝 모둠 선물은 모둠원 모두 \'내 몫\'만큼 남은 포인트가 있어야 해요',
+    '규칙의 숫자는 선생님이 바꿀 수 있어요. 이 화면은 언제나 지금 규칙을 보여 줘요'
+  ].map(t => `<li>${t}</li>`).join('');
+}
+
+/* ===== GAS에서 지금 규칙 받기 ===== */
+function jsonp(params, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'rulescb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { done(); reject(new Error('시간 초과')); }, timeout);
+    function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = d => { done(); resolve(d); };
+    s.onerror = () => { done(); reject(new Error('연결 실패')); };
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ ...params, token: CONFIG.TOKEN, callback: cb });
+    document.head.appendChild(s);
+  });
+}
+function drawAll() { drawChips(); drawNums(); drawGuide(); calc(); }
+drawAll();
+jsonp({ action: 'rules' }).then(d => {
+  if (!d || !d.ok) throw new Error(d && d.error || '규칙을 받지 못했어요');
+  R = Object.assign(R, d, { rules: Object.assign({}, R.rules, d.rules) });
+  drawAll();
+  $('status').textContent = '지금 규칙으로 계산해요';
+}).catch(e => { $('status').textContent = '기본 규칙으로 보여 줘요 (' + e.message + ')'; });
+</script>
+</body>
+</html>

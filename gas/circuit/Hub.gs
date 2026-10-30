@@ -42,6 +42,8 @@ function hubJsonp_(e) {
       out = rankSummary_(p.ex, p.period, p.key); // Rank.gs — 종목별 순위 화면 (ex, period=today|week|month)
     } else if (p.action === 'points') {
       out = pointsTeacher_(p);               // Points.gs — 선생님 포인트 화면 (key, id 있으면 한 학생)
+    } else if (p.action === 'rules') {
+      out = pointRulesInfo_();               // Points.gs — 규칙 안내·포인트 계산기 화면(rules/), 로그인 없이
     } else if (p.action === 'gift') {
       out = pointsGive_(p);                  // Points.gs — 선물 주기 (key, id, gift)
     } else {

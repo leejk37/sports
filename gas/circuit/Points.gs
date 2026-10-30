@@ -408,6 +408,21 @@ function pointGet_(ss, keys) {
   return stampShared_(ss, 'pt1', POINT.CACHE_SEC, keys.concat('__gifts'), () => pointBuildAll_(ss));
 }
 
+/** 규칙 안내·계산기 화면(rules/)용: 포인트규칙·통과기준·자전거 기준·뱃지·선물. 학생 정보 없음 */
+function pointRulesInfo_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet(), crit = stampCriteria_(ss);
+  const today = stampFmt_(new Date(), 'yyyy-MM-dd');
+  return {
+    ok: true, today,
+    rules: pointRules_(ss),
+    exercises: STAMP_EX.map(ex => ({ key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' })),
+    bikeKm: STAMP.BIKE_KM, bikeKmByGrade: STAMP.BIKE_KM_BY_GRADE, bikeFromHour: STAMP.BIKE_FROM_HOUR,
+    bikeFrom: POINT.BIKE_FROM, squatPer: POINT.SQUAT_PER, accMinCount: POINT.ACC_MIN_COUNT, accMinSec: POINT.ACC_MIN_SEC,
+    badges: POINT_BADGES.map(b => ({ icon: b.icon, name: b.name, what: b.what, n: b.n })),
+    gifts: pointGifts_(ss).map(g => ({ name: g.name, cost: g.cost, group: g.group }))
+  };
+}
+
 /** 뱃지 목록 (받은 것 + 아직 못 받은 것과 진행도) */
 function pointBadgeList_(x) {
   const c = x ? x.c : { stamp: 0, perfect: 0, group: 0, streak: 0, pb: 0, acc: 0, earned: 0 };
@@ -421,7 +436,7 @@ function pointsForStamp_(ss, st, sum) {
   const t = sum.todayStatus;
   let today = 0;
   if (!x || x.last < sum.today) {
-    today += t.items.filter(i => i.ok).length * R['종목 통과'];
+    today += t.items.filter(i => i.ok && i.key !== 'squat').length * R['종목 통과'];   // 스쿼트는 20회 규칙(밤에 계산)
     if (t.stamp) today += R['하루 도장'] + (t.stamp === 100 ? R['완벽 도장'] : 0);
     const g = sum.group && sum.group.days[sum.today] ? sum.group.days[sum.today].stamp : 0;
     if (g) today += R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0);
