@@ -27,7 +27,8 @@ const RANK = {
 /* id는 rank/index.html EX의 id와 같게. value: 대표 기록 열, cond: 측정 조건 열(같은 조건끼리만 최고 기록 비교) */
 const RANK_EX = {
   // acc: 정확도 = 정확(good 열 합) ÷ 전체(good + bad 열들 합) / plank는 버틴 시간 ÷ 전체 시간(total 열)
-  squat:       { sheet: '스쿼트',         value: 7, cond: 11, acc: { good: 7, bad: [8, 9] } },
+  // 스쿼트(2026-10-30): 횟수×세트 방식이라 조건별 1회 최고 대신 '하루 합'으로 모아 셈 → 최고 기록 = 기간 합계, 성장·경신 = 하루 합 비교
+  squat:       { sheet: '스쿼트',         value: 7, cond: 11, acc: { good: 7, bad: [8, 9] }, daily: true, sumBest: true },
   lunge:       { sheet: '런지',           value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   jumpingjack: { sheet: '점핑잭',         value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   curlup:      { sheet: '윗몸말아올리기', value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
@@ -53,7 +54,7 @@ function rankSummary_(exRaw, periodRaw, key) {
 
   // 결과를 6시간 보관하고 CACHE_SEC(60초)가 지나면 새로 만듦. 새로 만들다 실패하면(시간 초과·동시 실행 한도 등) 옛 결과로 답함
   const cache = CacheService.getScriptCache();
-  const ck = 'rank7_' + exId + '_' + period + (keyOk ? '_k' : '');
+  const ck = 'rank8_' + exId + '_' + period + (keyOk ? '_k' : '');
   let old = null;
   const hit = cache.get(ck);
   if (hit) { try { old = JSON.parse(hit); } catch (e) {} }
@@ -104,6 +105,14 @@ function rankBuild_(exId, cfg, period, keyOk) {
     }
   }
   recs.sort((a, b) => a.t - b.t);
+  if (cfg.daily) {                                    // 학생 × 날짜로 합침 (조건 없이)
+    const m = {};
+    recs.forEach(r => {
+      const k = r.id + '|' + r.d, x = m[k] || (m[k] = { id: r.id, d: r.d, t: r.t, v: 0, ag: 0, at: 0, c: '' });
+      x.v += r.v; x.ag += r.ag || 0; x.at += r.at || 0; x.t = r.t;
+    });
+    recs = Object.values(m).sort((a, b) => a.t - b.t);
+  }
 
   const who = id => {
     const st = roster.byId[id] || {};
@@ -126,7 +135,7 @@ function rankBuild_(exId, cfg, period, keyOk) {
   // 최고 기록 옆에 '그 기록의 정확도'(그 한 번의 정확 ÷ 전체, 플랭크는 유지율)
   let best = Object.values(bestMap).map(r => Object.assign(who(r.id), { value: round(r.v), cond: r.c,
     acc: cfg.acc && r.at > 0 ? Math.round(r.ag / r.at * 100) : null }));
-  if (cfg.sumBest) {                                  // 자전거: 하루 최고가 아니라 기간 동안 탄 거리 합계로 순위
+  if (cfg.sumBest) {                                  // 자전거·스쿼트: 1회 최고가 아니라 기간 합계로 순위
     const sum = {};
     inP.forEach(r => sum[r.id] = (sum[r.id] || 0) + r.v);
     best = Object.keys(sum).map(id => Object.assign(who(id), { value: round(sum[id]), cond: '' }));
@@ -214,7 +223,7 @@ function rankMask_(n) {
 
 /** 편집기에서 확인: 스쿼트 이번 주 순위 요약과 걸린 시간 */
 function diagRank() {
-  CacheService.getScriptCache().remove('rank7_squat_week');
+  CacheService.getScriptCache().remove('rank8_squat_week');
   const t = Date.now(), r = rankSummary_('squat', 'week');
   Logger.log((Date.now() - t) + 'ms · 합계 ' + r.total + ' · ' + r.people + '명 · 최고 ' + r.best.length + '줄 · 성장 ' + r.growth.length + ' · 갱신 ' + r.pbs.length);
   Logger.log(JSON.stringify(r).slice(0, 800));

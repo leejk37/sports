@@ -197,7 +197,7 @@ const CONFIG = {
  *  goal: 학교 전체 누적 목표(기간과 상관없이 10월부터 합친 값과 비교)
  *  tag: 머리글에 보이는 측정 방식 / form: 자세 지표 이름(있으면 왼쪽 아래에 안내) */
 const EX = [
-  { id: 'squat',       name: '스쿼트',         kind: 'count', unit: '회', goal: 20000,  tag: '카메라 · 자세 인식' },
+  { id: 'squat',       name: '스쿼트',         kind: 'count', unit: '회', goal: 20000,  tag: '카메라 · 자세 인식', sum: true },   // 순위는 기간 합계(횟수×세트 방식)
   { id: 'lunge',       name: '런지',           kind: 'count', unit: '회', goal: 10000,  tag: '카메라 · 자세 인식' },
   { id: 'jumpingjack', name: '점핑잭',         kind: 'count', unit: '회', goal: 20000,  tag: '카메라 · 자세 인식' },
   { id: 'curlup',      name: '윗몸말아올리기', kind: 'count', unit: '회', goal: 10000,  tag: '카메라 · 자세 인식' },
@@ -335,10 +335,10 @@ function demoData(e) {
 /* ===== 그리기 ===== */
 let data = null, tab = 0, tabTimer = null;
 const TABS = [
-  { k: 'best',   why: () => ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
-    label: () => ex().id === 'bike' ? '🏆 거리 합계' : '🏆 최고 기록',
+  { k: 'best',   why: () => ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : ex().sum ? `${PNAME[period]} 한 횟수를 모두 더해 가장 많이 한 친구` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
+    label: () => ex().id === 'bike' ? '🏆 거리 합계' : ex().sum ? '🏆 가장 많이' : '🏆 최고 기록',
     val: (e, v, r) => show(e, v) + (r && r.acc != null ? `<em class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}" title="이 기록의 정확도">🎯${r.acc}%</em>` : '') },   // 그 기록의 정확도
-  { k: 'growth', why: () => `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
+  { k: 'growth', why: () => ex().sum ? `내 하루 최고(하루 합)보다 몇 ${ex().unit} 더 했는지 · 누구나 1등 할 수 있어요` : `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
     val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
   { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` },
   { k: 'acc',    why: () => `바른 자세 비율 · ${PNAME[period]} ${data && data.accMin ? data.accMin + (ex().kind === 'time' ? '초' : ex().unit) : ''} 이상 한 친구`,
