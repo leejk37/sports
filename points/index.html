@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>포인트 관리</title>
+<title>포인트</title>
 <meta name="theme-color" content="#1f4e8c">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
@@ -91,12 +91,40 @@
   .hist .pp.minus{color:var(--red)}
   .hist .tt{flex:1;color:var(--soft)}
   .note{margin-top:14px;font-size:14px;color:var(--dim);line-height:1.6}
+
+  /* ===== 학생용 (열쇠 없을 때): 포인트 순위 ===== */
+  #teach{font-size:14px;font-weight:800;padding:7px 12px;border-radius:999px;border:2px solid rgba(255,255,255,.4);background:transparent;color:var(--soft);cursor:pointer;display:none}
+  body.pub #teach{display:inline-block}
+  body.pub #q{display:none}
+  .ptabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .ptabs button{font-size:17px;font-weight:800;padding:8px 14px;border-radius:999px;border:0;background:var(--blue-d);color:var(--soft);cursor:pointer}
+  .ptabs button.on{background:var(--yellow);color:var(--blue-dd)}
+  .pubgrid{display:grid;grid-template-columns:1fr;gap:14px}
+  @media (min-width:900px){ .pubgrid{grid-template-columns:1.4fr 1fr;align-items:start} }
+  .box{background:var(--blue-d);border-radius:16px;padding:14px}
+  .box h3{margin:0 0 10px;font-size:19px;font-weight:900}
+  .rk{display:flex;align-items:center;gap:10px;padding:9px 8px;border-top:1px solid var(--line);font-size:18px}
+  .rk:first-of-type{border-top:0}
+  .rk .no{width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;font-weight:900;background:rgba(255,255,255,.08);color:var(--soft)}
+  .rk.m1 .no{background:#f5c518;color:var(--blue-dd)} .rk.m2 .no{background:#dfe6ef;color:var(--blue-dd)} .rk.m3 .no{background:#e0a46b;color:var(--blue-dd)}
+  .rk .nm{flex:1;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rk .nm small{color:var(--dim);font-weight:700;font-size:14px;margin-left:6px}
+  .rk .vv{font-size:22px;font-weight:900;color:var(--yellow);font-variant-numeric:tabular-nums}
+  .rk .vv small{font-size:14px;color:var(--soft);margin-left:2px}
+  .rk .ex{font-size:14px;color:var(--soft);font-weight:700;white-space:nowrap}
+  .gbar{display:flex;align-items:center;gap:8px;padding:7px 0;font-size:17px;font-weight:800}
+  .gbar .gn{width:62px;flex:none}
+  .gbar .tr{flex:1;height:22px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+  .gbar .tr i{display:block;height:100%;background:var(--yellow);border-radius:999px}
+  .gbar b{width:70px;text-align:right;color:var(--yellow);font-variant-numeric:tabular-nums}
+  .more{margin-top:8px;font-size:15px;font-weight:800;color:var(--soft);background:none;border:0;cursor:pointer;padding:6px 0}
 </style>
 <script src="../config.js"></script>
 </head>
 <body>
 <header>
-  <h1>💎 포인트 관리</h1>
+  <h1 id="title">💎 포인트</h1>
+  <button id="teach" title="선생님 열쇠로 포인트 관리 열기">🔑 선생님</button>
   <select class="sel" id="cls" aria-label="반"></select>
   <input class="search" id="q" placeholder="이름 찾기" aria-label="이름 찾기">
 </header>
@@ -142,7 +170,9 @@ function jsonp(params, timeout = 40000) {
 
 function askKey(msg) {
   $('app').innerHTML = `<div class="empty">${esc(msg || '선생님 열쇠를 넣어 주세요')}<br><small style="color:var(--soft);font-size:15px">현황판 이름 명단에 쓰는 열쇠와 같아요 (스크립트 속성 DASH_KEY)</small>
-    <div class="keybox"><input id="key" type="password" placeholder="열쇠" autocomplete="off"><button class="btn" id="keyGo">열기</button></div></div>`;
+    <div class="keybox"><input id="key" type="password" placeholder="열쇠" autocomplete="off"><button class="btn" id="keyGo">열기</button></div>
+    <button class="more" id="toPub" style="margin-top:14px">← 학생용 포인트 순위로</button></div>`;
+  $('toPub').onclick = () => loadPub();
   const go = () => { KEY = $('key').value.trim(); store.set('dashKey', KEY); load(); };
   $('keyGo').onclick = go; $('key').onkeydown = e => { if (e.key === 'Enter') go(); };
   $('key').focus();
@@ -292,12 +322,73 @@ async function give(g, short) {
   } catch (e) { drawPanel(false, { ok: false, t: e.message }); }
 }
 
+/* ===== 학생용: 열쇠가 없으면 포인트 순위 (이름 가림, 남은 포인트·내역 없음) ===== */
+let pub = null, pubBy = store.get('pubSort') || 'earned', pubAll = false;
+const PUB_TABS = [['earned', '💎 모은 포인트', 'P'], ['month', '📅 이번 달', 'P'], ['badges', '🏅 뱃지', '개'], ['perfect', '⭐ 완벽 도장', '개'], ['streak', '🔥 최고 연속', '일']];
+function renderPub() {
+  if (!pub) return;
+  const ck = $('cls').value, num = v => Number(v) || 0;
+  const list = pub.students.filter(s => ck === 'all' || clsKey(s) === ck);
+  const tab = PUB_TABS.find(t => t[0] === pubBy) || PUB_TABS[0];
+  const top = list.filter(s => s[tab[0]] > 0).sort((a, b) => b[tab[0]] - a[tab[0]] || b.earned - a.earned);
+  top.forEach((s, i) => s._r = i && top[i - 1][tab[0]] === s[tab[0]] ? top[i - 1]._r : i + 1);
+  const N = pubAll ? top.length : 20;
+  const rows = top.slice(0, N).map(s => `<div class="rk${s._r <= 3 ? ' m' + s._r : ''}"><span class="no">${s._r}</span>
+    <span class="nm">${esc(s.name)}<small>${ck === 'all' ? `${esc(s.grade)}학년 ${esc(s.cls)}반 ` : ''}${s.group ? esc(s.group) + '모둠' : ''}</small></span>
+    ${tab[0] !== 'earned' ? `<span class="ex">${fmt(s.earned)}P</span>` : ''}<span class="vv">${fmt(s[tab[0]])}<small>${tab[2]}</small></span></div>`).join('');
+  // 모둠 합계 (반을 골랐을 때) · 반별 1인 평균 (전교생일 때)
+  let side = '';
+  if (ck !== 'all') {
+    const g = {}; list.forEach(s => { if (s.group) { const x = g[s.group] = g[s.group] || { e: 0, m: 0, n: 0 }; x.e += s.earned; x.m += s.month; x.n++; } });
+    const key = pubBy === 'month' ? 'm' : 'e';
+    const gl = Object.keys(g).sort((a, b) => g[b][key] - g[a][key]), mx = Math.max(1, ...gl.map(k => g[k][key]));
+    side = `<div class="box"><h3>🤝 모둠 ${pubBy === 'month' ? '이번 달' : '모은'} 포인트</h3>${gl.length ? gl.map(k => `<div class="gbar"><span class="gn">${esc(k)}모둠</span><span class="tr"><i style="width:${g[k][key] / mx * 100}%"></i></span><b>${fmt(g[k][key])}</b></div>`).join('') : '<div style="color:var(--dim)">모둠이 아직 없어요</div>'}</div>`;
+  } else {
+    const c = {}; list.forEach(s => { const k = s.grade + '학년 ' + s.cls + '반', x = c[k] = c[k] || { e: 0, n: 0, g: s.grade, c: s.cls }; x.e += s.earned; x.n++; });
+    const cl = Object.keys(c).sort((a, b) => c[b].e / c[b].n - c[a].e / c[a].n), mx = Math.max(1, ...cl.map(k => c[k].e / c[k].n));
+    side = `<div class="box"><h3>🏫 반별 1인 평균</h3>${cl.map(k => `<div class="gbar"><span class="gn" style="width:96px">${esc(k)}</span><span class="tr"><i style="width:${c[k].e / c[k].n / mx * 100}%"></i></span><b>${fmt(Math.round(c[k].e / c[k].n))}</b></div>`).join('')}</div>`;
+  }
+  const tot = list.reduce((t, s) => (t.e += s.earned, t.m += s.month, t.p += s.perfect, t), { e: 0, m: 0, p: 0 });
+  $('app').innerHTML = `
+    <div class="sum">
+      <div><b>${fmt(tot.e)}</b><span>${ck === 'all' ? '전교생' : '우리 반'} 모은 포인트</span></div>
+      <div><b>${fmt(tot.m)}</b><span>이번 달</span></div>
+      <div><b>${fmt(tot.p)}</b><span>완벽 도장</span></div>
+    </div>
+    <div class="ptabs">${PUB_TABS.map(t => `<button data-k="${t[0]}" class="${t[0] === pubBy ? 'on' : ''}">${t[1]}</button>`).join('')}</div>
+    <div class="pubgrid">
+      <div class="box"><h3>${tab[1]} 순위</h3>${rows || '<div style="color:var(--dim);padding:20px 0">아직 기록이 없어요. 오늘 운동하고 첫 번째 주인공이 되어 보세요!</div>'}
+        ${top.length > N ? `<button class="more" id="more">더 보기 (${top.length - N}명) ▾</button>` : ''}</div>
+      <div>${side}
+        <div class="note">· 포인트는 매일 밤 1시에 확정돼요<br>· 순위는 모은 포인트예요. 선물로 바꿔도 줄지 않아요<br>· 내 남은 포인트와 내역은 허브 '내 도장'에서 볼 수 있어요<br>· 어떻게 포인트를 받는지는 메뉴의 '도장·포인트 규칙'에서</div></div>
+    </div>`;
+  document.querySelectorAll('.ptabs button').forEach(b => b.onclick = () => { pubBy = b.dataset.k; store.set('pubSort', pubBy); pubAll = false; renderPub(); });
+  if ($('more')) $('more').onclick = () => { pubAll = true; renderPub(); };
+}
+async function loadPub() {
+  document.body.classList.add('pub');
+  $('title').textContent = '💎 포인트 순위';
+  $('status').textContent = '불러오는 중…';
+  try {
+    const d = await jsonp({ action: 'pointsPub' });
+    if (d && d.error === '방 이름이 잘못됐어요') throw new Error('GAS에 새 Hub.gs·Points.gs가 아직 배포되지 않았어요');
+    if (!d || !d.ok) throw new Error((d && d.error) || '불러오지 못했어요');
+    pub = d; data = { students: d.students }; fillClasses(); renderPub();
+    $('status').textContent = d.updated + ' 기준 · 포인트는 밤 1시에 확정';
+  } catch (e) {
+    if (!pub) $('app').innerHTML = `<div class="empty">${esc(e.message)}<br>잠시 뒤 다시 불러와요</div>`;
+    $('status').textContent = e.message;
+  }
+}
+$('teach').onclick = () => { document.body.classList.remove('pub'); $('title').textContent = '💎 포인트 관리'; askKey(); };
+
 async function load() {
-  if (!KEY) { askKey(); return; }
+  if (!KEY) { loadPub(); return; }
+  document.body.classList.remove('pub'); $('title').textContent = '💎 포인트 관리';
   $('status').textContent = '불러오는 중…';
   try {
     const d = await jsonp({ action: 'points' });
-    if (d && d.needKey) { store.set('dashKey', ''); KEY = ''; askKey('열쇠가 맞지 않아요. 다시 넣어 주세요'); $('status').textContent = ''; return; }
+    if (d && d.needKey) { store.set('dashKey', ''); KEY = ''; await loadPub(); $('status').textContent = '선생님 열쇠가 맞지 않아요 · 지금은 학생용 화면이에요'; return; }   // 열쇠가 틀리면 학생용으로
     if (d && d.error === '방 이름이 잘못됐어요') throw new Error('GAS에 새 Hub.gs·Points.gs가 아직 배포되지 않았어요 (배포 관리 → 수정 → 새 버전)');
     if (!d || !d.ok) throw new Error((d && d.error) || '불러오지 못했어요');
     data = d; fillClasses(); render();
@@ -309,12 +400,12 @@ async function load() {
   }
 }
 
-$('cls').onchange = () => { store.set('ptCls', $('cls').value); render(); };
+$('cls').onchange = () => { store.set('ptCls', $('cls').value); pubAll = false; document.body.classList.contains('pub') ? renderPub() : render(); };
 $('q').oninput = render;
 $('shade').onclick = closePanel;
 addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 load();
-setInterval(() => { if (!document.hidden && KEY && !cur) load(); }, CONFIG.REFRESH_SEC * 1000);
+setInterval(() => { if (document.hidden) return; if (KEY && !cur) load(); else if (!KEY && pub) loadPub(); }, CONFIG.REFRESH_SEC * 1000);
 </script>
 <script src="../nav.js" defer></script>
 </body>

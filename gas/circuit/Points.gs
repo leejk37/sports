@@ -559,6 +559,26 @@ function pointsTeacher_(p) {
   };
 }
 
+/** action=pointsPub — 학생용 포인트 순위 (2026-10-31 결정: 개인 순위도 공개). 이름은 가림(김*서), 아이디·이메일·남은 포인트는 보내지 않음 */
+function pointsPublic_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = stampRoster_(ss);
+  const staff = pointStaffIds_(ss);
+  const list = roster.list.filter(st => !staff.has(st.id) && st.grade);
+  const all = pointGet_(ss, list.map(st => st.id));
+  return {
+    ok: true, updated: stampFmt_(new Date(), 'HH:mm'),
+    students: list.map(st => {
+      const x = all[st.id];
+      return {
+        grade: st.grade, cls: st.cls, group: st.group || '', name: rankMask_(st.name),
+        earned: x ? x.earned : 0, month: x ? x.month : 0, badges: x ? Object.keys(x.got).length : 0,
+        stamp: x ? x.c.stamp : 0, perfect: x ? x.c.perfect : 0, streak: x ? x.c.streak : 0
+      };
+    })
+  };
+}
+
 /** action=gift&key=&id=&gift=선물이름  → 선물교환 탭에 한 줄 (남은 포인트가 모자라면 거절, force=1이면 그래도) */
 function pointsGive_(p) {
   if (!pointKeyOk_(p.key)) return { ok: false, error: '선생님 열쇠가 맞지 않아요', needKey: true };
