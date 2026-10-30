@@ -54,7 +54,7 @@ function rankSummary_(exRaw, periodRaw, key) {
 
   // 결과를 6시간 보관하고 CACHE_SEC(60초)가 지나면 새로 만듦. 새로 만들다 실패하면(시간 초과·동시 실행 한도 등) 옛 결과로 답함
   const cache = CacheService.getScriptCache();
-  const ck = 'rank9_' + exId + '_' + period + (keyOk ? '_k' : '');
+  const ck = 'rank10_' + exId + '_' + period + (keyOk ? '_k' : '');
   let old = null;
   const hit = cache.get(ck);
   if (hit) { try { old = JSON.parse(hit); } catch (e) {} }
@@ -165,7 +165,17 @@ function rankBuild_(exId, cfg, period, keyOk) {
   // 꾸준함: 기간 안에 한 날 수
   const days = {};
   inP.forEach(r => (days[r.id] = days[r.id] || new Set()).add(r.d));
-  const streak = Object.keys(days).map(id => Object.assign(who(id), { value: days[id].size }));
+  let streak = Object.keys(days).map(id => Object.assign(who(id), { value: days[id].size }));
+  if (period === 'today') {                           // 오늘은 늘 1일이 되므로 '오늘까지 이어서 한 날 수'(연속 일수)로
+    const doneDays = {};
+    recs.forEach(r => (doneDays[r.id] = doneDays[r.id] || new Set()).add(r.d));
+    const prevDay = d => fmt(new Date(new Date(d + 'T12:00:00+09:00').getTime() - 864e5), 'yyyy-MM-dd');
+    streak = Object.keys(days).map(id => {
+      let n = 0;
+      for (let d = today; doneDays[id].has(d) && n < 400; d = prevDay(d)) n++;
+      return Object.assign(who(id), { value: n });
+    });
+  }
 
   // 반별
   const cls = {};
@@ -224,7 +234,7 @@ function rankMask_(n) {
 
 /** 편집기에서 확인: 스쿼트 이번 주 순위 요약과 걸린 시간 */
 function diagRank() {
-  CacheService.getScriptCache().remove('rank9_squat_week');
+  CacheService.getScriptCache().remove('rank10_squat_week');
   const t = Date.now(), r = rankSummary_('squat', 'week');
   Logger.log((Date.now() - t) + 'ms · 합계 ' + r.total + ' · ' + r.people + '명 · 최고 ' + r.best.length + '줄 · 성장 ' + r.growth.length + ' · 갱신 ' + r.pbs.length);
   Logger.log(JSON.stringify(r).slice(0, 800));

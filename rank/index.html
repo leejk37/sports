@@ -340,7 +340,7 @@ const TABS = [
     val: (e, v, r) => show(e, v) + (r && r.acc != null ? `<em class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}" title="이 기록의 정확도">🎯${r.acc}%</em>` : '') },   // 그 기록의 정확도
   { k: 'growth', why: () => ex().sum ? `내 하루 최고(하루 합)보다 몇 ${ex().unit} 더 했는지 · 누구나 1등 할 수 있어요` : `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
     val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
-  { k: 'streak', why: () => `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` },
+  { k: 'streak', why: () => period === 'today' ? '오늘까지 하루도 빠짐없이 이 종목을 한 날 수 · 내일도 이어 가요!' : `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` },
   { k: 'acc',    why: () => `바른 자세 비율 · ${PNAME[period]} ${data && data.accMin ? data.accMin + (ex().kind === 'time' ? '초' : ex().unit) : ''} 이상 한 친구`,
     val: (e, v) => `${num(v)}<small>%</small>`, need: () => !!data && data.accuracy != null }   // 자세 판정이 있는 종목만
 ];
@@ -401,6 +401,7 @@ function renderTab(keep = false) {
   document.querySelectorAll('#tabs .t').forEach(b => b.classList.toggle('on', b.dataset.k === t.k));
   $('why').textContent = t.why();
   $('tabs').querySelector('[data-k="best"]').textContent = TABS[0].label();   // 자전거는 '거리 합계'
+  $('tabs').querySelector('[data-k="streak"]').textContent = period === 'today' ? '🔥 연속' : '🔥 꾸준함';   // 오늘은 연속 일수
   const list = (d[t.k] || []).filter(r => r.value > 0);
   $('bands').innerHTML = CONFIG.BANDS.map(b => {
     let rows = list.filter(r => b.grades.includes(+r.grade));
