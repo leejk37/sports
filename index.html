@@ -51,6 +51,14 @@
     font-size:20px;font-weight:800;text-align:center;opacity:0;transform:translateY(-8px);transition:.25s}
   #toast.on{opacity:1;transform:none}
   #toast.warn{background:#d9480f}
+  /* QR이 없을 때: 구글 아이디 직접 입력 */
+  #idForm{display:flex;gap:8px;align-items:center}
+  #idForm .box{flex:1;display:flex;align-items:center;min-width:0;background:#fff;border-radius:12px;padding:0 10px;border:3px solid transparent}
+  #idForm .box:focus-within{border-color:var(--yellow)}
+  #idInput{flex:1;min-width:0;border:0;outline:0;background:none;font:inherit;font-size:18px;font-weight:700;color:#1b2a41;padding:10px 0}
+  #idForm .dom{color:#7a869a;font-size:15px;font-weight:700;white-space:nowrap}
+  #idForm button{font:inherit;font-size:17px;font-weight:800;border:0;border-radius:12px;padding:12px 16px;background:var(--yellow);color:var(--blue-d);cursor:pointer;white-space:nowrap}
+  @media (orientation:landscape) and (max-height:520px){ #idInput{font-size:15px;padding:6px 0} #idForm button{font-size:14px;padding:7px 10px} #idForm .dom{font-size:12px} }
 
   .secTitle{display:flex;align-items:baseline;gap:8px;margin:4px 0 0}
   .secTitle h2{margin:0;font-size:22px;font-weight:800}
@@ -186,6 +194,10 @@
         <div id="toast"></div>
         <div id="camHint">QR 이름표를 노란 칸에 비춰 로그인</div>
       </div>
+      <form id="idForm" autocomplete="off">
+        <label class="box"><input id="idInput" type="text" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="QR이 없으면 구글 아이디"><span class="dom" id="idDom"></span></label>
+        <button type="submit">로그인</button>
+      </form>
       <div class="secTitle">
         <h2>로그인한 학생</h2><span id="cnt">0명</span>
         <button class="hbtn" id="logoutAll">모두 로그아웃</button>
@@ -368,10 +380,10 @@ $('logoutAll').onclick = async () => {
 
 /* ===== QR 로그인 ===== */
 let busy = false;
-async function login(raw) {
+async function login(raw, typed) {
   if (busy) return;
   const id = raw.trim();
-  if (!/^[\w.\-]+(@[\w.\-]+)?$/.test(id)) { toast('이름표 QR이 아니에요', true); return; }
+  if (!/^[\w.\-]+(@[\w.\-]+)?$/.test(id)) { toast(typed ? '구글 아이디를 다시 확인해 주세요' : '이름표 QR이 아니에요', true); return; }
   const email = (id.includes('@') ? id : id + CONFIG.DOMAIN).toLowerCase();
   busy = true; toast('확인 중…');
 
@@ -406,6 +418,15 @@ async function login(raw) {
   beep(1200, 90); toast(info.name + ' 로그인!');
   setTimeout(() => busy = false, 1200);
 }
+
+/* ===== QR이 없을 때: 구글 아이디 입력 (QR과 같은 login으로) ===== */
+$('idDom').textContent = CONFIG.DOMAIN;
+$('idForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('idInput').value.trim(); if (!v) { $('idInput').focus(); return; }
+  login(v, true);
+  $('idInput').value = ''; $('idInput').blur();     // 다음 학생이 바로 쓸 수 있게 비움
+});
 
 let toastTimer;
 function toast(text, warn) {
