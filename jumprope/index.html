@@ -145,6 +145,7 @@
         <div class="count"><span id="goodNum">0</span><small id="goalLabel">회</small></div>
         <div class="rows">
           <div class="row"><span>지금 빠르기</span><span id="paceNum">-</span></div>
+          <div class="row"><span>끊김</span><b id="breakNum">0</b></div>
           <div class="row"><span>줄 없이 뜀 (안 셈)</span><b id="nopeNum">0</b></div>
         </div>
       </section>
@@ -155,6 +156,8 @@
         <div class="rows">
           <div class="row" id="resTimeRow" style="display:none"><span>걸린 시간</span><span id="resTime"></span></div>
           <div class="row"><span>1분에 몇 번 빠르기</span><span id="resPace">0회</span></div>
+          <div class="row"><span>안 끊기고 최고 연속</span><b id="resRun">0회</b></div>
+          <div class="row"><span>끊김 (줄에 걸리거나 멈춤)</span><b id="resBreak">0</b></div>
           <div class="row"><span>줄 없이 뜀 (안 셈)</span><b id="resNope">0</b></div>
         </div>
         <div id="saveState"></div>
@@ -193,7 +196,11 @@ const CONFIG = {
   ROPE_CHECK: true,  // false면 확인 안 함(예전처럼 뛰기만 하면 셈)
   TURN_MIN: 0.08,    // 한 번 뛰는 동안 손목이 몸통 길이의 8% 넘게 움직여야 줄을 돌린 것으로 봄
                      // 현장에서 조정: 주소 뒤에 ?turn=0.06 (느슨하게) / ?turn=0.1 (엄격하게)
-  TURN_WINDOW_MS: 700 // 손목 움직임을 살펴보는 시간(직전 뛰기부터, 최대 이만큼)
+  TURN_WINDOW_MS: 700, // 손목 움직임을 살펴보는 시간(직전 뛰기부터, 최대 이만큼)
+
+  // ---- 끊김 (2026-11-01) ----
+  // 줄넘기는 보통 한 번에 0.3~0.5초. 줄을 돌려 뛴 두 번 사이가 이보다 길면 '끊김 1번'(줄에 걸렸거나 멈춤)
+  GAP_SEC: 1.0       // 현장에서 조정: 주소 뒤에 ?gap=1.5 (느슨하게) 한 번 열면 이 태블릿이 기억, ?gap=0 이면 기본값
 };
 
 /* 주소로 예민도 조정 (선생님용) */
@@ -208,6 +215,20 @@ const CONFIG = {
   let tv = ''; try { tv = localStorage.getItem('ropeTurn') || ''; } catch (e) {}
   if (tv === 'off') CONFIG.ROPE_CHECK = false;
   else if (Number(tv) >= 0.02 && Number(tv) <= 0.4) CONFIG.TURN_MIN = Number(tv);
+  // ?gap=1.5 처럼 끊김 기준(초)도 기억 (?gap=0 이면 기본값)
+  const gq = new URLSearchParams(location.search).get('gap');
+  try { if (gq === '0') localStorage.removeItem('ropeGap'); else if (gq) localStorage.setItem('ropeGap', gq); } catch (e) {}
+  let gv = 0; try { gv = Number(localStorage.getItem('ropeGap')); } catch (e) {}
+  if (gv >= 0.5 && gv <= 5) CONFIG.GAP_SEC = gv;
+}
+/* 끊김: 줄을 돌려 뛴 시각들(ms) → { breaks: 끊긴 횟수, maxRun: 안 끊기고 이어서 뛴 가장 긴 횟수 } */
+function ropeRuns(times) {
+  let breaks = 0, run = 0, maxRun = 0;
+  times.forEach((t, i) => {
+    if (i && t - times[i - 1] > CONFIG.GAP_SEC * 1000) { breaks++; run = 0; }
+    run++; if (run > maxRun) maxRun = run;
+  });
+  return { breaks, maxRun };
 }
 
 /* COUNTER START — 뛴 횟수 세기 (높이 신호의 오르내림을 따라감) */
@@ -538,6 +559,7 @@ function ropeTurned(now) {
 function updateCounts(now) {
   $('goodNum').textContent = counts.good;
   $('nopeNum').textContent = counts.nope;
+  $('breakNum').textContent = ropeRuns(jumpTimes).breaks;
   const recent = jumpTimes.filter(t => now - t <= 5000);
   $('paceNum').textContent = recent.length >= 3 ? Math.round(recent.length / 5 * 60) + '회/분' : '-';
 }
@@ -564,6 +586,9 @@ function finish() {
   $('resGood').textContent = counts.good;
   $('resNope').textContent = counts.nope;
   $('resPace').textContent = pace() + '회';
+  const rr = ropeRuns(jumpTimes);
+  $('resRun').textContent = rr.maxRun + '회';
+  $('resBreak').textContent = rr.breaks;
   save();
 }
 
@@ -577,7 +602,8 @@ async function save() {
   const body = {
     type: CONFIG.TYPE, token: CONFIG.TOKEN, email,
     mode: goalText, duration: target ? elapsedSec() : duration, target,
-    count: counts.good, pace: pace(), clientId
+    count: counts.good, pace: pace(), clientId,
+    breaks: ropeRuns(jumpTimes).breaks, maxRun: ropeRuns(jumpTimes).maxRun, gap: CONFIG.GAP_SEC
   };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.SAVE_TIMEOUT_MS);

@@ -203,7 +203,7 @@ const P = v => (Math.round(v * 10) / 10).toLocaleString();
 
 /* ===== 기본값 (GAS를 못 읽어도 화면이 나오게. 실제 값은 시트 '포인트규칙'·'통과기준' 탭) ===== */
 let R = {
-  rules: { '종목 통과': 1, '스쿼트 20회': 1, '자전거 추가 1km': 0.5, '하루 도장': 10, '완벽 도장': 5, '모둠 도장': 5, '완벽 모둠 도장': 5,
+  rules: { '종목 통과': 1, '스쿼트 20회': 1, '줄넘기 100회': 1, '자전거 추가 1km': 0.5, '하루 도장': 10, '완벽 도장': 5, '모둠 도장': 5, '완벽 모둠 도장': 5,
     '연속 3일': 5, '연속 7일마다': 15, '기록 경신': 2, '기록 경신 하루 최대': 3, '바른 자세': 1, '바른 자세 기준(%)': 80 },
   exercises: [
     ['squat', '스쿼트'], ['lunge', '런지'], ['jumpingjack', '점핑잭'], ['curlup', '윗몸말아올리기'], ['highknee', '하이니'],
@@ -211,13 +211,14 @@ let R = {
     ['hanging', '행잉', 1], ['treadmill', '트레드밀', 1], ['rowing', '로잉머신', 1]
   ].map(([key, name, room]) => ({ key, name, min: 30, weekendOff: !!room, from: '' })),
   bikeKm: 5, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 17, bikeFrom: '2026-11-01',
-  squatPer: 20, accMinCount: 20, accMinSec: 60, badges: [], gifts: [], today: ''
+  squatPer: 20, ropePer: 100, ropeFrom: '2026-11-01', accMinCount: 20, accMinSec: 60, badges: [], gifts: [], today: ''
 };
 
 /* ===== 계산기 상태 ===== */
-const S = { grade: 'hi', day: 'weekday', group: 0, done: new Set(), n: { squat: 0, bike: 0, streak: 1, pb: 0, acc: 0 } };
+const S = { grade: 'hi', day: 'weekday', group: 0, done: new Set(), n: { squat: 0, rope: 0, bike: 0, streak: 1, pb: 0, acc: 0 } };
 const NUMS = [
   { k: 'squat',  t: '🏋️ 스쿼트 정확한 횟수', unit: '회', step: 10, max: 500, help: () => `${R.squatPer}회마다 ${P(R.rules['스쿼트 20회'])}점 (그날 모두 더해서)` },
+  { k: 'rope',   t: '🪢 줄넘기 뛴 횟수',    unit: '회', step: 10, max: 2000, help: () => `${R.ropePer}회마다 ${P(R.rules['줄넘기 100회'])}점 (그날 모두 더해서)` },
   { k: 'bike',   t: '🚴 실내자전거',        unit: 'km', step: 1, max: 60,  help: () => `${bikeKm()}km 이상이면 완벽 도장 · 넘은 1km마다 ${P(R.rules['자전거 추가 1km'])}점` },
   { k: 'streak', t: '🔥 오늘이 연속 며칠째', unit: '일', step: 1, max: 100, help: () => '오늘 도장을 받으면 며칠째인지' },
   { k: 'pb',     t: '📈 내 최고 기록을 넘은 종목', unit: '개', step: 1, max: 13, help: () => `종목마다 ${P(R.rules['기록 경신'])}점 · 하루 ${R.rules['기록 경신 하루 최대']}개까지` },
@@ -274,9 +275,10 @@ function calc() {
   const all = done.length === need.length;
   const bike = S.n.bike, bikeOk = bike >= bikeKm();
   const stamp = all ? (bikeOk || S.day === 'holiday' ? 100 : 90) : 0;
-  // 종목 통과: 통과한 도장 종목(스쿼트 빼고) — 휴일에 한 스포츠실 종목도 셈
-  const pass = R.exercises.filter(ex => exOn(ex) && ex.key !== 'squat' && S.done.has(ex.key)).length;
+  // 종목 통과: 통과한 도장 종목(스쿼트·줄넘기 빼고, 둘은 횟수로) — 휴일에 한 스포츠실 종목도 셈
+  const pass = R.exercises.filter(ex => exOn(ex) && ex.key !== 'squat' && ex.key !== 'jumprope' && S.done.has(ex.key)).length;
   const sqP = Math.floor(S.n.squat / R.squatPer) * r['스쿼트 20회'];
+  const rpP = Math.floor(S.n.rope / R.ropePer) * r['줄넘기 100회'];
   const bkP = Math.floor(Math.max(0, bike - bikeKm()) * r['자전거 추가 1km'] + 1e-9);
   const stP = stamp ? r['하루 도장'] + (stamp === 100 ? r['완벽 도장'] : 0) : 0;
   const g = stamp ? Math.min(S.group, stamp) : 0;            // 내 도장이 없으면 모둠 도장도 없음
@@ -285,15 +287,16 @@ function calc() {
   const skP = stamp ? (st === 3 ? r['연속 3일'] : 0) + (st && st % 7 === 0 ? r['연속 7일마다'] : 0) : 0;
   const pbN = Math.min(S.n.pb, r['기록 경신 하루 최대']), pbP = pbN * r['기록 경신'];
   const acP = S.n.acc * r['바른 자세'];
-  const total = pass * r['종목 통과'] + sqP + bkP + stP + gP + skP + pbP + acP;
+  const total = pass * r['종목 통과'] + sqP + rpP + bkP + stP + gP + skP + pbP + acP;
 
   const left = need.filter(ex => !S.done.has(ex.key)).map(ex => ex.name);
   const why = stamp === 100 ? (S.day === 'holiday' ? '휴일에는 해야 할 종목을 모두 하면 바로 완벽 도장!' : `모든 종목 + 자전거 ${bikeKm()}km로 완벽 도장!`)
     : stamp ? `자전거 ${bikeKm()}km를 더 타면 완벽 도장이에요` : `${left.length}종목 남았어요`;
   const line = (t, em, p) => `<li class="${p ? '' : 'zero'}"><span>${t}${em ? `<em>${em}</em>` : ''}</span><b>${p ? '+' + P(p) : '0'}</b></li>`;
   const lines = [
-    line('종목 통과', `${pass}종목 × ${P(r['종목 통과'])}점 (스쿼트는 아래 횟수로)`, pass * r['종목 통과']),
+    line('종목 통과', `${pass}종목 × ${P(r['종목 통과'])}점 (스쿼트·줄넘기는 아래 횟수로)`, pass * r['종목 통과']),
     line('스쿼트 횟수', `${S.n.squat}회 → ${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, sqP),
+    line('줄넘기 횟수', `${S.n.rope}회 → ${R.ropePer}회마다 ${P(r['줄넘기 100회'])}점`, rpP),
     line('자전거 추가', bike > bikeKm() ? `${bikeKm()}km 넘은 ${P(bike - bikeKm())}km × ${P(r['자전거 추가 1km'])}점 (소수점 버림)` : `${bikeKm()}km 넘게 타면 생겨요`, bkP),
     line(stamp === 100 ? '완벽 도장' : '하루 도장', stamp ? `하루 도장 ${P(r['하루 도장'])}${stamp === 100 ? ` + 완벽 ${P(r['완벽 도장'])}` : ''}점` : '해야 할 종목을 모두 통과하면', stP),
     line('모둠 도장', g ? `모둠 도장 ${P(r['모둠 도장'])}${g === 100 ? ` + 완벽 ${P(r['완벽 모둠 도장'])}` : ''}점` : (S.group && !stamp ? '내 도장이 있어야 모둠 도장도 받아요' : '모둠원 모두 도장을 받으면'), gP),
@@ -352,8 +355,9 @@ function drawGuide() {
   const row = (n, p, h) => `<tr><td class="n">${n}</td><td class="p">${p}</td><td class="h">${h}</td></tr>`;
   $('ptRows').innerHTML =
     grp('운동하기') +
-    row('종목 통과', `${P(r['종목 통과'])}점`, `통과한 종목마다 (하루에 종목당 한 번). 스쿼트는 빼고 아래 횟수로`) +
+    row('종목 통과', `${P(r['종목 통과'])}점`, `통과한 종목마다 (하루에 종목당 한 번). 스쿼트·줄넘기는 빼고 아래 횟수로`) +
     row('스쿼트', `${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, `그날 한 <b>정확한 횟수</b>를 모두 더해서. 예) 20회 × 3세트 = ${P(3 * r['스쿼트 20회'])}점`) +
+    row('줄넘기', `${R.ropePer}회마다 ${P(r['줄넘기 100회'])}점`, `줄넘기 앱으로 그날 뛴 횟수를 모두 더해서. 예) 1분 120회 + 30초 60회 = 180회 → ${P(Math.floor(180 / R.ropePer) * r['줄넘기 100회'])}점 · <b>${String(R.ropeFrom).slice(5).replace('-', '월 ')}일부터</b>`) +
     row('실내자전거 더 타기', `1km마다 ${P(r['자전거 추가 1km'])}점`, `완벽 도장 거리(${R.bikeKm}km, 1·2학년 ${lo}km)를 넘은 만큼, 소수점 버림. 예) 20km = ${P(Math.floor(15 * r['자전거 추가 1km']))}점 · <b>${R.bikeFrom.slice(5).replace('-', '월 ')}일부터</b>`) +
     grp('도장') +
     row('하루 도장', `${P(r['하루 도장'])}점`, '해야 할 종목을 모두 통과') +
@@ -375,7 +379,7 @@ function drawGuide() {
   $('notes').innerHTML = [
     '오늘 운동한 포인트는 <b>밤 1시</b>에 확정돼요. 내일 아침에 \'내 도장\'에서 보면 들어와 있어요',
     '자전거 기록은 선생님이 모아서 넣기 때문에 며칠 늦게 들어올 수 있어요. 밤마다 최근 7일을 다시 계산하니 걱정하지 않아도 돼요',
-    '\'내 도장\'의 <b>오늘 +○점 예정</b>은 지금까지 통과한 종목과 도장 포인트예요. 스쿼트 횟수·자전거·기록 경신·바른 자세 포인트는 밤에 더해져요',
+    '\'내 도장\'의 <b>오늘 +○점 예정</b>은 지금까지 통과한 종목과 도장 포인트예요. 스쿼트·줄넘기 횟수·자전거·기록 경신·바른 자세 포인트는 밤에 더해져요',
     '측정 앱으로 기록해야 통과로 셀 수 있어요. 집에서도 허브에 로그인하고 운동하면 똑같이 쌓여요',
     '선물을 바꾸면 남은 포인트만 줄어요. 모은 포인트와 뱃지는 그대로예요. 🤝 모둠 선물은 모둠원 모두 \'내 몫\'만큼 남은 포인트가 있어야 해요',
     '규칙의 숫자는 선생님이 바꿀 수 있어요. 이 화면은 언제나 지금 규칙을 보여 줘요'

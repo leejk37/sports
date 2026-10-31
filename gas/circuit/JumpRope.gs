@@ -7,7 +7,7 @@
  */
 const ROPE_SHEET_NAME = '줄넘기';
 const ROPE_HEADERS = ['측정일시', '학년', '반', '번호', '이름', '이메일',
-                      '방식', '횟수', '측정시간(초)', '1분 빠르기(회)'];
+                      '방식', '횟수', '측정시간(초)', '1분 빠르기(회)', '끊김', '최장 연속'];   // K·L열 2026-11-01
 
 function saveJumpRope_(d) {
   if (d.token !== SQUAT_CONFIG.TOKEN) return squatJson_({ ok: false, error: '인증 실패' });
@@ -30,7 +30,8 @@ function saveJumpRope_(d) {
     const mode = String(d.mode || '').slice(0, 10);          // 30초 · 1분 · 50회 · 100회
     const sh = ropeGetSheet_(ss);
     sh.appendRow([new Date(), st.grade, st.cls, st.no, st.name, email,
-                  mode, n(d.count, 9999), n(d.duration, 3600), n(d.pace, 999)]);
+                  mode, n(d.count, 9999), n(d.duration, 3600), n(d.pace, 999),
+                  d.breaks == null ? '' : n(d.breaks, 9999), d.maxRun == null ? '' : n(d.maxRun, 9999)]);   // 끊김 기능 전 앱은 빈칸
 
     if (key) cache.put(key, st.name, 21600);
     return squatJson_({ ok: true, name: st.name });
@@ -48,6 +49,8 @@ function ropeGetSheet_(ss) {
     sh.appendRow(ROPE_HEADERS);
     sh.setFrozenRows(1);
     sh.getRange(1, 1, 1, ROPE_HEADERS.length).setFontWeight('bold');
+  } else if (!String(sh.getRange(1, 11).getValue()).trim()) {
+    sh.getRange(1, 11, 1, 2).setValues([['끊김', '최장 연속']]).setFontWeight('bold');   // 예전 탭에 K·L 제목만 더함
   }
   return sh;
 }

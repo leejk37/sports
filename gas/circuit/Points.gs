@@ -26,6 +26,8 @@ const POINT = {
   ACC_MIN_COUNT: 20,           // 바른 자세 포인트: 그날 그 종목을 이만큼 이상 했을 때만 (횟수 종목)
   ACC_MIN_SEC: 60,             //   플랭크는 전체 시간(초)
   BIKE_FROM: '2026-11-01',     // '자전거 추가 1km' 포인트를 주기 시작하는 날
+  ROPE_FROM: '2026-11-01',     // 줄넘기: 이날부터 '종목 통과' 대신 '줄넘기 100회' (그 전 날은 통과 1P 그대로)
+  ROPE_PER: 100,               // 줄넘기: 그날 줄넘기 앱('줄넘기' 탭 H열) 횟수 합 이만큼마다 '줄넘기 100회' 포인트
   SQUAT_PER: 20,               // 스쿼트: 그날 정확한 횟수(H열) 합 이만큼마다 '스쿼트 20회' 포인트. 스쿼트는 '종목 통과' 포인트 없음 (2026-10-29)
   CACHE_SEC: 600               // 화면용 합계 캐시 (선물 교환은 10분 안에 화면에 반영)
 };
@@ -33,6 +35,7 @@ const POINT = {
 const POINT_RULES = [
   ['종목 통과', 1, '통과기준 이상 한 종목마다 (하루 종목당 한 번, 스쿼트는 빼고 아래 20회 규칙으로)'],
   ['스쿼트 20회', 1, '스쿼트 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
+  ['줄넘기 100회', 1, '줄넘기 앱으로 뛴 횟수를 하루 합해 100회마다 (예: 1분 120회 + 30초 60회 = 1점, 종목P에 더함, 11월 1일부터)'],
   ['자전거 추가 1km', 0.5, '실내자전거 그날 통과 거리(5km, 1·2학년 1km)를 넘은 1km마다, 소수점 버림, 11월 1일부터 (예: 20km = 7점, 종목P에 더함, 도장과 관계없이)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
   ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
@@ -72,7 +75,7 @@ const POINT_HEAD = ['날짜', '학년', '반', '번호', '이름', '이메일', 
 
 /* ===== 규칙 읽기 ===== */
 function pointRules_(ss) {
-  const c = CacheService.getScriptCache(), hit = c.get('prule2');
+  const c = CacheService.getScriptCache(), hit = c.get('prule3');
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   const out = {}; POINT_RULES.forEach(r => out[r[0]] = r[1]);
   let sh = ss.getSheetByName(POINT.RULES);
@@ -91,7 +94,7 @@ function pointRules_(ss) {
     });
     POINT_RULES.filter(r => !seen.has(r[0])).forEach(r => { try { sh.appendRow(r); } catch (e) {} });   // 새로 생긴 규칙은 탭 아래에 추가
   }
-  try { c.put('prule2', JSON.stringify(out), 60); } catch (e) {}
+  try { c.put('prule3', JSON.stringify(out), 60); } catch (e) {}
   return out;
 }
 
@@ -111,6 +114,7 @@ function pointCompute_(ss, from, to) {
   const val = {};           // id|종목|조건 → 날짜 → 그날 최고 기록
   const acc = {};           // id → 날짜 → 종목 → { g, t }
   const sq = {};            // id → 날짜 → 스쿼트 정확한 횟수 합
+  const rp = {};            // id → 날짜 → 줄넘기 앱 횟수 합
   DASH_EX.forEach(ex => {
     const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
     const n = sh.getLastRow() - 1; if (n < 1) return;
@@ -125,6 +129,7 @@ function pointCompute_(ss, from, to) {
         const k = id + '|' + ex.key + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]), v = num(r[ex.value]);
         if (v > 0) { const m = val[k] = val[k] || {}; m[d] = Math.max(m[d] || 0, v); }
       }
+      if (ex.key === 'jumprope') { const q = rp[id] = rp[id] || {}; q[d] = (q[d] || 0) + num(r[7]); }
       if (ex.key === 'squat') {
         const q = sq[id] = sq[id] || {}; q[d] = (q[d] || 0) + num(r[7]);
       }
@@ -169,7 +174,7 @@ function pointCompute_(ss, from, to) {
       if (!(best[st.id] && best[st.id][d]) && !(ctx.bike[st.id] && ctx.bike[st.id][d])) { s[d] = 0; p[d] = 0; return; }
       s[d] = stampJudge_(ctx, st.id, d).stamp;
       const b = (best[st.id] || {})[d] || {};
-      p[d] = STAMP_EX.filter(ex => ex.key !== 'squat' && stampExOn_(ex, d) && (b[ex.key] || 0) >= ctx.crit[ex.key].min).length;
+      p[d] = STAMP_EX.filter(ex => ex.key !== 'squat' && !(ex.key === 'jumprope' && d >= POINT.ROPE_FROM) && stampExOn_(ex, d) && (b[ex.key] || 0) >= ctx.crit[ex.key].min).length;
     });
   });
   const groupOf = {};       // gkey → 날짜 → 0/90/100
@@ -199,9 +204,10 @@ function pointCompute_(ss, from, to) {
         if (x.t >= (x.sec ? POINT.ACC_MIN_SEC : POINT.ACC_MIN_COUNT) && x.g / x.t * 100 >= accPct) accList.push(exName[k]);
       });
       const sqN = (sq[st.id] || {})[d] || 0, sqP = Math.floor(sqN / POINT.SQUAT_PER) * R['스쿼트 20회'];
+      const rpN = (rp[st.id] || {})[d] || 0, rpP = d < POINT.ROPE_FROM ? 0 : Math.floor(rpN / POINT.ROPE_PER) * R['줄넘기 100회'];
       const km = (ctx.bike[st.id] || {})[d] || 0;
       const bkP = d < POINT.BIKE_FROM ? 0 : Math.floor(Math.max(0, km - stampBikeKm_(st.grade)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
-      const pEx = pass * R['종목 통과'] + sqP + bkP;
+      const pEx = pass * R['종목 통과'] + sqP + rpP + bkP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const pG = g ? R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0) : 0;
       const pSk = s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 7 === 0 ? R['연속 7일마다'] : 0) : 0;
@@ -209,7 +215,7 @@ function pointCompute_(ss, from, to) {
       const pAc = accList.length * R['바른 자세'];
       const total = pEx + pSt + pG + pSk + pPb + pAc;
       if (!total) return;
-      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
+      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', rpP ? `줄넘기 ${rpN}회 ${rpP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
         pSk ? `연속 ${streak}일` : '', pbList.length ? '경신: ' + pbList.join(', ') : '', accList.length ? '자세: ' + accList.join(', ') : '']
         .filter(Boolean).join(' · ');
       rows.push([d, st.grade, st.cls, st.no, st.name, st.id + SQUAT_CONFIG.DOMAIN, pEx, pSt, pG, pSk, pPb, pAc, total,
@@ -278,7 +284,7 @@ function pointsNightly() {
 /** 처음 한 번, 또는 규칙 숫자를 고친 뒤: 시작일(POINT.FROM)부터 어제까지 모두 다시 계산 (편집기에서 실행) */
 function rebuildPoints() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
-  CacheService.getScriptCache().remove('prule2');
+  CacheService.getScriptCache().remove('prule3');
   const yest = stampFmt_(new Date(Date.now() - 864e5), 'yyyy-MM-dd');
   const sh = pointLedger_(ss);
   if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);   // 시작일 전 줄까지 모두 지우고 새로
@@ -417,7 +423,7 @@ function pointRulesInfo_() {
     rules: pointRules_(ss),
     exercises: STAMP_EX.map(ex => ({ key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' })),
     bikeKm: STAMP.BIKE_KM, bikeKmByGrade: STAMP.BIKE_KM_BY_GRADE, bikeFromHour: STAMP.BIKE_FROM_HOUR,
-    bikeFrom: POINT.BIKE_FROM, squatPer: POINT.SQUAT_PER, accMinCount: POINT.ACC_MIN_COUNT, accMinSec: POINT.ACC_MIN_SEC,
+    bikeFrom: POINT.BIKE_FROM, squatPer: POINT.SQUAT_PER, ropePer: POINT.ROPE_PER, ropeFrom: POINT.ROPE_FROM, accMinCount: POINT.ACC_MIN_COUNT, accMinSec: POINT.ACC_MIN_SEC,
     badges: POINT_BADGES.map(b => ({ icon: b.icon, name: b.name, what: b.what, n: b.n })),
     gifts: pointGifts_(ss).map(g => ({ name: g.name, cost: g.cost, group: g.group }))
   };
@@ -436,7 +442,7 @@ function pointsForStamp_(ss, st, sum) {
   const t = sum.todayStatus;
   let today = 0;
   if (!x || x.last < sum.today) {
-    today += t.items.filter(i => i.ok && i.key !== 'squat').length * R['종목 통과'];   // 스쿼트는 20회 규칙(밤에 계산)
+    today += t.items.filter(i => i.ok && i.key !== 'squat' && !(i.key === 'jumprope' && sum.today >= POINT.ROPE_FROM)).length * R['종목 통과'];   // 스쿼트·줄넘기는 횟수 규칙(밤에 계산)
     if (t.stamp) today += R['하루 도장'] + (t.stamp === 100 ? R['완벽 도장'] : 0);
     const g = sum.group && sum.group.days[sum.today] ? sum.group.days[sum.today].stamp : 0;
     if (g) today += R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0);
