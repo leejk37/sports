@@ -278,16 +278,17 @@ function render() {
     const y = c.scales.y, x = c.ctx; x.save(); x.fillStyle = 'rgba(255,255,255,.75)'; x.font = '700 13px Pretendard, system-ui, sans-serif';
     x.textAlign = 'right'; x.textBaseline = 'bottom'; x.fillText(u, y.right - 6, c.chartArea.top - 6); x.restore(); } });
   const pad = { padding: { top: 6 } };
+  // 정확도 그래프: 세로축을 108까지 두어 100% 위에 여유(눈금은 100까지), 곡선은 monotone으로 100% 위·0% 아래로 넘치지 않게
   const ma = R.map((_, i) => { const s = R.slice(Math.max(0, i - 4), i + 1); return Math.round(s.reduce((a, r) => a + r.acc, 0) / s.length); });
   const ds = [
-    { label: T ? '유지율' : '정확도', data: R.map(r => r.acc), borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', pointRadius: R.length > 40 ? 2 : 4, tension: .25 },
-    { label: '최근 5번 평균', data: ma, borderColor: '#9ff0b0', borderDash: [6, 4], pointRadius: 0, tension: .3 }
+    { label: T ? '유지율' : '정확도', data: R.map(r => r.acc), borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', pointRadius: R.length > 40 ? 2 : 4, tension: .25, cubicInterpolationMode: 'monotone', clip: false },
+    { label: '최근 5번 평균', data: ma, borderColor: '#9ff0b0', borderDash: [6, 4], pointRadius: 0, tension: .3, cubicInterpolationMode: 'monotone' }
   ];
   if (cm != null) ds.push({ label: '반 중앙값', data: R.map(() => cm), borderColor: 'rgba(245,197,24,.8)', borderWidth: 1.5, pointRadius: 0 });
   charts.push(new Chart($('c1'), {
     type: 'line', data: { labels, datasets: ds }, plugins: [unitTop('(%)')],
     options: { maintainAspectRatio: false, layout: pad, interaction: { mode: 'index', intersect: false },
-      scales: { y: { min: 0, max: 100, ticks: { callback: v => v }, grid, border }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+      scales: { y: { min: 0, max: 108, ticks: { stepSize: 10, includeBounds: false, callback: v => v }, grid, border }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
       plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle, label: c => `${c.dataset.label} ${c.parsed.y}%` } } } }
   }));
   const colors = ['#ff9d8a', '#f5c518', '#c9a2ff'];
