@@ -273,6 +273,11 @@ function render() {
   const tipTitle = items => { const r = R[items[0].dataIndex]; return r ? mdw(r.at) + ' ' + r.at.slice(11) : ''; };   // 말풍선에는 시각까지
   const grid = { color: 'rgba(255,255,255,.13)' };                       // 눈금선 (가로·세로 모두)
   const border = { display: true, color: 'rgba(255,255,255,.6)', width: 1.5 };   // 가로축·세로축 선
+  // 세로축 단위는 맨 위에 한 번만 '(%)', 눈금은 숫자만 (꺾은선그래프 기본 모양)
+  const unitTop = u => ({ id: 'unitTop', afterDraw(c) {
+    const y = c.scales.y, x = c.ctx; x.save(); x.fillStyle = 'rgba(255,255,255,.75)'; x.font = '700 13px Pretendard, system-ui, sans-serif';
+    x.textAlign = 'right'; x.textBaseline = 'bottom'; x.fillText(u, y.right - 6, c.chartArea.top - 6); x.restore(); } });
+  const pad = { padding: { top: 6 } };
   const ma = R.map((_, i) => { const s = R.slice(Math.max(0, i - 4), i + 1); return Math.round(s.reduce((a, r) => a + r.acc, 0) / s.length); });
   const ds = [
     { label: T ? '유지율' : '정확도', data: R.map(r => r.acc), borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', pointRadius: R.length > 40 ? 2 : 4, tension: .25 },
@@ -280,9 +285,9 @@ function render() {
   ];
   if (cm != null) ds.push({ label: '반 중앙값', data: R.map(() => cm), borderColor: 'rgba(245,197,24,.8)', borderWidth: 1.5, pointRadius: 0 });
   charts.push(new Chart($('c1'), {
-    type: 'line', data: { labels, datasets: ds },
-    options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid, border }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+    type: 'line', data: { labels, datasets: ds }, plugins: [unitTop('(%)')],
+    options: { maintainAspectRatio: false, layout: pad, interaction: { mode: 'index', intersect: false },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v }, grid, border }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
       plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle, label: c => `${c.dataset.label} ${c.parsed.y}%` } } } }
   }));
   const colors = ['#ff9d8a', '#f5c518', '#c9a2ff'];
@@ -292,9 +297,9 @@ function render() {
     : [{ label: '정확한 동작', data: R.map(r => r.good), backgroundColor: '#9ff0b0', stack: 's' }]
         .concat(d.badNames.map((n, i) => ({ label: n, data: R.map(r => r.bad[i] || 0), backgroundColor: colors[i], stack: 's' })));
   charts.push(new Chart($('c2'), {
-    type: 'bar', data: { labels, datasets: ds2 },
-    options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      scales: { y: { stacked: true, grid, border, ticks: { callback: v => v + (T ? '초' : '') } }, x: { stacked: true, grid: { ...grid, offset: true }, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+    type: 'bar', data: { labels, datasets: ds2 }, plugins: [unitTop(T ? '(초)' : '(' + d.unit + ')')],
+    options: { maintainAspectRatio: false, layout: pad, interaction: { mode: 'index', intersect: false },
+      scales: { y: { stacked: true, grid, border, ticks: { callback: v => v } }, x: { stacked: true, grid: { ...grid, offset: true }, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
       plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle } } } }
   }));
 }
