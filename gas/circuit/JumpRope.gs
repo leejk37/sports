@@ -27,14 +27,24 @@ function saveJumpRope_(d) {
     const st = lookupStudent_(ss, email);
     if (!st.name) return squatJson_({ ok: false, error: '명단에 없는 학생: ' + email });
 
-    const mode = String(d.mode || '').slice(0, 10);          // 30초 · 1분 · 50회 · 100회
+    const mode = String(d.mode || '').slice(0, 10);          // 30초 · 1분 · 50회 · 100회 · 최대한 많이
     const sh = ropeGetSheet_(ss);
+    // 어제의 나와 비교(2026-11-01): 저장 전 같은 방식 내 최고 횟수(H)와 내 최장 연속(L)
+    let prevBest = null, prevRun = null;
+    if (sh.getLastRow() > 1) {
+      const id = email.split('@')[0];
+      sh.getRange(2, 1, sh.getLastRow() - 1, 12).getValues().forEach(r => {
+        if (String(r[5] || '').trim().toLowerCase().split('@')[0] !== id) return;
+        if (String(r[6]).trim() === mode) { const c = Number(r[7]) || 0; if (prevBest == null || c > prevBest) prevBest = c; }
+        if (r[11] !== '' && r[11] != null) { const m = Number(r[11]) || 0; if (prevRun == null || m > prevRun) prevRun = m; }
+      });
+    }
     sh.appendRow([new Date(), st.grade, st.cls, st.no, st.name, email,
                   mode, n(d.count, 9999), n(d.duration, 3600), n(d.pace, 999),
                   d.breaks == null ? '' : n(d.breaks, 9999), d.maxRun == null ? '' : n(d.maxRun, 9999)]);   // 끊김 기능 전 앱은 빈칸
 
     if (key) cache.put(key, st.name, 21600);
-    return squatJson_({ ok: true, name: st.name });
+    return squatJson_({ ok: true, name: st.name, prevBest, prevRun });
   } catch (err) {
     return squatJson_({ ok: false, error: String(err.message || err) });
   } finally {

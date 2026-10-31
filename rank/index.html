@@ -155,6 +155,7 @@
         <button class="t" data-k="growth">📈 성장</button>
         <button class="t" data-k="streak">🔥 꾸준함</button>
         <button class="t" data-k="acc" hidden>🎯 정확도</button>
+        <button class="t" data-k="run" hidden>🔗 최장 연속</button>
         <span class="why" id="why"></span>
       </div>
       <div id="tabBar"><i></i></div>
@@ -207,7 +208,8 @@ const EX = [
   { id: 'pushup',      name: '팔굽혀펴기',     kind: 'count', unit: '회', goal: 5000,   tag: '카메라 · 자세 인식' },
   { id: 'plank',       name: '플랭크',         kind: 'time',  unit: '초', goal: 36000,  tag: '카메라 · 바른 자세로 버틴 시간' },
   { id: 'hanging',     name: '행잉',           kind: 'time',  unit: '초', goal: 18000,  tag: '타이머 · 버틴 시간' },
-  { id: 'rope',        name: '줄넘기',         kind: 'count', unit: '회', goal: 100000, tag: '카메라 · 줄 돌림 확인' },
+  { id: 'rope',        name: '줄넘기',         kind: 'count', unit: '회', goal: 100000, tag: '카메라 · 줄 돌림 확인',
+    tabs: ['growth', 'streak', 'run', 'best'] },   // 학교체육 순위표(2026-11-01): 어제의 나(성장)·꾸준함·끊김 없이를 앞에, 최고 기록('최대한 많이')은 뒤에
   { id: 'treadmill',   name: '트레드밀',       kind: 'dist',  unit: 'km', goal: 300,    tag: '타이머 · 거리 기록' },
   { id: 'rowing',      name: '로잉머신',       kind: 'dist',  unit: 'km', goal: 200,    tag: '입력 · 거리 기록' },
   { id: 'bike',        name: '실내자전거',     kind: 'dist',  unit: 'km', goal: 100,    tag: '라이딩 기록' }
@@ -335,17 +337,22 @@ function demoData(e) {
 /* ===== 그리기 ===== */
 let data = null, tab = 0, tabTimer = null;
 const TABS = [
-  { k: 'best',   why: () => ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : ex().sum ? `${PNAME[period]} 한 횟수를 모두 더해 가장 많이 한 친구` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
-    label: () => ex().id === 'bike' ? '🏆 거리 합계' : ex().sum ? '🏆 가장 많이' : '🏆 최고 기록',
+  { k: 'best',   why: () => ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : ex().sum ? `${PNAME[period]} 한 횟수를 모두 더해 가장 많이 한 친구` : data && data.bestCond ? `${PNAME[period]} '${data.bestCond}'로 한 번에 가장 많이 뛴 기록` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
+    label: () => ex().id === 'bike' ? '🏆 거리 합계' : ex().sum ? '🏆 가장 많이' : data && data.bestCond ? '🏆 ' + data.bestCond : '🏆 최고 기록',
     val: (e, v, r) => show(e, v) + (r && r.acc != null ? `<em class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}" title="이 기록의 정확도">🎯${r.acc}%</em>` : '') },   // 그 기록의 정확도
   { k: 'growth', why: () => ex().sum ? `내 하루 최고(하루 합)보다 몇 ${ex().unit} 더 했는지 · 누구나 1등 할 수 있어요` : `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
     val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
+  { k: 'run', why: () => `${PNAME[period]} 한 번도 줄에 안 걸리고 이어서 뛴 가장 긴 횟수 · 빠르기보다 끊김 없이!`,
+    val: (e, v) => `${num(v)}<small>회</small>`, need: () => !!data && Array.isArray(data.run) },
   { k: 'streak', why: () => period === 'today' ? '오늘까지 하루도 빠짐없이 이 종목을 한 날 수 · 내일도 이어 가요!' : `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` },
   { k: 'acc',    why: () => `바른 자세 비율 · ${PNAME[period]} ${data && data.accMin ? data.accMin + (ex().kind === 'time' ? '초' : ex().unit) : ''} 이상 한 친구`,
     val: (e, v) => `${num(v)}<small>%</small>`, need: () => !!data && data.accuracy != null }   // 자세 판정이 있는 종목만
 ];
 /* 지금 보여 줄 순위 (정확도는 자세 판정이 있는 종목만) */
-const tabsNow = () => TABS.filter(t => !t.need || t.need());
+const tabsNow = () => {
+  const T = TABS.filter(t => !t.need || t.need()), order = ex().tabs;
+  return order ? order.map(k => T.find(t => t.k === k)).filter(Boolean) : T;   // 종목마다 탭 순서(없으면 기본)
+};
 
 function renderHead() {
   const e = ex();
@@ -397,10 +404,12 @@ function renderTab(keep = false) {
   const d = data; if (!d) return;
   const T = tabsNow(); if (tab >= T.length) tab = 0;
   const e = ex(), t = T[tab];
-  $('tabs').querySelector('[data-k="acc"]').hidden = !T.some(x => x.k === 'acc');
+  // 탭 단추: 이 종목에서 쓰는 것만, 그 순서대로
+  document.querySelectorAll('#tabs .t').forEach(b => b.hidden = !T.some(x => x.k === b.dataset.k));
+  T.forEach(x => $('tabs').insertBefore($('tabs').querySelector(`[data-k="${x.k}"]`), $('why')));
   document.querySelectorAll('#tabs .t').forEach(b => b.classList.toggle('on', b.dataset.k === t.k));
   $('why').textContent = t.why();
-  $('tabs').querySelector('[data-k="best"]').textContent = TABS[0].label();   // 자전거는 '거리 합계'
+  $('tabs').querySelector('[data-k="best"]').textContent = TABS.find(x => x.k === 'best').label();   // 자전거는 '거리 합계'
   $('tabs').querySelector('[data-k="streak"]').textContent = period === 'today' ? '🔥 연속' : '🔥 꾸준함';   // 오늘은 연속 일수
   const list = (d[t.k] || []).filter(r => r.value > 0);
   $('bands').innerHTML = CONFIG.BANDS.map(b => {

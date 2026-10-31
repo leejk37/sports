@@ -75,6 +75,10 @@
   .screen p.pickLabel{font-size:16px;margin:4px 0 -6px}
   #saveState{font-size:17px;font-weight:700;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.12)}
   #saveState:empty{display:none}
+  #myBest{font-size:18px;font-weight:800;line-height:1.5;padding:12px 14px;border-radius:12px;background:rgba(245,197,24,.18);color:#fff}
+  #myBest:empty{display:none}
+  #myBest b{color:var(--yellow)}
+  #myBest .pb{font-size:22px}
   #saveState.ok{color:var(--good)}
   #saveState.fail{color:var(--warn)}
   @media (max-width:820px){#main{flex-direction:column}#stage{border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto}}
@@ -163,6 +167,7 @@
           <div class="row"><span>끊김 (줄에 걸리거나 멈춤)</span><b id="resBreak">0</b></div>
           <div class="row"><span>줄 없이 뜀 (안 셈)</span><b id="resNope">0</b></div>
         </div>
+        <div id="myBest"></div>
         <div id="saveState"></div>
         <button class="btn line" id="retrySave" hidden>다시 저장</button>
         <button class="btn" id="again">한 번 더 측정</button>
@@ -523,6 +528,7 @@ function startCountdown() {
 }
 function startMeasure() {
   counter.reset(); jumpTimes = []; gaugeLow = null; wristBuf = []; lastTurn = null; counts.nope = 0;
+  $('myBest').innerHTML = '';
   endAt = performance.now() + duration * 1000;
   runStart = performance.now();
   $('goalLabel').textContent = target ? '/ ' + target + '회' : '회';
@@ -609,6 +615,17 @@ function finish() {
 }
 
 /* ===== 저장 ===== */
+/* 어제의 나와 비교: 저장 응답의 prevBest(같은 방식 내 최고)·prevRun(내 최장 연속) */
+function showMyBest(d) {
+  const el = $('myBest'), n = counts.good, run = ropeRuns(jumpTimes).maxRun, lines = [];
+  if (d.prevBest == null) lines.push(`🌱 첫 '${goalText}' 기록이에요! 다음엔 <b>${n + 1}회</b>에 도전!`);
+  else if (n > d.prevBest) lines.push(`<span class="pb">🎉 내 최고 기록 경신!</span><br>${d.prevBest}회 → <b>${n}회 (+${n - d.prevBest})</b>`);
+  else if (n === d.prevBest) lines.push(`👏 내 최고 기록 <b>${n}회</b>와 똑같아요!`);
+  else lines.push(`내 최고 <b>${d.prevBest}회</b>까지 <b>${d.prevBest - n + 1}회</b> 더 하면 경신!`);
+  if (d.prevRun != null && run > d.prevRun) lines.push(`🔗 안 끊기고 최고 연속 경신! ${d.prevRun}회 → <b>${run}회</b>`);
+  else if (d.prevRun != null && d.prevRun > 0) lines.push(`🔗 최고 연속 기록은 <b>${d.prevRun}회</b>`);
+  el.innerHTML = lines.join('<br>');
+}
 function setSave(text, cls) {
   const el = $('saveState'); el.textContent = text; el.className = cls || '';
   $('retrySave').hidden = cls !== 'fail';
@@ -638,6 +655,7 @@ async function save() {
     catch { throw new Error('<!DOCTYPE 응답: ' + text.slice(0, 40)); }
     if (data.ok !== true) throw Object.assign(new Error(data.error || '서버에서 저장을 거부했어요'), { server: true });
     setSave((data.name ? data.name + ' 학생 ' : '') + '저장 완료', 'ok');
+    if ('prevBest' in data) showMyBest(data);
   } catch (e) {
     console.error(e);
     // 전송은 됐지만 결과만 못 읽은 경우(리다이렉트 단계 실패)
