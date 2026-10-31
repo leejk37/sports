@@ -126,7 +126,7 @@
           <button class="btn" data-reps="100">100회</button>
         </div>
         <p class="pickLabel">멈출 때까지 몇 번?</p>
-        <button class="btn" id="freeMode">끝까지 뛰기</button>
+        <button class="btn" id="freeMode">최대한 많이</button>
         <button class="btn line" id="rescan">다른 학생 스캔</button>
       </section>
 
@@ -203,7 +203,7 @@ const CONFIG = {
 
   // ---- 끊김 (2026-11-01) ----
   // 줄넘기는 보통 한 번에 0.3~0.5초. 줄을 돌려 뛴 두 번 사이가 이보다 길면 '끊김 1번'(줄에 걸렸거나 멈춤)
-  END_IDLE_SEC: 3,   // '끝까지 뛰기': 줄을 돌려 뛴 지 이만큼 지나면 끝 (처음 뛰기 전에는 START_WAIT_SEC까지 기다림)
+  END_IDLE_SEC: 3,   // '최대한 많이': 줄을 돌려 뛴 지 이만큼 지나면 끝 (처음 뛰기 전에는 START_WAIT_SEC까지 기다림)
   START_WAIT_SEC: 10,
   GAP_SEC: 1.0       // 현장에서 조정: 주소 뒤에 ?gap=1.5 (느슨하게) 한 번 열면 이 태블릿이 기억, ?gap=0 이면 기본값
 };
@@ -501,10 +501,10 @@ function scanQr() {
 /* ===== 측정 흐름 ===== */
 let goalText = '', free = false;
 function toReady(sec, reps = 0, isFree = false) {
-  free = isFree;                 // '끝까지 뛰기': 멈출 때까지 세고 걸린 시간을 보여 줌 (행잉·플랭크 '최대한 오래'처럼)
+  free = isFree;                 // '최대한 많이': 멈출 때까지 세고 걸린 시간을 보여 줌 (행잉·플랭크 '최대한 오래'처럼)
   target = reps;                 // 0이면 시간 모드, 숫자면 횟수 모드
   duration = reps || free ? CONFIG.MAX_SEC : sec;
-  goalText = free ? '끝까지' : reps ? reps + '회' : (sec >= 60 ? sec / 60 + '분' : sec + '초');
+  goalText = free ? '최대한 많이' : reps ? reps + '회' : (sec >= 60 ? sec / 60 + '분' : sec + '초');
   $('elapsedRow').style.display = free ? 'flex' : 'none';
   counts = { good: 0, nope: 0 };
   sH = null; readySince = null;
@@ -574,7 +574,7 @@ function updateCounts(now) {
 /* 시간 모드: 막대가 줄어듦 / 횟수 모드: 막대가 차오르고 목표에 닿으면 끝 */
 function tickGoal(now) {
   const left = Math.max(0, endAt - now);
-  if (free) {                                       // 끝까지 뛰기: 멈추면(END_IDLE_SEC) 끝
+  if (free) {                                       // 최대한 많이: 멈추면(END_IDLE_SEC) 끝
     const last = jumpTimes.at(-1);
     $('elapsedNum').textContent = Math.round(((last ?? now) - runStart) / 1000) + '초';
     const idle = last == null ? now - runStart > CONFIG.START_WAIT_SEC * 1000 : now - last > CONFIG.END_IDLE_SEC * 1000;
@@ -591,7 +591,7 @@ function tickGoal(now) {
   if (left <= 0) { finish(); return true; }
   return false;
 }
-const elapsedSec = () => Math.max(1, Math.round(((free ? (jumpTimes.at(-1) ?? runEnd) : runEnd) - runStart) / 1000));   // 끝까지 뛰기: 마지막으로 뛴 때까지
+const elapsedSec = () => Math.max(1, Math.round(((free ? (jumpTimes.at(-1) ?? runEnd) : runEnd) - runStart) / 1000));   // 최대한 많이: 마지막으로 뛴 때까지
 const pace = () => Math.round(counts.good / (target || free ? elapsedSec() : duration) * 60);
 function finish() {
   runEnd = performance.now();
