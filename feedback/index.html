@@ -57,6 +57,12 @@
   th{font-size:14px;color:var(--dim);font-weight:800}
   th:first-child,td:first-child{text-align:left}
   td.acc{font-weight:900}
+  tr.sat td:first-child{color:#8fd3ff} tr.sun td:first-child{color:#ff9d8a}
+  tr.sat,tr.sun{background:rgba(255,255,255,.04)}
+  .wk{display:flex;gap:8px;flex-wrap:wrap;margin:-2px 0 10px}
+  .wk span{font-size:15px;font-weight:800;padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.08)}
+  .wk span.warn{background:rgba(255,157,138,.18);color:var(--red)}
+  .wk span.ok{background:rgba(159,240,176,.15);color:var(--green)}
   td.acc.hi{color:var(--green)} td.acc.lo{color:var(--red)}
   .tbl{overflow-x:auto}
   .empty{padding:50px 20px;text-align:center;font-size:21px;font-weight:800;line-height:1.7}
@@ -210,12 +216,13 @@ async function start() {
 
 /* ===== 그리기 ===== */
 const md = s => { const [d, t] = s.split(' '); const [, m, dd] = d.split('-'); return `${+m}/${+dd} ${t}`; };
+const wcls = s => { const w = new Date(s.slice(0, 10) + 'T12:00:00').getDay(); return w === 6 ? 'sat' : w === 0 ? 'sun' : ''; };
 const mdw = s => { const d = s.slice(0, 10), [, m, dd] = d.split('-'); return `${+m}/${+dd}(${'일월화수목금토'[new Date(d + 'T12:00:00').getDay()]})`; };   // 그래프 가로축: 10/14(화)
 const pct = (g, t) => t > 0 ? Math.round(g / t * 100) : null;
 function render() {
   charts.forEach(c => c.destroy()); charts = [];
   const d = data; if (!d) return;
-  const cut = per === 'all' ? '' : new Date(Date.now() - (Number(per) - 1) * 864e5).toISOString().slice(0, 10);
+  const cut = per === 'all' ? '' : new Date(Date.now() - new Date().getTimezoneOffset() * 6e4 - (Number(per) - 1) * 864e5).toISOString().slice(0, 10);
   const R = d.recs.filter(r => !cut || r.at.slice(0, 10) >= cut);
   const who = STUDENT ? '' : `${esc(d.student.name)} · `;
   if (!R.length) {
@@ -248,6 +255,15 @@ function render() {
     : accAll >= 70 ? `조금만 더! 「${esc(order[0].n)}」만 고치면 90%를 넘을 수 있어요.`
     : `천천히, 정확하게가 먼저예요. 「${esc(order[0].n)}」부터 고쳐 봐요.`;
 
+  // 주말 운동: 기간(전체면 첫 기록부터) 안의 토·일 중 이 종목을 한 날
+  const dayList = new Set(R.map(r => r.at.slice(0, 10)));
+  const from = cut || R[0].at.slice(0, 10), now = new Date(), today = new Date(now.getTime() - now.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);   // 이 기기의 오늘(한국 시간)
+  let wkAll = 0, wkDone = 0, wdAll = 0, wdDone = 0;
+  for (let t = new Date(from + 'T12:00:00'); t.toISOString().slice(0, 10) <= today; t = new Date(t.getTime() + 864e5)) {
+    const k = t.toISOString().slice(0, 10), w = t.getDay();
+    if (w === 0 || w === 6) { wkAll++; if (dayList.has(k)) wkDone++; } else { wdAll++; if (dayList.has(k)) wdDone++; }
+  }
+  const wkHtml = `<div class="wk"><span>평일 ${wdAll}일 중 ${wdDone}일</span><span class="${wkAll && !wkDone ? 'warn' : wkDone ? 'ok' : ''}">주말 ${wkAll}일 중 ${wkDone}일${wkAll && !wkDone ? ' · 주말에도 해 봐요!' : ''}</span></div>`;
   $('app').innerHTML = `
     <div class="sum">
       <div><b>${accAll ?? '-'}<small>%</small></b><span>${T ? '평균 유지율' : '평균 정확도'}</span>${cm != null ? `<em class="${accAll >= cm ? 'up' : 'down'}">반 중앙값 ${cm}%</em>` : ''}</div>
@@ -261,9 +277,9 @@ function render() {
       <div class="card"><h2>🩺 자세 처방</h2><p style="margin:0 0 10px;font-size:16px;line-height:1.5">${msg}</p><div class="rx">${rx}</div></div>
     </div>
     <div class="card"><h2>📊 ${T ? '버틴 시간' : '정확한 동작과 오류'} <small>측정할 때마다</small></h2><div class="chart"><canvas id="c2"></canvas></div></div>
-    <div class="card"><h2>📋 기록 <small>최근 순</small></h2><div class="tbl"><table>
+    <div class="card"><h2>📋 기록 <small>최근 순 · 토요일 파랑, 일요일 빨강</small></h2>${wkHtml}<div class="tbl"><table>
       <thead><tr><th>날짜</th>${d.hasMode ? '<th>방식</th>' : ''}<th>${T ? '전체 시간' : '측정시간'}</th><th>${T ? '버틴 시간' : '정확한 횟수'}</th>${d.badNames.map(n => `<th>${esc(n)}</th>`).join('')}<th>${T ? '유지율' : '정확도'}</th></tr></thead>
-      <tbody>${R.slice().reverse().map(r => `<tr><td>${md(r.at)}</td>${d.hasMode ? `<td>${esc(r.mode)}</td>` : ''}<td>${r.sec}초</td><td>${r.good}${T ? '초' : ''}</td>${r.bad.map(b => `<td>${b}</td>`).join('')}<td class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}">${r.acc}%</td></tr>`).join('')}</tbody></table></div></div>`;
+      <tbody>${R.slice().reverse().map(r => `<tr class="${wcls(r.at)}"><td>${mdw(r.at)} ${r.at.slice(11)}</td>${d.hasMode ? `<td>${esc(r.mode)}</td>` : ''}<td>${r.sec}초</td><td>${r.good}${T ? '초' : ''}</td>${r.bad.map(b => `<td>${b}</td>`).join('')}<td class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}">${r.acc}%</td></tr>`).join('')}</tbody></table></div></div>`;
 
   if (!window.Chart) return;
   Chart.defaults.color = 'rgba(255,255,255,.75)';
