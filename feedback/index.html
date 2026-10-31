@@ -210,6 +210,7 @@ async function start() {
 
 /* ===== 그리기 ===== */
 const md = s => { const [d, t] = s.split(' '); const [, m, dd] = d.split('-'); return `${+m}/${+dd} ${t}`; };
+const mdw = s => { const d = s.slice(0, 10), [, m, dd] = d.split('-'); return `${+m}/${+dd}(${'일월화수목금토'[new Date(d + 'T12:00:00').getDay()]})`; };   // 그래프 가로축: 10/14(화)
 const pct = (g, t) => t > 0 ? Math.round(g / t * 100) : null;
 function render() {
   charts.forEach(c => c.destroy()); charts = [];
@@ -268,7 +269,8 @@ function render() {
   Chart.defaults.color = 'rgba(255,255,255,.75)';
   Chart.defaults.font.family = 'Pretendard, system-ui, sans-serif';
   Chart.defaults.font.size = 13;
-  const labels = R.map(r => md(r.at));
+  const labels = R.map(r => mdw(r.at));
+  const tipTitle = items => { const r = R[items[0].dataIndex]; return r ? mdw(r.at) + ' ' + r.at.slice(11) : ''; };   // 말풍선에는 시각까지
   const grid = { color: 'rgba(255,255,255,.08)' };
   const ma = R.map((_, i) => { const s = R.slice(Math.max(0, i - 4), i + 1); return Math.round(s.reduce((a, r) => a + r.acc, 0) / s.length); });
   const ds = [
@@ -280,7 +282,7 @@ function render() {
     type: 'line', data: { labels, datasets: ds },
     options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid }, x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
-      plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { label: c => `${c.dataset.label} ${c.parsed.y}%` } } } }
+      plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle, label: c => `${c.dataset.label} ${c.parsed.y}%` } } } }
   }));
   const colors = ['#ff9d8a', '#f5c518', '#c9a2ff'];
   const ds2 = T
@@ -292,7 +294,7 @@ function render() {
     type: 'bar', data: { labels, datasets: ds2 },
     options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       scales: { y: { stacked: true, grid, ticks: { callback: v => v + (T ? '초' : '') } }, x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
-      plugins: { legend: { labels: { boxWidth: 14 } } } }
+      plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle } } } }
   }));
 }
 start();
