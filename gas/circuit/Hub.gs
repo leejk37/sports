@@ -42,6 +42,10 @@ function hubJsonp_(e) {
       out = rankSummary_(p.ex, p.period, p.key); // Rank.gs — 종목별 순위 화면 (ex, period=today|week|month)
     } else if (p.action === 'points') {
       out = pointsTeacher_(p);               // Points.gs — 선생님 포인트 화면 (key, id 있으면 한 학생)
+    } else if (p.action === 'feedback') {
+      out = fbStudent_(p);                   // Feedback.gs — 한 학생의 종목별 자세 기록 (ex, email, key)
+    } else if (p.action === 'fbRoster') {
+      out = fbRoster_(p);                    // Feedback.gs — 선생님용 학생 명단 (key)
     } else if (p.action === 'pointsPub') {
       out = pointsPublic_();                 // Points.gs — 학생용 포인트 순위(이름 가림, 아이디 없음), 로그인 없이
     } else if (p.action === 'rules') {

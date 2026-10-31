@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>자세 피드백</title>
+<meta name="theme-color" content="#1f4e8c">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  /* 종목별 개인 자세 피드백 (2026-11-01): 종목 → 학생 → 기록 요약 · 정확도 그래프 · 자세 오류 · 처방 · 기록 표
+   *  학생: 허브 '내 자세 피드백' 카드(?email=, 자기 기록만) · 선생님: 열쇠(DASH_KEY)로 반·학생 고르기 */
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --blue-dd:#12305a; --yellow:#f5c518; --green:#9ff0b0; --red:#ff9d8a; --sky:#8fd3ff;
+    --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.45); --line:rgba(255,255,255,.14);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:#fff;-webkit-tap-highlight-color:transparent}
+  header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:4px solid var(--yellow);position:sticky;top:0;background:var(--blue);z-index:3}
+  header h1{margin:0;font-size:24px;font-weight:900;letter-spacing:-.5px;margin-right:auto}
+  select,button,input{font:inherit}
+  .sel{font-size:17px;font-weight:800;padding:8px 10px;border-radius:10px;border:0;background:var(--blue-dd);color:#fff;max-width:220px}
+  #who{font-size:17px;font-weight:800;color:var(--soft)}
+  main{max-width:1200px;margin:0 auto;padding:14px 16px 24px;display:flex;flex-direction:column;gap:14px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chips button{font-size:16px;font-weight:800;padding:8px 13px;border-radius:999px;border:0;background:var(--blue-d);color:var(--soft);cursor:pointer}
+  .chips button.on{background:var(--yellow);color:var(--blue-dd)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .row .lab{font-size:14px;font-weight:800;color:var(--dim)}
+  .card{background:var(--blue-d);border-radius:18px;padding:16px}
+  .card h2{margin:0 0 10px;font-size:19px;font-weight:900;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .card h2 small{font-size:14px;font-weight:700;color:var(--dim)}
+  .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .sum div{background:var(--blue-d);border-radius:14px;padding:12px 14px}
+  .sum b{display:block;font-size:30px;font-weight:900;color:var(--yellow);line-height:1.15;font-variant-numeric:tabular-nums}
+  .sum b small{font-size:15px;color:var(--soft);margin-left:2px}
+  .sum span{font-size:14px;font-weight:700;color:var(--soft)}
+  .sum em{display:block;font-style:normal;font-size:13px;font-weight:800;margin-top:2px}
+  .up{color:var(--green)} .down{color:var(--red)} .flat{color:var(--soft)}
+  .grid2{display:grid;grid-template-columns:1fr;gap:14px}
+  @media (min-width:900px){ .grid2{grid-template-columns:1.6fr 1fr} }
+  .chart{position:relative;height:300px}
+  @media (max-width:600px){ .chart{height:240px} }
+  .rx{display:flex;flex-direction:column;gap:10px}
+  .rxi{border-radius:14px;padding:12px 14px;background:rgba(0,0,0,.18)}
+  .rxi b{display:flex;justify-content:space-between;gap:8px;font-size:17px}
+  .rxi b span{color:var(--yellow);white-space:nowrap}
+  .rxi .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.1);margin:8px 0;overflow:hidden}
+  .rxi .bar i{display:block;height:100%;background:var(--red);border-radius:999px}
+  .rxi p{margin:0;font-size:15px;line-height:1.55;color:var(--soft)}
+  .rxi.main{background:rgba(245,197,24,.15);box-shadow:inset 0 0 0 2px rgba(245,197,24,.5)}
+  .rxi.good{background:rgba(159,240,176,.12)}
+  table{width:100%;border-collapse:collapse;font-size:16px}
+  th,td{padding:9px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+  th{font-size:14px;color:var(--dim);font-weight:800}
+  th:first-child,td:first-child{text-align:left}
+  td.acc{font-weight:900}
+  td.acc.hi{color:var(--green)} td.acc.lo{color:var(--red)}
+  .tbl{overflow-x:auto}
+  .empty{padding:50px 20px;text-align:center;font-size:21px;font-weight:800;line-height:1.7}
+  .empty small{display:block;font-size:15px;color:var(--soft);font-weight:600}
+  .keybox{display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+  .keybox input{font-size:19px;padding:10px 14px;border-radius:12px;border:0;width:220px}
+  .btn{font-size:18px;font-weight:900;padding:10px 18px;border-radius:12px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
+  #status{font-size:14px;color:var(--dim);text-align:right;max-width:1200px;margin:0 auto;padding:0 16px 14px}
+  body.student .tonly{display:none}
+  body:not(.student) .sonly{display:none}
+</style>
+<script src="../config.js"></script>
+</head>
+<body>
+<header>
+  <h1>🎯 자세 피드백</h1>
+  <span id="who" class="sonly"></span>
+  <select class="sel tonly" id="cls" aria-label="반"></select>
+  <select class="sel tonly" id="stu" aria-label="학생"></select>
+</header>
+<main>
+  <div class="row"><span class="lab">종목</span><div class="chips" id="exs"></div></div>
+  <div class="row"><span class="lab">기간</span><div class="chips" id="pers"></div></div>
+  <div id="app"></div>
+</main>
+<div id="status"></div>
+
+<script>
+const CONFIG = { GAS_URL: SITE.GAS_URL, TOKEN: SITE.TOKEN };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get: k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+  set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} }
+};
+const P = new URLSearchParams(location.search);
+if (P.has('key')) { store.set('dashKey', P.get('key').trim()); P.delete('key'); history.replaceState(null, '', location.pathname + (P.toString() ? '?' + P : '')); }
+let KEY = store.get('dashKey');
+const EMAIL = (P.get('email') || '').trim().toLowerCase();   // 허브에서 온 학생
+const STUDENT = !!EMAIL;
+document.body.classList.toggle('student', STUDENT);
+
+const EX = [
+  ['squat', '스쿼트'], ['curlup', '윗몸말아올리기'], ['jumpingjack', '점핑잭'], ['lunge', '런지'], ['highknee', '하이니'],
+  ['pushup', '팔굽혀펴기'], ['legraise', '레그레이즈'], ['burpee', '버피테스트'], ['plank', '플랭크']
+];
+const PERS = [['all', '전체'], ['30', '최근 30일'], ['7', '최근 7일']];
+/* 자세 오류별 처방 (오류 이름은 Feedback.gs FB_EX와 같게) */
+const TIP = {
+  '깊이 부족': '허벅지가 바닥과 나란해질 때까지 앉아요. 뒤에 있는 의자에 살짝 앉는 느낌으로 엉덩이를 뒤로 빼요.',
+  '허리 숙임': '가슴을 펴고 시선은 앞을 봐요. 팔을 앞으로 쭉 뻗으면 상체를 세우기 쉬워요.',
+  '덜 올라옴': '어깨뼈가 바닥에서 떨어질 때까지 올라와요. 손끝이 무릎 쪽으로 미끄러지듯 따라가요.',
+  '무릎 펴짐': '무릎은 세운 채로, 발바닥을 바닥에 꼭 붙이고 해요. 발이 미끄러지면 친구가 잡아 줘도 좋아요.',
+  '팔 덜 올림': '손이 머리 위에서 만날 때까지 팔을 쭉 올려요. 속도보다 크게!',
+  '다리 덜 벌림': '발을 어깨보다 넓게 벌려요. 다리와 팔이 같이 벌어지게 박자를 맞춰요.',
+  '상체 숙임': '상체는 곧게 세우고, 앞 무릎이 발끝을 넘지 않게 내려가요.',
+  '무릎 덜 올림': '무릎을 허리 높이까지 올려요. 빠르게보다 높게가 먼저예요.',
+  '덜 내려감': '가슴이 바닥 가까이 갈 때까지 팔꿈치를 굽혀요. 천천히 내려가고 힘차게 밀어요.',
+  '몸이 꺾임': '머리부터 무릎까지 일직선! 배와 엉덩이에 힘을 꽉 줘요.',
+  '덜 올림': '다리가 바닥과 직각이 될 때까지 올려요. 손으로 바닥을 눌러 몸을 고정해요.',
+  '무릎 굽힘': '무릎을 쭉 편 채로 천천히 올렸다 내려요. 힘들면 횟수를 줄여도 괜찮아요.',
+  '다리 덜 뻗음': '손을 짚은 뒤 다리를 뒤로 쭉 뻗어 플랭크 자세를 꼭 만들어요.',
+  '점프 없음': '일어서면서 가볍게 점프하고, 손은 머리 위로 뻗어요.',
+  '엉덩이 처짐': '배와 엉덩이에 힘을 줘서 몸을 일직선으로. 오래 못 버티면 20초씩 여러 번 나눠서 해요.',
+  '엉덩이 솟음': '엉덩이를 내려 머리-엉덩이-발꿈치가 일직선이 되게 해요. 거울이나 친구에게 봐 달라고 해요.'
+};
+
+let ex = P.get('ex') || store.get('fbEx') || 'curlup', per = store.get('fbPer') || 'all';
+if (!EX.some(e => e[0] === ex)) ex = 'curlup';
+let roster = null, data = null, charts = [];
+
+function jsonp(params, timeout = 40000) {
+  return new Promise((resolve, reject) => {
+    const cb = 'fbcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { done(); reject(new Error('서버 응답이 늦어요')); }, timeout);
+    function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = d => { done(); resolve(d); };
+    s.onerror = () => { done(); reject(new Error('서버에 연결하지 못했어요')); };
+    const q = { ...params, token: CONFIG.TOKEN, callback: cb }; if (KEY) q.key = KEY;
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams(q);
+    document.head.appendChild(s);
+  });
+}
+function chips(id, list, cur, on) {
+  $(id).innerHTML = list.map(([k, t]) => `<button data-k="${k}" class="${k === cur ? 'on' : ''}">${t}</button>`).join('');
+  $(id).querySelectorAll('button').forEach(b => b.onclick = () => on(b.dataset.k));
+}
+function drawChips() {
+  chips('exs', EX, ex, k => { ex = k; store.set('fbEx', k); drawChips(); load(); });
+  chips('pers', PERS, per, k => { per = k; store.set('fbPer', k); drawChips(); render(); });
+}
+
+/* ===== 선생님: 열쇠 · 반 · 학생 ===== */
+function askKey(msg) {
+  $('app').innerHTML = `<div class="card empty">${esc(msg || '선생님 열쇠를 넣어 주세요')}
+    <small>현황판·포인트 관리와 같은 열쇠예요. 학생은 허브의 '내 자세 피드백' 카드로 들어와요</small>
+    <div class="keybox"><input id="key" type="password" placeholder="열쇠" autocomplete="off"><button class="btn" id="keyGo">열기</button></div></div>`;
+  const go = () => { KEY = $('key').value.trim(); store.set('dashKey', KEY); start(); };
+  $('keyGo').onclick = go; $('key').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+const ck = s => s.grade + '|' + s.cls;
+function fillClasses() {
+  const seen = {}, opts = [];
+  roster.forEach(s => { const k = ck(s); if (!seen[k]) { seen[k] = 1; opts.push({ k, t: s.grade ? `${s.grade}학년 ${s.cls}반` : '교직원', g: Number(s.grade) || 99, c: s.cls }); } });
+  opts.sort((a, b) => a.g - b.g || String(a.c).localeCompare(String(b.c)));
+  $('cls').innerHTML = opts.map(o => `<option value="${esc(o.k)}">${esc(o.t)}</option>`).join('');
+  const was = store.get('fbCls'); if (opts.some(o => o.k === was)) $('cls').value = was;
+  fillStudents();
+}
+function fillStudents() {
+  const list = roster.filter(s => ck(s) === $('cls').value).sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
+  $('stu').innerHTML = list.map(s => `<option value="${esc(s.id)}">${esc(s.no)}. ${esc(s.name)}</option>`).join('');
+  const was = store.get('fbStu'); if (list.some(s => s.id === was)) $('stu').value = was;
+}
+$('cls').onchange = () => { store.set('fbCls', $('cls').value); fillStudents(); store.set('fbStu', $('stu').value); load(); };
+$('stu').onchange = () => { store.set('fbStu', $('stu').value); load(); };
+
+/* ===== 불러오기 ===== */
+let seq = 0;
+async function load() {
+  const email = STUDENT ? EMAIL : $('stu').value;
+  if (!email) return;
+  const my = ++seq;
+  $('status').textContent = '불러오는 중…';
+  try {
+    const d = await jsonp({ action: 'feedback', ex, email });
+    if (my !== seq) return;
+    if (d && d.error === '방 이름이 잘못됐어요') throw new Error('GAS에 Feedback.gs·새 Hub.gs가 아직 배포되지 않았어요');
+    if (!d || !d.ok) throw new Error((d && d.error) || '불러오지 못했어요');
+    data = d; render();
+    $('status').textContent = `${d.student.grade}학년 ${d.student.cls}반 ${d.student.name} · ${d.exName} 기록 ${d.recs.length}개`;
+  } catch (e) {
+    if (my !== seq) return;
+    $('app').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; $('status').textContent = '';
+  }
+}
+async function start() {
+  drawChips();
+  if (STUDENT) { $('who').textContent = P.get('name') || ''; load(); return; }
+  if (!KEY) { askKey(); return; }
+  $('app').innerHTML = '<div class="card empty">명단을 불러오는 중…</div>';
+  try {
+    const d = await jsonp({ action: 'fbRoster' });
+    if (d && d.needKey) { store.set('dashKey', ''); KEY = ''; askKey('열쇠가 맞지 않아요. 다시 넣어 주세요'); return; }
+    if (d && d.error === '방 이름이 잘못됐어요') throw new Error('GAS에 Feedback.gs·새 Hub.gs가 아직 배포되지 않았어요');
+    if (!d || !d.ok) throw new Error((d && d.error) || '명단을 불러오지 못했어요');
+    roster = d.students; fillClasses(); load();
+  } catch (e) { $('app').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
+}
+
+/* ===== 그리기 ===== */
+const md = s => { const [d, t] = s.split(' '); const [, m, dd] = d.split('-'); return `${+m}/${+dd} ${t}`; };
+const pct = (g, t) => t > 0 ? Math.round(g / t * 100) : null;
+function render() {
+  charts.forEach(c => c.destroy()); charts = [];
+  const d = data; if (!d) return;
+  const cut = per === 'all' ? '' : new Date(Date.now() - (Number(per) - 1) * 864e5).toISOString().slice(0, 10);
+  const R = d.recs.filter(r => !cut || r.at.slice(0, 10) >= cut);
+  const who = STUDENT ? '' : `${esc(d.student.name)} · `;
+  if (!R.length) {
+    $('app').innerHTML = `<div class="card empty">${who}${esc(d.exName)} 기록이 ${per === 'all' ? '아직 없어요' : '이 기간에 없어요'}
+      <small>${STUDENT ? `${esc(d.exName)} 앱으로 운동하면 여기에 자세 기록이 쌓여요` : '다른 종목이나 기간을 골라 보세요'}</small></div>`;
+    return;
+  }
+  const T = d.time;                                    // 플랭크: 바르게 버틴 시간(초)
+  const goodSum = R.reduce((s, r) => s + r.good, 0);
+  const allSum = T ? R.reduce((s, r) => s + r.sec, 0) : R.reduce((s, r) => s + r.good + r.bad.reduce((a, b) => a + b, 0), 0);
+  const badSum = d.badNames.map((_, i) => R.reduce((s, r) => s + (r.bad[i] || 0), 0));
+  const accAll = pct(goodSum, allSum);
+  const n5 = Math.min(5, Math.floor(R.length / 2));
+  const avg = list => list.length ? Math.round(list.reduce((s, r) => s + r.acc, 0) / list.length) : null;
+  const first = n5 ? avg(R.slice(0, n5)) : null, last = n5 ? avg(R.slice(-n5)) : null;
+  const diff = first != null ? last - first : null;
+  const bestAcc = Math.max(...R.map(r => r.acc));
+  const bestGood = Math.max(...R.map(r => r.good));
+  const days = new Set(R.map(r => r.at.slice(0, 10))).size;
+  const cm = d.classMedian;
+
+  // 처방: 가장 많은 오류부터
+  const badTotal = badSum.reduce((a, b) => a + b, 0);
+  const order = d.badNames.map((n, i) => ({ n, v: badSum[i] })).sort((a, b) => b.v - a.v);
+  const rx = badTotal === 0
+    ? `<div class="rxi good"><b>👏 자세 오류가 없어요</b><p>지금처럼 바른 자세를 지키면서 ${T ? '버티는 시간을' : '횟수를'} 조금씩 늘려 봐요.</p></div>`
+    : order.map((o, i) => `<div class="rxi${i === 0 && o.v ? ' main' : ''}"><b>${i === 0 && o.v ? '👉 ' : ''}${esc(o.n)}<span>${o.v}번 · ${Math.round(o.v / badTotal * 100)}%</span></b>
+        <div class="bar"><i style="width:${o.v / Math.max(1, order[0].v) * 100}%"></i></div><p>${esc(TIP[o.n] || '')}</p></div>`).join('');
+  const msg = accAll >= 90 ? '아주 정확해요! 이제 횟수나 시간을 늘려 운동 강도를 높여 봐요.'
+    : accAll >= 70 ? `조금만 더! 「${esc(order[0].n)}」만 고치면 90%를 넘을 수 있어요.`
+    : `천천히, 정확하게가 먼저예요. 「${esc(order[0].n)}」부터 고쳐 봐요.`;
+
+  $('app').innerHTML = `
+    <div class="sum">
+      <div><b>${accAll ?? '-'}<small>%</small></b><span>${T ? '평균 유지율' : '평균 정확도'}</span>${cm != null ? `<em class="${accAll >= cm ? 'up' : 'down'}">반 중앙값 ${cm}%</em>` : ''}</div>
+      <div><b>${diff == null ? '-' : (diff > 0 ? '+' : '') + diff}<small>%p</small></b><span>처음 ${n5 || ''}번 → 최근 ${n5 || ''}번</span>${first != null ? `<em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'}">${first}% → ${last}%</em>` : '<em class="flat">기록 2개부터</em>'}</div>
+      <div><b>${R.length}<small>번</small></b><span>측정 · ${days}일</span></div>
+      <div><b>${T ? Math.round(goodSum) : goodSum}<small>${T ? '초' : d.unit}</small></b><span>${T ? '바르게 버틴 시간 합' : '정확한 횟수 합'}</span><em class="flat">한 번 최고 ${bestGood}${T ? '초' : d.unit}</em></div>
+      <div><b>${bestAcc}<small>%</small></b><span>최고 ${T ? '유지율' : '정확도'}</span></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>📈 ${T ? '유지율' : '정확도'} 변화 <small>측정할 때마다 · 점선은 최근 5번 평균${cm != null ? ' · 노란 선은 반 중앙값' : ''}</small></h2><div class="chart"><canvas id="c1"></canvas></div></div>
+      <div class="card"><h2>🩺 자세 처방</h2><p style="margin:0 0 10px;font-size:16px;line-height:1.5">${msg}</p><div class="rx">${rx}</div></div>
+    </div>
+    <div class="card"><h2>📊 ${T ? '버틴 시간' : '정확한 동작과 오류'} <small>측정할 때마다</small></h2><div class="chart"><canvas id="c2"></canvas></div></div>
+    <div class="card"><h2>📋 기록 <small>최근 순</small></h2><div class="tbl"><table>
+      <thead><tr><th>날짜</th>${d.hasMode ? '<th>방식</th>' : ''}<th>${T ? '전체 시간' : '측정시간'}</th><th>${T ? '버틴 시간' : '정확한 횟수'}</th>${d.badNames.map(n => `<th>${esc(n)}</th>`).join('')}<th>${T ? '유지율' : '정확도'}</th></tr></thead>
+      <tbody>${R.slice().reverse().map(r => `<tr><td>${md(r.at)}</td>${d.hasMode ? `<td>${esc(r.mode)}</td>` : ''}<td>${r.sec}초</td><td>${r.good}${T ? '초' : ''}</td>${r.bad.map(b => `<td>${b}</td>`).join('')}<td class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}">${r.acc}%</td></tr>`).join('')}</tbody></table></div></div>`;
+
+  if (!window.Chart) return;
+  Chart.defaults.color = 'rgba(255,255,255,.75)';
+  Chart.defaults.font.family = 'Pretendard, system-ui, sans-serif';
+  Chart.defaults.font.size = 13;
+  const labels = R.map(r => md(r.at));
+  const grid = { color: 'rgba(255,255,255,.08)' };
+  const ma = R.map((_, i) => { const s = R.slice(Math.max(0, i - 4), i + 1); return Math.round(s.reduce((a, r) => a + r.acc, 0) / s.length); });
+  const ds = [
+    { label: T ? '유지율' : '정확도', data: R.map(r => r.acc), borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', pointRadius: R.length > 40 ? 2 : 4, tension: .25 },
+    { label: '최근 5번 평균', data: ma, borderColor: '#9ff0b0', borderDash: [6, 4], pointRadius: 0, tension: .3 }
+  ];
+  if (cm != null) ds.push({ label: '반 중앙값', data: R.map(() => cm), borderColor: 'rgba(245,197,24,.8)', borderWidth: 1.5, pointRadius: 0 });
+  charts.push(new Chart($('c1'), {
+    type: 'line', data: { labels, datasets: ds },
+    options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid }, x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+      plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { label: c => `${c.dataset.label} ${c.parsed.y}%` } } } }
+  }));
+  const colors = ['#ff9d8a', '#f5c518', '#c9a2ff'];
+  const ds2 = T
+    ? [{ label: '바르게 버틴 시간', data: R.map(r => r.good), backgroundColor: '#9ff0b0', stack: 's' },
+       { label: '흐트러진 시간', data: R.map(r => Math.max(0, Math.round((r.sec - r.good) * 10) / 10)), backgroundColor: '#ff9d8a', stack: 's' }]
+    : [{ label: '정확한 동작', data: R.map(r => r.good), backgroundColor: '#9ff0b0', stack: 's' }]
+        .concat(d.badNames.map((n, i) => ({ label: n, data: R.map(r => r.bad[i] || 0), backgroundColor: colors[i], stack: 's' })));
+  charts.push(new Chart($('c2'), {
+    type: 'bar', data: { labels, datasets: ds2 },
+    options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      scales: { y: { stacked: true, grid, ticks: { callback: v => v + (T ? '초' : '') } }, x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+      plugins: { legend: { labels: { boxWidth: 14 } } } }
+  }));
+}
+start();
+</script>
+<script src="../nav.js" defer></script>
+</body>
+</html>

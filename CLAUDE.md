@@ -25,6 +25,7 @@
 | 내 도장 | …/sports/stamp/ | (읽기만) · 통과기준 · 포인트 | 허브 '내 도장' 카드 → 이름 고르기. `Stamp.gs` → 허브 JSONP `action=stamp&email=&month=yyyy-MM`. 오늘 남은 종목·이달 도장 달력·연속 일수 |
 | 우리 모둠 | …/sports/team/ | (읽기만) | 허브 '우리 모둠' 카드 → 이름 고르기(그 학생의 반). 선생님은 `?grade=4&cls=해`. `Stamp.gs` → 허브 JSONP `action=team`. 반 모둠별 모둠원 도장·모둠 도장·이달 도장 줄 |
 | 도장·포인트 규칙 | …/sports/rules/ | (읽기만) | 공통 내비게이션(`nav.js`) 메뉴에 고정(로그인 없이), 내 도장 화면 링크. `Points.gs` `pointRulesInfo_` → 허브 JSONP `action=rules`. 도장 받는 법·포인트 표·뱃지·선물 + 포인트 계산기. 숫자는 포인트규칙·통과기준 탭에서 읽음(못 읽으면 화면 기본값) |
+| 자세 피드백 | …/sports/feedback/ | (읽기만) | 2026-11-01. 종목(카메라 9종목) → 학생 → 요약(평균 정확도·처음 5번→최근 5번·반 중앙값)·정확도 시계열 그래프·정확/오류 막대·자세 처방(가장 많은 오류부터 고치는 법)·기록 표, 기간(전체·30일·7일). 학생은 허브 '내 자세 피드백' 카드(`?email=`, 자기 기록만), 선생님은 메뉴 '자세 피드백' + 열쇠(`DASH_KEY`)로 반·학생 고르기. `Feedback.gs` → 허브 JSONP `action=feedback`·`action=fbRoster`. 그래프 Chart.js 4.4.1(jsdelivr). 오류 이름은 `FB_EX`와 화면 `TIP`이 같아야 함 |
 | 현황판 | …/sports/board/ | (읽기만) | 스포츠실 TV용. `Dashboard.gs` → 허브 JSONP `action=dash`. 지난 날짜는 ◀▶ 또는 `?date=2026-10-15` (3분 뒤 오늘로 복귀). 이름 명단은 선생님 기기만: `?key=열쇠` 한 번(스크립트 속성 `DASH_KEY`) |
 | 종목 순위 | …/sports/rank/ | (읽기만) | TV용. 기본은 모든 종목 돌아가기(`?ex=auto`와 같음). 하나만은 `?ex=squat`, 고른 것만 `?ex=squat,plank` `&period=today|week|month`. `Rank.gs` → 허브 JSONP `action=rank`. 최고 기록 → 성장 → 꾸준함 → 정확도(카메라 종목만, 20회·60초 이상) 순서, 반별은 합계, 이름은 열쇠 없으면 서버에서 가림 |
 | 포인트 관리 · 포인트 순위 | …/sports/points/ | (읽기) · 선물교환 | **열쇠 없으면 학생용 포인트 순위**(2026-10-31, `action=pointsPub` → `pointsPublic_`): 반 고르기, 모은 포인트·이번 달·뱃지·완벽 도장·최고 연속 순위(이름 가림, 아이디·남은 포인트·내역 없음), 모둠 합계(반)·반별 1인 평균(전교생). '🔑 선생님' 단추로 열쇠 입력. **선생님**: 열쇠(`DASH_KEY`, 현황판과 같음)를 `?key=` 한 번 또는 화면에 입력 → 이 기기에 기억. 반 고르기·정렬, 학생 누르면 뱃지·내역, '선물' → 선물교환 탭에 한 줄(모자라면 한 번 더 확인). `Points.gs` → 허브 JSONP `action=points`·`action=gift` |
@@ -67,7 +68,7 @@
 - 저장 응답을 못 읽어도(리다이렉트 단계) 인터넷이 연결돼 있으면 "전송 완료"로 표시합니다.
 - 토큰(`cpe_smart_sports`, 2026-10-25 `26cp4s_squat`에서 바꿈. `config.js`와 시트 `설정` 탭에 같은 값)은 화면 코드에 들어 있어 **비밀이 아닙니다**. 실제 보호는 학교 도메인 확인 + 명단 대조입니다.
 - 진짜 비밀값(입퇴실 비밀키 등)은 GAS **스크립트 속성**에 두고 저장소에 올리지 않습니다.
-- **공통 내비게이션 `nav.js`**: 허브·현황판·종목 순위·인도어사이클·포인트 관리 머리줄의 **제목 옆**에 늘 보이는 버튼 6개(허브 · QR 로그인 / 현황판 / 종목 순위 / 인도어사이클 / 도장·포인트 규칙 / 포인트, 지금 화면은 노랑). 세로 화면은 둘째 줄. TV 돌려보기 액자 안에선 안 나옴. 예전 화면별 단추(.pageSwitch, 허브 #views)는 숨김. 새 '보는 화면'은 `<script src="../nav.js" defer></script>` 한 줄과 nav.js의 items에 한 줄
+- **공통 내비게이션 `nav.js`**: 허브·현황판·종목 순위·인도어사이클·포인트 관리 머리줄의 **제목 옆**에 늘 보이는 버튼 7개(허브 · QR 로그인 / 현황판 / 종목 순위 / 인도어사이클 / 도장·포인트 규칙 / 자세 피드백 / 포인트, 지금 화면은 노랑). 세로 화면은 둘째 줄. TV 돌려보기 액자 안에선 안 나옴. 예전 화면별 단추(.pageSwitch, 허브 #views)는 숨김. 새 '보는 화면'은 `<script src="../nav.js" defer></script>` 한 줄과 nav.js의 items에 한 줄
 - PWA: 앱마다 `manifest`의 `id`를 폴더별로 다르게(`/sports/<폴더>/`). 캐시하는 `sw.js`는 화면을 고치면 `VERSION`을 올립니다.
 
 ## 시트 데이터 구조 (`26_청평_스마트스포츠실`)
@@ -134,7 +135,7 @@
 ### 열을 바꿀 때 고칠 곳
 
 1. `gas/circuit/<운동>.gs` — `appendRow([...])` 순서와 `create…Sheet_`의 제목 줄
-2. `gas/circuit/Dashboard.gs` — `DASH_EX`의 `email`·`value`·`pbBy` 번호
+2. `gas/circuit/Dashboard.gs` — `DASH_EX`의 `email`·`value`·`pbBy` 번호 (자세 오류 열이면 `Feedback.gs` `FB_EX`·`Rank.gs` `RANK_EX`도)
 3. `gas/circuit/Stamp.gs` — `STAMP_EX`의 `time`(측정시간 열 번호)
 4. GAS 배포 관리 → 수정 → **새 버전**
 
