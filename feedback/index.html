@@ -271,7 +271,8 @@ function render() {
   Chart.defaults.font.size = 13;
   const labels = R.map(r => mdw(r.at));
   const tipTitle = items => { const r = R[items[0].dataIndex]; return r ? mdw(r.at) + ' ' + r.at.slice(11) : ''; };   // 말풍선에는 시각까지
-  const grid = { color: 'rgba(255,255,255,.08)' };
+  const grid = { color: 'rgba(255,255,255,.13)' };                       // 눈금선 (가로·세로 모두)
+  const border = { display: true, color: 'rgba(255,255,255,.6)', width: 1.5 };   // 가로축·세로축 선
   const ma = R.map((_, i) => { const s = R.slice(Math.max(0, i - 4), i + 1); return Math.round(s.reduce((a, r) => a + r.acc, 0) / s.length); });
   const ds = [
     { label: T ? '유지율' : '정확도', data: R.map(r => r.acc), borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', pointRadius: R.length > 40 ? 2 : 4, tension: .25 },
@@ -281,7 +282,7 @@ function render() {
   charts.push(new Chart($('c1'), {
     type: 'line', data: { labels, datasets: ds },
     options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid }, x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid, border }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
       plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle, label: c => `${c.dataset.label} ${c.parsed.y}%` } } } }
   }));
   const colors = ['#ff9d8a', '#f5c518', '#c9a2ff'];
@@ -293,7 +294,7 @@ function render() {
   charts.push(new Chart($('c2'), {
     type: 'bar', data: { labels, datasets: ds2 },
     options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      scales: { y: { stacked: true, grid, ticks: { callback: v => v + (T ? '초' : '') } }, x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+      scales: { y: { stacked: true, grid, border, ticks: { callback: v => v + (T ? '초' : '') } }, x: { stacked: true, grid: { ...grid, offset: true }, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
       plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle } } } }
   }));
 }
