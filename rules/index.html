@@ -241,7 +241,8 @@ $('allOff').onclick = () => { S.done.clear(); drawChips(); calc(); };
 
 function drawChips() {
   const mins = [...new Set(R.exercises.map(e => e.min))];
-  $('minTxt').textContent = mins.length === 1 ? `각 종목 ${mins[0]}초 이상` : '종목마다 정한 시간 이상';
+  const tm = [...new Set(R.exercises.filter(e => !e.unit).map(e => e.min))], cnt = R.exercises.find(e => e.unit === '회');
+  $('minTxt').textContent = (tm.length === 1 ? `각 종목 ${tm[0]}초 이상` : '종목마다 정한 시간 이상') + (cnt ? ` · ${cnt.name}는 그날 ${cnt.min}회 이상` : '');
   $('exChips').innerHTML = R.exercises.filter(exOn).map(ex => {
     const free = S.day === 'holiday' && ex.weekendOff;
     return `<button class="chip${S.done.has(ex.key) ? ' on' : ''}${free ? ' off' : ''}" data-k="${ex.key}"><i>${S.done.has(ex.key) ? '✓' : ''}</i>${esc(ex.name)}${free ? '<small>휴일엔 안 해도 돼요</small>' : ''}</button>`;
@@ -333,11 +334,11 @@ io.observe($('calc')); io.observe($('result'));
 function drawGuide() {
   const r = R.rules, ex = R.exercises.filter(exOn);
   const later = R.exercises.filter(e => !exOn(e));
-  const list = arr => arr.map(e => `<span class="${e.weekendOff ? 'room' : ''}">${esc(e.name)} <small>${e.min}초</small></span>`).join('');
+  const list = arr => arr.map(e => `<span class="${e.weekendOff ? 'room' : ''}">${esc(e.name)} <small>${e.min}${e.unit || '초'}</small></span>`).join('');
   const lo = R.bikeKmByGrade[1] != null ? R.bikeKmByGrade[1] : 1;
   $('stampSteps').innerHTML = `
     <div class="stp"><h3>✓ 하루 도장 <span class="badge">+${P(r['하루 도장'])}점</span></h3>
-      <p><b class="y">평일</b>: 아래 <b>${ex.length}종목</b>을 모두 통과해요. 통과는 그 종목을 정한 시간 이상 한 기록이 하나라도 있으면 돼요.</p>
+      <p><b class="y">평일</b>: 아래 <b>${ex.length}종목</b>을 모두 통과해요. 통과는 그 종목을 정한 시간 이상 한 기록이 하나라도 있으면 돼요.${ex.some(e => e.unit === '회') ? ` <b>${ex.filter(e => e.unit === '회').map(e => esc(e.name)).join('·')}</b>는 그날 뛴 횟수를 모두 더해 정한 횟수 이상이면 통과예요.` : ''}</p>
       <div class="exl">${list(ex)}</div>
       ${later.length ? `<p style="margin-top:8px;font-size:14px">${later.map(e => esc(e.name)).join('·')}는 ${later[0].from.slice(5).replace('-', '월 ')}일부터 도장 종목이에요.</p>` : ''}</div>
     <div class="stp"><h3>⭐ 완벽 도장 <span class="badge">+${P(r['완벽 도장'])}점 더</span></h3>

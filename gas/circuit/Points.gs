@@ -124,6 +124,7 @@ function pointCompute_(ss, from, to) {
       if (timeCol[ex.key] != null) {
         const b = ((best[id] = best[id] || {})[d] = (best[id][d] || {}));
         b[ex.key] = Math.max(b[ex.key] || 0, num(r[timeCol[ex.key]]));
+        if (ex.key === 'jumprope') b['jumprope#n'] = (b['jumprope#n'] || 0) + num(r[7]);   // 줄넘기 도장(11/2~): 그날 횟수 합 (Stamp.gs와 같게)
       }
       if (!ex.noPb) {
         const k = id + '|' + ex.key + '|' + (ex.pbBy == null ? '' : r[ex.pbBy]), v = num(r[ex.value]);
@@ -421,7 +422,9 @@ function pointRulesInfo_() {
   return {
     ok: true, today,
     rules: pointRules_(ss),
-    exercises: STAMP_EX.map(ex => ({ key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' })),
+    exercises: STAMP_EX.map(ex => stampByCount_(ex, today)
+      ? { key: ex.key, name: ex.name, min: crit[ex.key].countMin, unit: '회', weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }
+      : { key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }),
     bikeKm: STAMP.BIKE_KM, bikeKmByGrade: STAMP.BIKE_KM_BY_GRADE, bikeFromHour: STAMP.BIKE_FROM_HOUR,
     bikeFrom: POINT.BIKE_FROM, squatPer: POINT.SQUAT_PER, ropePer: POINT.ROPE_PER, ropeFrom: POINT.ROPE_FROM, accMinCount: POINT.ACC_MIN_COUNT, accMinSec: POINT.ACC_MIN_SEC,
     badges: POINT_BADGES.map(b => ({ icon: b.icon, name: b.name, what: b.what, n: b.n })),

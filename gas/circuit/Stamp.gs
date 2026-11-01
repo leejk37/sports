@@ -49,7 +49,7 @@ const STAMP_EX = [
   { key: 'highknee',    name: '하이니',         sheet: '하이니',         time: 6 },
   { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     time: 7 },
   { key: 'plank',       name: '플랭크',         sheet: '플랭크',         time: 8 },   // 버틴 시간(초)
-  { key: 'jumprope',    name: '줄넘기',         sheet: '줄넘기',         time: 8 },
+  { key: 'jumprope',    name: '줄넘기',         sheet: '줄넘기',         time: 8, count: 7, countFrom: '2026-11-02', countMin: 100 },   // 11/2부터 통과 = 그날 뛴 횟수 합(H) 100회 이상('통과기준' 탭 '줄넘기(횟수)' 줄)
   { key: 'legraise',    name: '레그레이즈',     sheet: '레그레이즈',     time: 6, from: '2026-10-30' },
   { key: 'burpee',      name: '버피테스트',     sheet: '버피테스트',     time: 6, from: '2026-10-30' },
   { key: 'hanging',     name: '행잉',           sheet: '행잉',           time: 9, room: true },
@@ -59,6 +59,8 @@ const STAMP_EX = [
 
 /* from: 이날부터 도장 종목 (그 전 날짜의 도장은 그대로 둠) */
 const stampExOn_ = (ex, d) => !ex.from || d >= ex.from;
+/* count: 이날부터 시간 대신 '그날 횟수 합'으로 통과 판정 (줄넘기) */
+const stampByCount_ = (ex, d) => ex.count != null && d >= ex.countFrom;
 
 /* ===== 공통 엔진: 여러 학생을 한 번에 판정 (시트는 종목당 한 번만 읽음) ===== */
 const stampFmt_ = (d, p) => Utilities.formatDate(d, STAMP.TZ, p);
@@ -74,7 +76,7 @@ function stampCtx_(ss, ids, roster) {
   };
   const list = [...ids];
   list.forEach(id => { const st = roster.byId[id]; if (st) ctx.grade[id] = st.grade; });
-  ctx.best = stampShared_(ss, 'sb4', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
+  ctx.best = stampShared_(ss, 'sb5', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
   ctx.bike = stampShared_(ss, 'rd5', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
   return ctx;
 }
@@ -131,6 +133,7 @@ function stampReadAllBest_(ss) {
       const byDay = best[id] || (best[id] = {});
       const b = byDay[d] || (byDay[d] = {});
       b[ex.key] = Math.max(b[ex.key] || 0, sec(r[ex.time]));
+      if (ex.count != null) b[ex.key + '#n'] = (b[ex.key + '#n'] || 0) + sec(r[ex.count]);   // 그날 횟수 합
     });
   });
   return best;
@@ -151,7 +154,7 @@ function warmStamp() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
   const roster = stampRoster_(ss);
   const ids = roster.list.map(x => x.id);
-  stampShared_(ss, 'sb4', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
+  stampShared_(ss, 'sb5', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
   stampShared_(ss, 'rd5', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
   try { pointGet_(ss, []); } catch (e) {}              // Points.gs 포인트 합계 캐시
   console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
@@ -171,6 +174,10 @@ function stampJudge_(ctx, id, d) {
   const need = STAMP_EX.filter(ex => stampExOn_(ex, d) && !(weekend && ctx.crit[ex.key].weekendOff));
   const b = ((ctx.best[id] || {})[d]) || {};
   const items = need.map(ex => {
+    if (stampByCount_(ex, d)) {                                       // 줄넘기: 그날 횟수 합
+      const n = b[ex.key + '#n'] || 0, cmin = ctx.crit[ex.key].countMin;
+      return { key: ex.key, name: ex.name, sec: n, min: cmin, unit: '회', ok: n >= cmin, tried: ex.key in b };
+    }
     const s = b[ex.key] || 0, min = ctx.crit[ex.key].min;
     return { key: ex.key, name: ex.name, sec: Math.round(s * 10) / 10, min, ok: s >= min, tried: ex.key in b };
   });
@@ -386,7 +393,7 @@ function stampHolidays_(ss) {
 /** 통과기준 탭 → { key: { min, weekendOff } }. 탭이 없으면 기본값으로 만들어 둠 */
 function stampCriteria_(ss) {
   const out = {};
-  STAMP_EX.forEach(ex => out[ex.key] = { min: STAMP.DEFAULT_SEC, weekendOff: !!ex.room });
+  STAMP_EX.forEach(ex => out[ex.key] = { min: STAMP.DEFAULT_SEC, weekendOff: !!ex.room, countMin: ex.countMin });
   let sh = ss.getSheetByName(STAMP.CRITERIA_SHEET);
   if (!sh) {
     try {
@@ -398,7 +405,14 @@ function stampCriteria_(ss) {
     } catch (e) {}
     return out;
   }
-  sh.getDataRange().getValues().slice(1).forEach(r => {
+  const rows = sh.getDataRange().getValues().slice(1);
+  // 횟수로 판정하는 종목은 '줄넘기(횟수)' 줄에 최소 횟수 (없으면 기본값으로 한 줄 더함)
+  STAMP_EX.filter(ex => ex.count != null).forEach(ex => {
+    const r = rows.find(x => String(x[0]).trim() === ex.name + '(횟수)');
+    if (r) { const m = Number(r[1]); if (String(r[1]).trim() !== '' && isFinite(m) && m >= 0) out[ex.key].countMin = m; }
+    else { try { sh.appendRow([ex.name + '(횟수)', ex.countMin, '← ' + ex.countFrom.slice(5).replace('-', '월 ') + '일부터 이 종목은 시간 대신 그날 뛴 횟수 합으로 통과']); } catch (e) {} }
+  });
+  rows.forEach(r => {
     const ex = STAMP_EX.find(x => x.name === String(r[0]).trim()); if (!ex) return;
     const m = Number(r[1]);
     if (String(r[1]).trim() !== '' && isFinite(m) && m >= 0) out[ex.key].min = m;
@@ -467,7 +481,7 @@ function diagStamp() {
 /** 편집기에서 시간 재기: 공유 캐시를 비우고 처음 계산 → 캐시 사용 순서로 (학년·반은 바꿔서) */
 function diagStampTime() {
   const ym = Utilities.formatDate(new Date(), STAMP.TZ, 'yyyy-MM'), c = CacheService.getScriptCache();
-  c.removeAll(['sb4__at', 'rd5__at', 'sroster1', 'team3_4_해_' + ym]);
+  c.removeAll(['sb5__at', 'rd5__at', 'sroster1', 'team3_4_해_' + ym]);
   let t = Date.now(); const r = stampTeam_({ grade: '4', cls: '해' });
   Logger.log('처음 계산(시트 읽기): ' + (Date.now() - t) + 'ms, ok=' + r.ok + (r.error ? ' ' + r.error : ''));
   c.remove('team3_4_해_' + ym);

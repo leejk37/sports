@@ -309,7 +309,8 @@ function render() {
 
   const items = t.items.map(i => {
     const cls = (i.ok ? 'ok' : i.tried ? 'part' : '') + (isToday ? '' : ' past');
-    const s = i.ok ? `${fmtSec(i.sec)}초 통과` : i.tried ? `${fmtSec(i.sec)}초 · ${fmtSec(i.min - i.sec)}초 모자람` : isToday ? `${i.min}초 이상` : '기록 없음';
+    const u = i.unit || '초';   // 줄넘기는 11/2부터 '회'(그날 횟수 합)
+    const s = i.ok ? `${fmtSec(i.sec)}${u} 통과` : i.tried ? `${fmtSec(i.sec)}${u} · ${fmtSec(i.min - i.sec)}${u} 모자람` : isToday ? `${i.min}${u} 이상` : '기록 없음';
     const inner = `<span class="n">${esc(i.name)}</span><span class="s">${esc(s)}</span>`;
     return isToday ? `<a class="it ${cls}" href="${esc(goUrl(i.key))}">${inner}<span class="go">하러 가기 ›</span></a>`
       : `<div class="it ${cls}">${inner}</div>`;
