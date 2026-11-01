@@ -149,7 +149,7 @@
 
 ## 지금 진행 중
 
-- Firebase 도입(2026-11-02): 프로젝트 `smart-sports-live`, Realtime Database(싱가포르). 연결 시험 `firebase-test.html`(성공) → 심박계 1대 연결 시험 `hr-test.html`(Web Bluetooth, 크롬·엣지만, Firebase `live/heartrate/s01` 형식으로 전송: bpm·contact·device·online·at) → 다음은 여러 대 연결 한계 확인 후 와후 심박계 실시간 현황판. 실시간 값만 Firebase, 최종 기록은 시트
+- Firebase 도입(2026-11-02): 프로젝트 `smart-sports-live`, Realtime Database(싱가포르). 연결 시험 `firebase-test.html`(성공) → 심박계 1대 연결 시험 `hr-test.html`(Web Bluetooth, 크롬·엣지만, Firebase `live/heartrate/s01` 형식으로 전송: bpm·contact·device·online·at) (성공) → 여러 대 연결 `hr-multi.html`(기본 7칸·최대 10칸, 한계 대수 시험 중) → 다음은 TV용 심박 현황판(③ 표만 크게, 학생별 하트). 실시간 값만 Firebase, 최종 기록은 시트
 - 전교생 확장: 명단을 전교생으로, QR 이름표 인쇄를 서킷트레이닝 GAS(`?page=qr`)로 이전
 - 대시보드: ① 큰 화면 현황판(`board/`) 완료 ② 다음은 학생 「내 성장」 (설계는 Claude Doc '스마트스포츠실 운동 대시보드 설계')
 - 다음 방향(2026-10-31): 종목별로 운동 강도를 높이고, 포인트를 '30초 통과' 대신 **정확한 동작 개수** 기준으로 서서히 바꾸기(스쿼트 20회=1P가 첫 사례)

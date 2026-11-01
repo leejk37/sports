@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>심박계 여러 대 연결</title>
+<script src="./config.js"></script>
+<style>
+  :root { --bg:#f7f5ef; --ink:#1e2a3a; --mute:#5b6675; --accent:#d9480f; --ok:#2b8a3e; --line:#e2ddd0; --card:#fffdf8; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Noto Sans KR", sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 1280px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--mute); margin: 0 0 16px; font-size: 15px; }
+  .bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px; }
+  .bar .grow { flex:1; }
+  button { font-size:16px; padding:10px 14px; border-radius:10px; border:1px solid var(--ink); background:var(--ink); color:#fff; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); }
+  button.small { font-size:14px; padding:6px 10px; }
+  button:disabled { opacity:.4; cursor:default; }
+  input { font-size:18px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); width:64px; }
+  #count { font-size:20px; font-weight:800; }
+  .ok { color: var(--ok); font-weight:700; }
+  .bad { color: var(--accent); font-weight:700; }
+  .mute { color: var(--mute); }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap:12px; margin-top:16px; }
+  .slot { background:var(--card); border:2px solid var(--line); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:8px; }
+  .slot.on { border-color: var(--ok); }
+  .slot.err { border-color: var(--accent); }
+  .slot .top { display:flex; align-items:center; gap:8px; }
+  .slot .top label { font-size:14px; color:var(--mute); }
+  .slot .bpm { font-size:64px; font-weight:800; line-height:1; font-variant-numeric: tabular-nums; display:flex; align-items:baseline; gap:6px; }
+  .slot .bpm small { font-size:18px; color:var(--mute); font-weight:600; }
+  .heart { color: var(--accent); font-size:36px; display:inline-block; transition: transform .12s; }
+  .heart.beat { transform: scale(1.3); }
+  .slot .info { font-size:13px; color:var(--mute); line-height:1.6; min-height: 62px; }
+  .slot .btns { display:flex; gap:6px; }
+  #log { font: 13px/1.5 ui-monospace, Consolas, monospace; color: var(--mute); max-height: 180px; overflow:auto; white-space: pre-wrap; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin-top:16px; }
+  .warn { background:#fff3e0; border:1px solid #f0c48a; border-radius:12px; padding:12px 14px; margin-top:16px; font-size:15px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>심박계 여러 대 연결</h1>
+  <p class="sub">한 기기에 와후 암밴드를 여러 대 연결해 몇 대까지 동시에 받을 수 있는지 확인하고, 모두 Firebase로 보냅니다.</p>
+
+  <div id="unsupported" class="warn" hidden>
+    이 브라우저는 블루투스 연결(Web Bluetooth)을 지원하지 않습니다.
+    윈도우·크롬북·안드로이드의 <b>크롬</b> 또는 <b>엣지</b>로 열어 주세요.
+  </div>
+
+  <div class="bar">
+    <button id="login">학교 계정으로 로그인</button>
+    <span id="who" class="mute">로그인 전 (로그인해야 Firebase로 보냄)</span>
+    <span class="grow"></span>
+    <span>동시 연결 <span id="count">0</span> 대</span>
+    <button id="addSlot" class="ghost small">+ 칸 추가</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div id="log"></div>
+
+  <div class="warn">
+    <b>순서</b> ① 로그인 ② 각 칸의 학생 번호 확인 ③ 칸마다 '연결' → 목록에서 <b>TICKR</b> 하나 선택 → 다음 칸으로.
+    한 대씩 늘려 가며 <b>몇 번째에서 연결이 실패하는지</b> 아래 기록을 확인하세요.
+    밴드마다 이름 끝 4글자(예: 8EC1)를 스티커로 붙여 두면 학생과 짝짓기 쉽습니다.
+  </div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getDatabase, ref, set, update, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const $ = id => document.getElementById(id);
+const log = msg => {
+  const t = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  $('log').textContent = `[${t}] ${msg}\n` + $('log').textContent;
+};
+
+const START_SLOTS = 7;
+const MAX_SLOTS = 10;
+const LIVE_PATH = 'live/heartrate';
+
+// ── Firebase ─────────────────────────────────────────
+let db = null, user = null;
+if (!window.SITE || !window.SITE.FIREBASE) {
+  $('who').textContent = 'config.js에 FIREBASE 설정이 없습니다';
+  $('login').disabled = true;
+} else {
+  const app = initializeApp(window.SITE.FIREBASE);
+  const auth = getAuth(app);
+  db = getDatabase(app);
+  $('login').onclick = () => signInWithPopup(auth, new GoogleAuthProvider())
+    .catch(e => { $('who').textContent = '로그인 실패: ' + e.message; $('who').className = 'bad'; });
+  onAuthStateChanged(auth, u => {
+    user = u;
+    if (!u) return;
+    $('who').textContent = '로그인: ' + u.email;
+    $('who').className = 'ok';
+    $('login').disabled = true;
+    slots.forEach(s => s.connected && s.startSending());
+  });
+}
+
+if (!navigator.bluetooth) $('unsupported').hidden = false;
+
+// ── 화면 꺼짐 방지 (연결 중일 때) ──────────────────────
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wakeLock && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && slots.some(s => s.connected)) { wakeLock = null; keepAwake(true); }
+});
+
+// ── 칸 하나 = 심박계 한 대 ─────────────────────────────
+const slots = [];
+
+class Slot {
+  constructor(index) {
+    this.index = index;
+    this.device = null;
+    this.connected = false;
+    this.manualStop = false;
+    this.lastAt = 0;
+    this.liveRef = null;
+    this.failCount = 0;
+
+    const el = document.createElement('div');
+    el.className = 'slot';
+    el.innerHTML = `
+      <div class="top">
+        <label>학생 번호</label><input type="number" min="1" max="99" value="${index + 1}">
+        <span class="mute" style="margin-left:auto">칸 ${index + 1}</span>
+      </div>
+      <div class="bpm"><span class="heart">♥</span><span class="num">--</span><small>bpm</small></div>
+      <div class="info">연결 전</div>
+      <div class="btns">
+        <button class="connect">연결</button>
+        <button class="disconnect ghost" disabled>끊기</button>
+      </div>`;
+    $('grid').appendChild(el);
+    this.el = el;
+    this.input = el.querySelector('input');
+    this.num = el.querySelector('.num');
+    this.heart = el.querySelector('.heart');
+    this.info = el.querySelector('.info');
+    this.btnOn = el.querySelector('.connect');
+    this.btnOff = el.querySelector('.disconnect');
+    this.btnOn.disabled = !navigator.bluetooth;
+    this.btnOn.onclick = () => this.choose();
+    this.btnOff.onclick = () => this.stop();
+    this.battery = '-';
+    this.contact = null;
+    this.status = '연결 전';
+  }
+
+  get key() { return 's' + String(Math.max(1, Math.min(99, parseInt(this.input.value, 10) || 1))).padStart(2, '0'); }
+  get label() { return `칸 ${this.index + 1}(${this.key.slice(1)}번)`; }
+
+  render() {
+    const age = this.lastAt ? Math.round((Date.now() - this.lastAt) / 1000) : null;
+    const ageText = age === null ? '-' : age <= 1 ? '방금' : `${age}초 전`;
+    const contact = this.contact === null ? '-' : this.contact ? '닿음' : '<b class="bad">떨어짐</b>';
+    this.info.innerHTML =
+      `<b>${this.status}</b><br>` +
+      `기기 ${this.device ? (this.device.name || '(이름 없음)') : '-'} · 배터리 ${this.battery}<br>` +
+      `접촉 ${contact} · 수신 ${ageText}${this.fbText ? '<br>' + this.fbText : ''}`;
+  }
+
+  async choose() {
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['heart_rate'] }],
+        optionalServices: ['battery_service']
+      });
+      const dup = slots.find(s => s !== this && s.device && s.device.id === device.id);
+      if (dup) { log(`${device.name}은(는) 이미 ${dup.label}에 연결되어 있습니다.`); return; }
+      if (slots.find(s => s !== this && s.connected && s.key === this.key)) {
+        log(`${this.label}: 같은 학생 번호가 다른 칸에 있습니다. 번호를 바꿔 주세요.`); return;
+      }
+      this.device = device;
+      device.addEventListener('gattserverdisconnected', () => this.onDisconnected());
+      this.manualStop = false;
+      await this.connect();
+    } catch (e) {
+      if (e.name === 'NotFoundError') log(`${this.label}: 기기 선택 취소`);
+      else this.fail(e);
+    }
+  }
+
+  async connect() {
+    this.status = '연결 중…'; this.render();
+    const started = performance.now();
+    const server = await this.device.gatt.connect();
+    const service = await server.getPrimaryService('heart_rate');
+    const hr = await service.getCharacteristic('heart_rate_measurement');
+    // 다시 연결할 때 같은 특성 객체면 듣기를 두 번 붙이지 않음
+    if (!this.handler) this.handler = e => this.onHeartRate(e);
+    if (this.hrChar !== hr) {
+      if (this.hrChar) this.hrChar.removeEventListener('characteristicvaluechanged', this.handler);
+      hr.addEventListener('characteristicvaluechanged', this.handler);
+      this.hrChar = hr;
+    }
+    await hr.startNotifications();
+    this.connected = true;
+    this.failCount = 0;
+    this.status = '연결됨';
+    this.el.className = 'slot on';
+    this.btnOn.disabled = true; this.btnOff.disabled = false; this.input.disabled = true;
+    log(`${this.label}: ${this.device.name} 연결 (${Math.round(performance.now() - started)}ms) · 지금 ${countConnected()}대`);
+    this.startSending();
+    this.readBattery(server);
+    keepAwake(true);
+    updateCount();
+    this.render();
+  }
+
+  fail(e) {
+    this.status = '연결 실패';
+    this.el.className = 'slot err';
+    log(`${this.label}: 연결 실패 (지금 ${countConnected()}대 연결 중) — ${e.name}: ${e.message}`);
+    this.render();
+  }
+
+  async readBattery(server) {
+    try {
+      const s = await server.getPrimaryService('battery_service');
+      const c = await s.getCharacteristic('battery_level');
+      const v = await c.readValue();
+      this.battery = v.getUint8(0) + '%';
+      if (v.getUint8(0) <= 15) log(`${this.label}: 배터리 ${this.battery} — 충전이 필요합니다`);
+    } catch { this.battery = '?'; }
+    this.render();
+  }
+
+  onHeartRate(e) {
+    const v = e.target.value;
+    const flags = v.getUint8(0);
+    const bpm = (flags & 0x01) ? v.getUint16(1, true) : v.getUint8(1);
+    this.contact = (flags & 0x04) ? (flags & 0x02) !== 0 : null;
+    this.lastAt = Date.now();
+    this.num.textContent = bpm;
+    this.heart.classList.add('beat');
+    setTimeout(() => this.heart.classList.remove('beat'), 120);
+    this.send(bpm);
+  }
+
+  startSending() {
+    if (!db || !user) { this.fbText = '<span class="mute">로그인 전: Firebase로 안 보냄</span>'; this.render(); return; }
+    this.liveRef = ref(db, `${LIVE_PATH}/${this.key}`);
+    onDisconnect(this.liveRef).update({ online: false }).catch(() => {});
+  }
+
+  send(bpm) {
+    if (!this.liveRef) return;
+    set(this.liveRef, {
+      bpm, contact: this.contact, device: this.device.name || '', online: true, at: serverTimestamp()
+    }).then(() => {
+      this.fbText = `<span class="ok">Firebase ✓ ${this.key}</span>`;
+    }).catch(err => {
+      if (this.fbText && this.fbText.includes('실패')) return;
+      this.fbText = '<span class="bad">Firebase 전송 실패</span>';
+      log(`${this.label}: Firebase 전송 실패 — ${err.message}`);
+    });
+  }
+
+  markOffline() {
+    if (this.liveRef) update(this.liveRef, { online: false }).catch(() => {});
+  }
+
+  async onDisconnected() {
+    this.connected = false;
+    updateCount();
+    this.markOffline();
+    this.btnOn.disabled = false; this.btnOff.disabled = true;
+    if (this.manualStop) {
+      this.status = '끊음'; this.el.className = 'slot';
+      this.liveRef = null; this.input.disabled = false;
+      log(`${this.label}: 연결을 끊었습니다 · 지금 ${countConnected()}대`);
+      this.render(); afterChange(); return;
+    }
+    this.status = '끊김 · 다시 연결 중…'; this.el.className = 'slot err'; this.render();
+    log(`${this.label}: 신호 끊김 · 지금 ${countConnected()}대 — 다시 연결합니다`);
+    for (let i = 1; i <= 5; i++) {
+      await new Promise(r => setTimeout(r, 1000 * i));
+      if (this.manualStop) return;
+      try { await this.connect(); log(`${this.label}: 다시 연결됨 (${i}번째 시도)`); return; }
+      catch (e) { log(`${this.label}: 다시 연결 실패 ${i}/5 — ${e.message}`); }
+    }
+    this.status = '끊김 · 거리를 좁히고 다시 연결';
+    this.liveRef = null; this.input.disabled = false;
+    this.render(); afterChange();
+  }
+
+  stop() {
+    this.manualStop = true;
+    if (this.device && this.device.gatt.connected) this.device.gatt.disconnect();
+  }
+}
+
+const countConnected = () => slots.filter(s => s.connected).length;
+function updateCount() { $('count').textContent = countConnected(); }
+function afterChange() { if (!slots.some(s => s.connected)) keepAwake(false); }
+
+function addSlot() {
+  if (slots.length >= MAX_SLOTS) return;
+  slots.push(new Slot(slots.length));
+  $('addSlot').disabled = slots.length >= MAX_SLOTS;
+}
+for (let i = 0; i < START_SLOTS; i++) addSlot();
+$('addSlot').onclick = addSlot;
+
+// 1초마다 '받은 지' 갱신, 5초 넘게 값이 없으면 알림
+setInterval(() => {
+  slots.forEach(s => {
+    if (s.connected && s.lastAt && Date.now() - s.lastAt > 5000) s.status = '연결됨 · 값이 안 옴(밴드 접촉 확인)';
+    else if (s.connected) s.status = '연결됨';
+    s.render();
+  });
+}, 1000);
+
+window.addEventListener('beforeunload', () => slots.forEach(s => s.markOffline()));
+</script>
+</body>
+</html>
