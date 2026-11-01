@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>심박계 연결 시험</title>
+<style>
+  :root { --bg:#f7f5ef; --ink:#1e2a3a; --mute:#5b6675; --accent:#d9480f; --ok:#2b8a3e; --line:#e2ddd0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Noto Sans KR", sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--mute); margin: 0 0 20px; font-size: 15px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  button { font-size:18px; padding:12px 18px; border-radius:10px; border:1px solid var(--ink); background:var(--ink); color:#fff; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); }
+  button:disabled { opacity:.4; cursor:default; }
+  .card { background:#fffdf8; border:1px solid var(--line); border-radius:16px; padding:20px; margin-top:20px; }
+  #bpm { font-size: 120px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  #bpm small { font-size: 28px; font-weight: 600; color: var(--mute); margin-left: 8px; }
+  .heart { color: var(--accent); display:inline-block; transition: transform .12s; }
+  .heart.beat { transform: scale(1.25); }
+  .meta { display:grid; grid-template-columns: auto 1fr; gap:6px 14px; font-size:15px; margin-top:16px; }
+  .meta dt { color: var(--mute); }
+  .meta dd { margin:0; }
+  #state.ok { color: var(--ok); font-weight:700; }
+  #state.bad { color: var(--accent); font-weight:700; }
+  canvas { width:100%; height:120px; display:block; margin-top:12px; }
+  #log { font: 13px/1.5 ui-monospace, Consolas, monospace; color: var(--mute); max-height: 160px; overflow:auto; white-space: pre-wrap; margin-top:12px; }
+  .warn { background:#fff3e0; border:1px solid #f0c48a; border-radius:12px; padding:12px 14px; margin-top:16px; font-size:15px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>심박계 연결 시험</h1>
+  <p class="sub">와후 암밴드(TICKR FIT) 1대를 연결해 심박이 들어오는지 확인합니다.</p>
+
+  <div id="unsupported" class="warn" hidden>
+    이 브라우저는 블루투스 연결(Web Bluetooth)을 지원하지 않습니다.<br>
+    윈도우·크롬북·안드로이드의 <b>크롬</b> 또는 <b>엣지</b>로 열어 주세요. 아이패드·아이폰은 지원하지 않습니다.
+  </div>
+
+  <div class="row">
+    <button id="connect">심박계 연결</button>
+    <button id="disconnect" class="ghost" disabled>연결 끊기</button>
+  </div>
+
+  <div class="card">
+    <div id="bpm"><span class="heart" id="heart">♥</span> <span id="num">--</span><small>bpm</small></div>
+    <canvas id="chart" width="1200" height="240" aria-label="최근 60초 심박 그래프"></canvas>
+    <dl class="meta">
+      <dt>상태</dt><dd id="state">연결 전</dd>
+      <dt>기기 이름</dt><dd id="name">-</dd>
+      <dt>피부 접촉</dt><dd id="contact">-</dd>
+      <dt>배터리</dt><dd id="battery">-</dd>
+      <dt>마지막 수신</dt><dd id="last">-</dd>
+    </dl>
+    <div id="log"></div>
+  </div>
+
+  <div class="warn">
+    <b>준비</b> ① 암밴드를 팔뚝에 차서 불이 깜빡이게 합니다(피부에 닿아야 켜짐).
+    ② 휴대폰의 와후·Zwift 앱 연결을 끊습니다. ③ '심박계 연결' → 목록에서 <b>TICKR</b>로 시작하는 이름 선택.
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const log = msg => {
+  const t = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  $('log').textContent = `[${t}] ${msg}\n` + $('log').textContent;
+};
+const setState = (text, cls) => { $('state').textContent = text; $('state').className = cls || ''; };
+
+if (!navigator.bluetooth) {
+  $('unsupported').hidden = false;
+  $('connect').disabled = true;
+}
+
+let device = null;
+let manualStop = false;
+let lastAt = 0;
+const history = []; // { t, bpm } 최근 60초
+
+// ── 연결 ──────────────────────────────────────────────
+$('connect').onclick = async () => {
+  try {
+    device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: ['heart_rate'] }],
+      optionalServices: ['battery_service']
+    });
+    $('name').textContent = device.name || '(이름 없음)';
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    manualStop = false;
+    await connect();
+  } catch (e) {
+    if (e.name === 'NotFoundError') log('기기 선택을 취소했습니다.');
+    else { log('연결 실패: ' + e.message); setState('연결 실패', 'bad'); }
+  }
+};
+
+async function connect() {
+  setState('연결 중…');
+  const server = await device.gatt.connect();
+  const service = await server.getPrimaryService('heart_rate');
+  const hr = await service.getCharacteristic('heart_rate_measurement');
+  hr.addEventListener('characteristicvaluechanged', onHeartRate);
+  await hr.startNotifications();
+  setState('연결됨', 'ok');
+  $('connect').disabled = true;
+  $('disconnect').disabled = false;
+  log('연결됨: ' + (device.name || ''));
+  readBattery(server);
+}
+
+async function readBattery(server) {
+  try {
+    const s = await server.getPrimaryService('battery_service');
+    const c = await s.getCharacteristic('battery_level');
+    const v = await c.readValue();
+    $('battery').textContent = v.getUint8(0) + '%';
+  } catch { $('battery').textContent = '읽을 수 없음'; }
+}
+
+// ── 심박 값 읽기 (블루투스 표준 심박 형식) ──────────────
+function onHeartRate(e) {
+  const v = e.target.value;
+  const flags = v.getUint8(0);
+  const bpm = (flags & 0x01) ? v.getUint16(1, true) : v.getUint8(1); // 첫 비트: 1이면 16비트 값
+  const contactSupported = (flags & 0x04) !== 0;
+  const contact = (flags & 0x02) !== 0;
+
+  $('num').textContent = bpm;
+  $('contact').textContent = contactSupported ? (contact ? '닿아 있음' : '떨어짐 (밴드를 다시 차세요)') : '알 수 없음';
+  lastAt = Date.now();
+  history.push({ t: lastAt, bpm });
+  while (history.length && lastAt - history[0].t > 60000) history.shift();
+
+  const h = $('heart');
+  h.classList.add('beat');
+  setTimeout(() => h.classList.remove('beat'), 120);
+}
+
+// ── 끊김과 자동 재연결 ────────────────────────────────
+async function onDisconnected() {
+  $('connect').disabled = false;
+  $('disconnect').disabled = true;
+  if (manualStop) { setState('연결 끊음'); log('연결을 끊었습니다.'); return; }
+
+  setState('끊김 · 다시 연결 중…', 'bad');
+  log('신호가 끊겼습니다. 다시 연결합니다.');
+  for (let i = 1; i <= 5; i++) {
+    await new Promise(r => setTimeout(r, 1000 * i));
+    try { await connect(); log(`다시 연결됨 (${i}번째 시도)`); return; }
+    catch (e) { log(`다시 연결 실패 ${i}/5: ${e.message}`); }
+  }
+  setState('끊김 · 거리를 좁히고 다시 연결하세요', 'bad');
+}
+
+$('disconnect').onclick = () => {
+  manualStop = true;
+  if (device && device.gatt.connected) device.gatt.disconnect();
+};
+
+// ── 마지막 수신 시각과 그래프 ─────────────────────────
+setInterval(() => {
+  if (!lastAt) return;
+  const sec = Math.round((Date.now() - lastAt) / 1000);
+  $('last').textContent = sec <= 1 ? '방금' : `${sec}초 전`;
+  if (sec >= 5 && device && device.gatt.connected) $('last').textContent += ' (값이 안 들어옴: 밴드 접촉 확인)';
+  drawChart();
+}, 1000);
+
+function drawChart() {
+  const c = $('chart'), g = c.getContext('2d');
+  const W = c.width, H = c.height, now = Date.now();
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = '#e2ddd0'; g.lineWidth = 2;
+  [80, 120, 160].forEach(b => {
+    const y = H - (b - 50) / 150 * H;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+    g.fillStyle = '#5b6675'; g.font = '22px sans-serif'; g.fillText(b, 6, y - 6);
+  });
+  if (history.length < 2) return;
+  g.strokeStyle = '#d9480f'; g.lineWidth = 5; g.beginPath();
+  history.forEach((p, i) => {
+    const x = W - (now - p.t) / 60000 * W;
+    const y = H - (Math.min(Math.max(p.bpm, 50), 200) - 50) / 150 * H;
+    i ? g.lineTo(x, y) : g.moveTo(x, y);
+  });
+  g.stroke();
+}
+</script>
+</body>
+</html>

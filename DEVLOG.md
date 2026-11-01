@@ -4,6 +4,11 @@
 
 ## 2026-11-02
 
+- **심박계 연결 시험 페이지**(`hr-test.html`, 저장소 맨 위). 와후 TICKR FIT 1대를 Web Bluetooth로 연결해 심박을 크게 표시. 아직 Firebase로 보내지 않음(1대 연결 확인이 먼저).
+  - 표준 심박 서비스(`heart_rate` → `heart_rate_measurement`) 알림을 받음. 첫 바이트 flags의 0번 비트로 8/16비트 값 구분, 1·2번 비트로 피부 접촉 표시. 배터리는 `battery_service`(읽을 수 있으면).
+  - 끊기면 1·2·3·4·5초 간격으로 5번 다시 연결. 5초 넘게 값이 안 들어오면 '밴드 접촉 확인' 표시. 최근 60초 그래프(80·120·160 기준선).
+  - 크롬·엣지(윈도우·크롬북·안드로이드)만. 아이패드는 지원 안 함. 다음: 연결 대수 한계 시험 → 여러 대 + Firebase.
+- **Firebase 연결 시험 성공**: 한 컴퓨터의 크롬·엣지에서 각각 학교 계정으로 로그인, 한쪽에서 보낸 값이 다른 쪽에 새로 고침 없이 표시됨.
 - **Firebase 첫 도입: 연결 시험 페이지**(`firebase-test.html`, 저장소 맨 위). 프로젝트 `smart-sports-live`(Spark 무료, Realtime Database 싱가포르 asia-southeast1). 첫 용도는 와후 암밴드 심박계 10대의 실시간 심박 현황판.
   - 역할 나눔: 지금 이 순간의 값(실시간)은 Firebase, 끝난 기록은 지금처럼 GAS → 구글 시트. Firebase에는 학생 번호와 측정값만, 이름은 시트에서 연결.
   - 보호: Google 로그인 + 보안 규칙으로 `@cpe.es.kr` 계정만 읽기·쓰기. `firebaseConfig`의 `apiKey`는 비밀이 아님(토큰과 같은 성격).
