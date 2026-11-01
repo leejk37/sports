@@ -268,6 +268,13 @@ function show(e, v, big) {   // big = 큰 숫자 칸용(단위 작게)
   return `${num(v)}${sm(e.unit)}`;
 }
 const plain = (e, v) => show(e, v).replace(/<[^>]+>/g, '');
+/* 성장: 어디서 어디까지 늘었는지 (서버 Rank.gs가 from·to를 보냄). 횟수·거리는 앞 숫자의 단위를 빼서 짧게: '22 → 67회' */
+const fromTo = (e, r) => {
+  if (!r || r.from == null || r.to == null) return '';
+  let a = plain(e, r.from); const b = plain(e, r.to);
+  if (e.kind !== 'time') a = a.replace(/[^\d.,]+$/, '');
+  return `<em class="acc ft" title="기준 기록 → 이번 최고">${a} → ${b}</em>`;
+};
 const mask = n => {
   n = String(n || '');
   if (!CONFIG.MASK || data?.keyOk || n.length < 2) return n;
@@ -327,7 +334,7 @@ function demoData(e) {
     total: r(total), people: Math.round(kids.length * { today: .35, week: .75, month: 1 }[period]), avgPer: r(total / kids.length),
     allTime: r(e.goal * (0.25 + rnd() * 0.5)),
     best: kids.map(k => ({ ...k, value: r(k.best) })),
-    growth: kids.map(k => ({ ...k, value: Math.round(rnd() * 60) })),
+    growth: kids.map(k => { const g = Math.round(rnd() * 60); return { ...k, value: g, from: r(k.best), to: r(k.best) + g }; }),
     streak: kids.map(k => ({ ...k, value: 1 + Math.floor(rnd() * { today: 1, week: 5, month: 16 }[period]) })),
     classes: Array.from({ length: 12 }, (_, i) => ({ grade: 1 + (i >> 1), cls: 1 + (i & 1), people: 5 + Math.floor(rnd() * 15), avg: r(base * (0.6 + (i >> 1) * 0.2) * (0.6 + rnd()) * mult / 2) })),
     pbs: kids.slice(0, 8).map(k => ({ ...k, value: r(k.best * 1.1), prev: r(k.best) }))
@@ -341,7 +348,7 @@ const TABS = [
     label: () => ex().id === 'bike' ? '🏆 거리 합계' : ex().sum ? '🏆 가장 많이' : data && data.bestCond ? '🏆 ' + data.bestCond : '🏆 최고 기록',
     val: (e, v, r) => show(e, v) + (r && r.acc != null ? `<em class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}" title="이 기록의 정확도">🎯${r.acc}%</em>` : '') },   // 그 기록의 정확도
   { k: 'growth', why: () => ex().sum ? `내 하루 최고(하루 합)보다 몇 ${ex().unit} 더 했는지 · 누구나 1등 할 수 있어요` : `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
-    val: (e, v) => `<span class="up">▲</span>${show(e, v)}` },
+    val: (e, v, r) => `<span class="up">▲</span>${show(e, v)}` + fromTo(e, r) },   // 아래 작게 '원래 → 지금' (2026-11-01)
   { k: 'run', why: () => `${PNAME[period]} 한 번도 줄에 안 걸리고 이어서 뛴 가장 긴 횟수 · 빠르기보다 끊김 없이!`,
     val: (e, v) => `${num(v)}<small>회</small>`, need: () => !!data && Array.isArray(data.run) },
   { k: 'streak', why: () => period === 'today' ? '오늘까지 하루도 빠짐없이 이 종목을 한 날 수 · 내일도 이어 가요!' : `${PNAME[period]} 이 종목을 한 날 수`, val: (e, v) => `${num(v)}<small>일</small>` },
