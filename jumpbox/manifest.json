@@ -1,0 +1,11 @@
+{
+  "name": "점프박스",
+  "id": "/sports/jumpbox/",
+  "short_name": "점프박스",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#163f97",
+  "theme_color": "#1e5bd8",
+  "icons": [{ "src": "../icon-512.png", "sizes": "512x512", "type": "image/png" }]
+}

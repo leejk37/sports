@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>점프박스</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f4e8c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="점프박스">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  :root{
+    --blue:#1f4e8c; --blue-d:#173d6e; --yellow:#f5c518; --ink:#ffffff;
+    --soft:rgba(255,255,255,.82); --good:#7ee8b5; --warn:#ffb199; --stage:#000;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Pretendard,system-ui,sans-serif;background:var(--blue);color:var(--ink)}
+  #app{display:flex;flex-direction:column;height:100%;height:100dvh}
+
+  header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--blue);border-bottom:4px solid var(--yellow)}
+  header h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.5px}
+  .exp{font-size:14px;font-weight:800;padding:4px 10px;border-radius:999px;background:var(--yellow);color:#1b2333;white-space:nowrap}
+  .grow{flex:1}
+  .hbtn{font:inherit;font-size:15px;font-weight:700;padding:8px 12px;border-radius:8px;
+    border:1.5px solid rgba(255,255,255,.75);background:transparent;color:#fff;cursor:pointer;text-decoration:none}
+
+  #main{flex:1;display:flex;min-height:0}
+  #stage{flex:1;position:relative;background:var(--stage);overflow:hidden;border-right:4px solid var(--yellow)}
+  #view{width:100%;height:100%;object-fit:contain;display:block}
+  #video{display:none}
+  #hint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(20,30,50,.85);
+    padding:10px 20px;border-radius:999px;font-size:18px;font-weight:700;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+  #hint:empty{display:none}
+  #big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:min(30vh,220px);font-weight:900;color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.6);pointer-events:none}
+  #flash{position:absolute;left:50%;top:24px;transform:translateX(-50%);padding:10px 22px;border-radius:12px;
+    background:#d9480f;color:#fff;font-size:24px;font-weight:800;opacity:0;transition:opacity .2s;white-space:nowrap}
+  #flash.on{opacity:1}
+  #flash.good{background:#2b8a3e}
+
+  #side{width:min(36vw,420px);background:var(--blue);display:flex;flex-direction:column;padding:22px;gap:14px;overflow:auto}
+  #who{font-size:16px;color:var(--soft);min-height:22px}
+  .screen{display:none;flex-direction:column;gap:14px}
+  .screen.on{display:flex}
+  .screen h2{margin:0;font-size:28px;font-weight:800;line-height:1.3;letter-spacing:-.5px}
+  .screen h3{margin:4px 0 0;font-size:18px;font-weight:800;color:var(--yellow)}
+  .screen p{margin:0;font-size:17px;font-weight:600;color:var(--soft);line-height:1.55}
+  .choice{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .choice button{font:inherit;font-size:20px;font-weight:800;padding:14px 6px;border-radius:12px;cursor:pointer;
+    border:2px solid rgba(255,255,255,.75);background:transparent;color:#fff}
+  .choice button small{display:block;font-size:13px;font-weight:700;opacity:.8;margin-top:2px}
+  .choice button.on{background:var(--yellow);border-color:var(--yellow);color:#1b2333}
+  button.btn{font:inherit;font-size:21px;font-weight:800;padding:16px;border-radius:12px;cursor:pointer;
+    border:2px solid #fff;background:#fff;color:var(--blue);text-align:center}
+  button.btn:disabled{opacity:.45;cursor:default}
+  button.btn.line{background:transparent;color:#fff}
+  button:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+  #boxState{font-size:17px;font-weight:800;color:var(--yellow)}
+  .count{font-size:110px;font-weight:900;line-height:1;color:#fff}
+  .count small{font-size:28px;font-weight:700;margin-left:6px;color:var(--soft)}
+  .rows{border-top:1px solid rgba(255,255,255,.25)}
+  .row{display:flex;justify-content:space-between;font-size:19px;font-weight:700;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.25)}
+  .row b{color:var(--warn)}
+  .row b.good{color:var(--good)}
+  #nextTip{font-size:18px;font-weight:800;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.12);color:var(--good)}
+  #nextTip:empty{display:none}
+  @media (max-width:820px), (orientation:portrait){#main{flex-direction:column}#stage{border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto;max-height:46%}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>점프박스</h1>
+    <span class="exp">실험 중 · 기록 저장 안 됨</span>
+    <span class="grow"></span>
+    <button class="hbtn" id="flip">카메라 전환</button>
+    <a class="hbtn" href="../">허브로</a>
+  </header>
+
+  <div id="main">
+    <div id="stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="view"></canvas>
+      <div id="big"></div>
+      <div id="flash"></div>
+      <div id="hint"></div>
+    </div>
+
+    <aside id="side">
+      <div id="who"></div>
+
+      <section class="screen" id="s-loading">
+        <h2>준비하고 있어요</h2>
+        <p>카메라와 동작 인식 모델을 불러오는 중이에요.</p>
+      </section>
+
+      <section class="screen" id="s-setup">
+        <h2>박스 높이를 골라요</h2>
+        <div class="choice" id="heights">
+          <button data-h="20">20인치<small>처음은 여기</small></button>
+          <button data-h="24">24인치<small>20인치 통과 후</small></button>
+          <button data-h="30">30인치<small>선생님과 함께</small></button>
+        </div>
+        <h3>몇 번 할까요?</h3>
+        <div class="choice" id="targets">
+          <button data-n="5">5회</button>
+          <button data-n="10">10회</button>
+          <button data-n="0">자유<small>끝내기 누를 때까지</small></button>
+        </div>
+        <div id="boxState"></div>
+        <button class="btn line" id="autoBtn">🧍 박스 위에 서서 맞추기</button>
+        <button class="btn line" id="boxBtn">📏 박스선 맞추기</button>
+        <button class="btn" id="startBtn">시작</button>
+        <p>카메라는 옆에서, 박스와 무릎·발이 다 보이게. 박스 앞에 서서 시작해요. 내려올 때는 한 발씩 걸어서!</p>
+      </section>
+
+      <section class="screen" id="s-countdown">
+        <h2>박스 앞에<br>바르게 서요</h2>
+        <p>숫자가 나오는 동안 바닥 높이를 재요. 움직이지 말고 기다려요.</p>
+      </section>
+
+      <section class="screen" id="s-autobox">
+        <h2>박스 위에<br>두 발로 서요</h2>
+        <p>숫자가 나오는 동안 가만히 서 있으면 발 높이로 박스선을 맞춰요.</p>
+      </section>
+
+      <section class="screen" id="s-measure">
+        <div class="count"><span id="mainNum">0</span><small id="mainUnit">회</small></div>
+        <div class="rows">
+          <div class="row"><span>한 발씩 올라감</span><b id="mErr1">0</b></div>
+          <div class="row"><span>딱딱한 착지</span><b id="mErr2">0</b></div>
+          <div class="row"><span>뛰어내림</span><b id="mWarn">0</b></div>
+        </div>
+        <button class="btn line" id="stopBtn">끝내기</button>
+      </section>
+
+      <section class="screen" id="s-result">
+        <h2 id="resTitle">측정 끝!</h2>
+        <div class="count"><span id="resMain">0</span><small>회 정확</small></div>
+        <div class="rows" id="resRows"></div>
+        <div id="nextTip"></div>
+        <button class="btn" id="again">한 번 더</button>
+        <button class="btn line" id="toSetup">높이·횟수 바꾸기</button>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+/* ===== 조정 값 (학생 시험 후 고침) =====
+ * 높이·길이는 픽셀이 아니라 정강이 길이(무릎~발목)의 배수로 잽니다. 카메라 거리가 달라도 같은 기준. */
+const CONFIG = {
+  VIS_MIN: 0.5,      // 관절이 이만큼 또렷해야 판정에 씀
+  HOLD: 0.3,         // 두 발이 박스 위에 이만큼(초) 머물러야 '올라섬'
+  BAND_UP: 0.7,      // 발목이 박스선보다 정강이 0.7배 위까지는 '박스 위', 더 높으면 '공중'
+  BAND_DN: 0.25,     // 박스선보다 정강이 0.25배 아래까지도 '박스 위'(선 맞춤 오차)
+  FLOOR_TOL: 0.35,   // 처음 잰 바닥 높이에서 정강이 0.35배 안이면 '바닥'
+  SYNC: 0.2,         // 두 발이 박스에 닿은 시각 차이가 0.2초 넘으면 오류1 '한 발씩 올라감'
+  KNEE_SOFT: 150,    // 착지 후 0.4초 안 무릎 각이 한 번도 150° 아래로 안 굽으면 오류2 '딱딱한 착지'
+  LAND_WIN: 0.4,
+  JUMPDOWN: 0.12     // 내려올 때 두 발이 0.12초 안에 같이 바닥에 닿으면 '뛰어내림'(안전 알림, 오류에는 안 넣음)
+};
+const HEIGHTS = [20, 24, 30];   // 인치 (폼 박스 3-in-1: 50.8 · 61 · 76.2cm)
+
+const $ = id => document.getElementById(id);
+const video = $('video'), canvas = $('view'), ctx = canvas.getContext('2d');
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) {} },
+  del: k => { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+let stream = null, pose = null, facing = store.get('jbFacing') || 'environment';
+let mode = 'loading', lastVideoTime = -1, wakeLock = null, audio = null;
+let height = HEIGHTS.includes(Number(store.get('jbHeight'))) ? Number(store.get('jbHeight')) : 20;
+let target = [0, 5, 10].includes(Number(store.get('jbTarget'))) ? Number(store.get('jbTarget')) : 10;
+let boxSetting = false;
+const boxKey = h => 'jbBox' + h;   // 박스선은 높이마다 따로 기억 (박스를 돌리면 윗면 위치가 바뀜)
+const getBoxY = () => { const v = Number(store.get(boxKey(height))); return v > 0 && v < 1 ? v : null; };
+
+/* ===== 화면 ===== */
+function show(name) {
+  mode = name;
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === 's-' + name));
+}
+function setHint(t = '') { $('hint').textContent = t; }
+let flashTimer = null;
+function flash(text, good = false) {
+  const f = $('flash');
+  f.textContent = text; f.classList.toggle('good', good); f.classList.add('on');
+  clearTimeout(flashTimer); flashTimer = setTimeout(() => f.classList.remove('on'), 1000);
+}
+function beep(freq = 880, ms = 120) {
+  try {
+    audio ??= new AudioContext();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = freq; g.gain.value = 0.15; o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + ms / 1000);
+  } catch (e) {}
+}
+function renderSetup() {
+  document.querySelectorAll('#heights button').forEach(b => b.classList.toggle('on', Number(b.dataset.h) === height));
+  document.querySelectorAll('#targets button').forEach(b => b.classList.toggle('on', Number(b.dataset.n) === target));
+  const ok = getBoxY() != null;
+  $('boxState').textContent = ok ? `${height}인치 박스선 맞춤 완료` : `${height}인치 박스선을 먼저 맞춰요`;
+  $('boxBtn').textContent = boxSetting ? '✕ 취소' : ok ? '📏 박스선 다시 맞추기' : '📏 박스선 맞추기';
+  $('startBtn').disabled = !ok;
+}
+
+/* ===== 카메라 ===== */
+async function startCamera() {
+  stream?.getTracks().forEach(t => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+  });
+  video.srcObject = stream;
+  await video.play();
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+}
+const mirror = () => facing === 'user';
+
+/* ===== 자세 읽기 ===== */
+function angle(a, b, c) {
+  const v1x = a.x - b.x, v1y = a.y - b.y, v2x = c.x - b.x, v2y = c.y - b.y;
+  const cos = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y) || 1);
+  return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
+}
+let shin = null;   // 정강이 길이(픽셀), 흔들림을 줄이려고 천천히 따라감
+function readPose(lm) {
+  const W = canvas.width, H = canvas.height;
+  const p = i => ({ x: lm[i].x * W, y: lm[i].y * H, v: lm[i].visibility ?? 0 });
+  const lh = p(23), rh = p(24), lk = p(25), rk = p(26), la = p(27), ra = p(28);
+  const ok = [lk, rk, la, ra].every(q => q.v > CONFIG.VIS_MIN);
+  if (ok) {
+    const L = (Math.hypot(lk.x - la.x, lk.y - la.y) + Math.hypot(rk.x - ra.x, rk.y - ra.y)) / 2;
+    shin = shin == null ? L : shin * 0.9 + L * 0.1;
+  }
+  const knee = (lh.v > CONFIG.VIS_MIN && rh.v > CONFIG.VIS_MIN) ? Math.min(angle(lh, lk, la), angle(rh, rk, ra)) : null;
+  return { ok, la, ra, knee, segs: [[lh, rh], [lh, lk], [lk, la], [rh, rk], [rk, ra]] };
+}
+
+/* ===== 판정: 바닥 → (두 발이 박스 위에 0.3초) 올라섬 → (두 발이 바닥으로) 내려옴 = 1회 ===== */
+let floorY = null, floorSamples = [];
+let S = null;            // 이번 측정
+let st, boxT, onSince, leaveT, landT, kneeHist;
+
+function resetCycle() { st = 'floor'; boxT = { l: null, r: null }; onSince = null; leaveT = { l: null, r: null }; landT = null; }
+
+function zone(y) {
+  const by = getBoxY() * canvas.height, L = shin || 60;
+  if (y < by - CONFIG.BAND_UP * L) return 'air';
+  if (y <= by + CONFIG.BAND_DN * L) return 'box';
+  if (floorY != null && y >= floorY - CONFIG.FLOOR_TOL * L) return 'floor';
+  return 'mid';
+}
+const ZNAME = { air: '공중', box: '박스 위', floor: '바닥', mid: '중간' };
+
+function step(r, t) {
+  const zl = zone(r.la.y), zr = zone(r.ra.y);
+  if (r.knee != null) { kneeHist.push({ t, a: r.knee }); while (kneeHist.length && t - kneeHist[0].t > 3) kneeHist.shift(); }
+  setHint(`왼발 ${ZNAME[zl]} · 오른발 ${ZNAME[zr]}`);
+
+  if (st === 'floor') {
+    // 각 발이 박스 높이에 '내려앉은' 시각 (공중이거나 바닥이면 다시 잼)
+    if (zl === 'box') { if (boxT.l == null) boxT.l = t; } else if (zl === 'air' || zl === 'floor') boxT.l = null;
+    if (zr === 'box') { if (boxT.r == null) boxT.r = t; } else if (zr === 'air' || zr === 'floor') boxT.r = null;
+    if (zl === 'box' && zr === 'box' && boxT.l != null && boxT.r != null) {
+      onSince ??= t;
+      if (t - onSince >= CONFIG.HOLD) {
+        st = 'box';
+        landT = Math.max(boxT.l, boxT.r);
+        S.cur = { oneFoot: Math.abs(boxT.l - boxT.r) > CONFIG.SYNC };
+        beep(1100, 70);
+      }
+    } else onSince = null;
+  } else if (st === 'box') {
+    if (zl === 'floor') leaveT.l ??= t; else if (zl === 'box') leaveT.l = null;
+    if (zr === 'floor') leaveT.r ??= t; else if (zr === 'box') leaveT.r = null;
+    if (leaveT.l != null && leaveT.r != null) finishRep(Math.abs(leaveT.l - leaveT.r) < CONFIG.JUMPDOWN);
+  }
+}
+
+function finishRep(jumpDown) {
+  const win = kneeHist.filter(k => k.t >= landT - 0.05 && k.t <= landT + CONFIG.LAND_WIN);
+  const minKnee = win.length ? Math.min(...win.map(k => k.a)) : null;
+  const hard = minKnee != null && minKnee > CONFIG.KNEE_SOFT;
+  const c = S.cur;
+  S.total++;
+  if (c.oneFoot) S.err1++;
+  if (hard) S.err2++;
+  if (jumpDown) S.warn++;
+  if (!c.oneFoot && !hard) { S.good++; flash('좋아요!', true); beep(1500, 90); }
+  else flash(c.oneFoot ? '두 발 동시에!' : '무릎을 굽혀 사뿐히!');
+  if (jumpDown) setTimeout(() => flash('내려올 땐 걸어서!'), 1050);
+  renderMeasure();
+  resetCycle();
+  if (target && S.total >= target) setTimeout(finish, 600);
+}
+
+function renderMeasure() {
+  $('mainNum').textContent = S.good;
+  $('mainUnit').textContent = target ? `회 정확 / ${S.total}회 (목표 ${target})` : `회 정확 / ${S.total}회`;
+  $('mErr1').textContent = S.err1; $('mErr2').textContent = S.err2; $('mWarn').textContent = S.warn;
+}
+
+/* ===== 그리기 ===== */
+function drawVideo() {
+  ctx.save();
+  if (mirror()) { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+}
+function hline(y, color, label, dash) {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 6; ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  if (label) { ctx.fillStyle = color; ctx.font = 'bold 30px sans-serif'; ctx.fillText(label, 14, y - 12); }
+  ctx.restore();
+}
+function drawLines() {
+  const by = getBoxY();
+  if (by != null) hline(by * canvas.height, '#f5c518', `${height}인치 박스`, [22, 12]);
+  if (floorY != null && mode === 'measure') hline(floorY, 'rgba(126,232,181,.7)', '바닥', [10, 10]);
+}
+function drawPose(r) {
+  const X = x => mirror() ? canvas.width - x : x;
+  ctx.lineWidth = 8; ctx.lineCap = 'round';
+  ctx.strokeStyle = st === 'box' ? '#5fd3a6' : '#8fb8ff';
+  r.segs.forEach(([a, b]) => {
+    if (a.v < CONFIG.VIS_MIN || b.v < CONFIG.VIS_MIN) return;
+    ctx.beginPath(); ctx.moveTo(X(a.x), a.y); ctx.lineTo(X(b.x), b.y); ctx.stroke();
+  });
+  [r.la, r.ra].forEach(a => {
+    if (a.v < CONFIG.VIS_MIN) return;
+    ctx.fillStyle = getBoxY() != null && zone(a.y) === 'box' ? '#f5c518' : '#fff';
+    ctx.beginPath(); ctx.arc(X(a.x), a.y, 14, 0, 7); ctx.fill();
+  });
+}
+
+/* ===== 반복 ===== */
+function loop() {
+  requestAnimationFrame(loop);
+  if (!video.videoWidth) return;
+  drawVideo();
+  drawLines();
+  if (!pose || video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  const t = performance.now() / 1000;
+  const lm = pose.detectForVideo(video, performance.now()).landmarks?.[0];
+  if (!lm) { if (mode === 'measure') setHint('사람이 안 보여요. 무릎과 발이 다 보이게'); return; }
+  const r = readPose(lm);
+  drawPose(r);
+  if ((mode === 'countdown' || mode === 'autobox') && r.ok) floorSamples.push((r.la.y + r.ra.y) / 2);
+  if (mode === 'measure') {
+    if (!r.ok) { setHint('무릎과 발이 다 보이게 서요'); return; }
+    step(r, t);
+  }
+}
+
+/* ===== 시작 · 끝 ===== */
+async function startCountdown() {
+  if (getBoxY() == null) return;
+  floorSamples = []; floorY = null; shin = null;
+  show('countdown');
+  setHint('');
+  for (const n of [3, 2, 1]) { $('big').textContent = n; beep(700, 100); await new Promise(r => setTimeout(r, 900)); }
+  $('big').textContent = '';
+  if (floorSamples.length >= 5) {
+    const s = floorSamples.slice().sort((a, b) => a - b);
+    floorY = s[Math.floor(s.length / 2)];
+  }
+  const by = getBoxY() * canvas.height;
+  if (floorY == null || !shin) { show('setup'); renderSetup(); flash('발이 안 보여요. 무릎과 발이 다 보이게 서요'); return; }
+  if (floorY - by < 0.8 * shin) { show('setup'); renderSetup(); flash('박스선이 발과 너무 가까워요. 다시 맞춰요'); return; }
+  S = { total: 0, good: 0, err1: 0, err2: 0, warn: 0, cur: null };
+  kneeHist = [];
+  resetCycle();
+  renderMeasure();
+  show('measure');
+  beep(1300, 200);
+}
+
+/* 자동 맞추기: 학생(또는 선생님)이 박스 위에 서 있는 동안 두 발목 높이를 재서 박스선으로 기억.
+ * 발목은 박스 윗면보다 조금 위에 있으므로 정강이 0.1배만큼 내려 잡음 */
+async function autoBox() {
+  floorSamples = []; shin = null; boxSetting = false; setHint('');
+  show('autobox');
+  for (const n of [3, 2, 1]) { $('big').textContent = n; beep(700, 100); await new Promise(r => setTimeout(r, 900)); }
+  $('big').textContent = '';
+  show('setup');
+  if (floorSamples.length < 5 || !shin) { renderSetup(); flash('발이 안 보여요. 무릎과 발이 다 보이게'); return; }
+  const s = floorSamples.slice().sort((a, b) => a - b);
+  const y = (s[Math.floor(s.length / 2)] + 0.1 * shin) / canvas.height;
+  store.set(boxKey(height), y);
+  renderSetup();
+  flash(`${height}인치 박스선을 맞췄어요`, true); beep(1200, 80);
+}
+
+function finish() {
+  if (mode !== 'measure') return;
+  show('result');
+  setHint('');
+  const acc = S.total ? Math.round(S.good / S.total * 100) : 0;
+  $('resTitle').textContent = `${height}인치 박스 · 끝!`;
+  $('resMain').textContent = S.good;
+  $('resRows').innerHTML =
+    `<div class="row"><span>전체</span><b class="good">${S.total}회</b></div>` +
+    `<div class="row"><span>정확도</span><b class="good">${acc}%</b></div>` +
+    `<div class="row"><span>한 발씩 올라감</span><b>${S.err1}</b></div>` +
+    `<div class="row"><span>딱딱한 착지</span><b>${S.err2}</b></div>` +
+    `<div class="row"><span>뛰어내림 (안전)</span><b>${S.warn}</b></div>`;
+  // 높이 단계: 오류 없이 10회를 해내면 다음 높이를 안내 (어제의 나와 비교, 무리한 도전 막기)
+  let tip = '';
+  if (S.good >= 10 && S.err1 + S.err2 === 0) {
+    tip = height === 20 ? '오류 없이 10회! 다음엔 24인치에 도전해도 좋아요.'
+        : height === 24 ? '오류 없이 10회! 30인치는 선생님 옆에서만 도전해요.'
+        : '30인치 10회 성공! 정말 멋져요.';
+  } else if (S.err1 >= S.err2 && S.err1 > 0) tip = '두 발을 모아 동시에 올라가 봐요.';
+  else if (S.err2 > 0) tip = '박스에 닿을 때 무릎을 굽혀 사뿐히 앉듯이.';
+  $('nextTip').textContent = tip;
+}
+
+/* ===== 버튼 ===== */
+document.addEventListener('pointerdown', () => {
+  try { audio ??= new AudioContext(); if (audio.state === 'suspended') audio.resume(); } catch (e) {}
+}, { passive: true });
+document.querySelectorAll('#heights button').forEach(b => b.onclick = () => {
+  height = Number(b.dataset.h); store.set('jbHeight', height); boxSetting = false; setHint(); renderSetup();
+});
+document.querySelectorAll('#targets button').forEach(b => b.onclick = () => {
+  target = Number(b.dataset.n); store.set('jbTarget', target); renderSetup();
+});
+$('boxBtn').onclick = () => {
+  boxSetting = !boxSetting;
+  setHint(boxSetting ? `화면에서 ${height}인치 박스 윗면을 눌러요` : '');
+  renderSetup();
+};
+canvas.addEventListener('pointerdown', e => {
+  if (!boxSetting) return;
+  const rc = canvas.getBoundingClientRect(), k = Math.min(rc.width / canvas.width, rc.height / canvas.height);   // object-fit: contain
+  const top = rc.top + (rc.height - canvas.height * k) / 2;
+  const y = (e.clientY - top) / (canvas.height * k);
+  if (y <= 0 || y >= 1) return;
+  store.set(boxKey(height), y);
+  boxSetting = false; setHint(); renderSetup();
+  flash(`${height}인치 박스선을 맞췄어요`, true); beep(1200, 80);
+});
+$('startBtn').onclick = startCountdown;
+$('autoBtn').onclick = autoBox;
+$('stopBtn').onclick = finish;
+$('again').onclick = startCountdown;
+$('toSetup').onclick = () => { show('setup'); renderSetup(); };
+$('flip').onclick = async () => {
+  facing = facing === 'user' ? 'environment' : 'user';
+  store.set('jbFacing', facing);
+  await startCamera();
+};
+const who = new URLSearchParams(location.search).get('name');
+if (who) $('who').textContent = who + ' 학생';
+
+/* ===== 시작 ===== */
+(async () => {
+  show('loading');
+  try {
+    await startCamera();
+    requestAnimationFrame(loop);
+    const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    for (const delegate of ['GPU', 'CPU']) {
+      try {
+        pose = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+            delegate
+          },
+          runningMode: 'VIDEO', numPoses: 1
+        });
+        break;
+      } catch (e) { pose = null; }
+    }
+    if (!pose) throw new Error('동작 인식 모델을 불러오지 못했어요');
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (e) {}
+    show('setup');
+    renderSetup();
+  } catch (e) {
+    $('s-loading').innerHTML = '<h2>시작하지 못했어요</h2><p>카메라 권한을 확인해 주세요.<br>' + e.message + '</p>';
+  }
+})();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
+  }
+</script>
+</body>
+</html>
