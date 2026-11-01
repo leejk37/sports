@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>피클볼 연습</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e5bd8">
+<style>
+  :root { --blue:#1e5bd8; --blue-d:#163f97; --yellow:#ffd23f; --bg:#f4f6fb; --ink:#1b2333; --soft:#5b6476;
+          --ok:#1f8a4c; --bad:#c62828; --warn:#b26a00; --red:#e53935; --bluef:#1e88e5; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body { font-family:-apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+         background:var(--bg); color:var(--ink); min-height:100dvh; display:flex; flex-direction:column; }
+  header { background:var(--blue); color:#fff; padding:1.2vw 2vw; display:flex; align-items:center; gap:2vw; flex-wrap:wrap; }
+  .home { color:#fff; text-decoration:none; font-weight:800; font-size:clamp(16px,1.8vw,24px); background:rgba(255,255,255,0.18); padding:0.6vw 1.4vw; border-radius:999px; white-space:nowrap; }
+  .exp { background:var(--yellow); color:var(--ink); font-weight:800; font-size:clamp(13px,1.4vw,18px); padding:0.3vw 1vw; border-radius:999px; white-space:nowrap; }
+  #who { margin-left:auto; font-weight:700; font-size:clamp(15px,1.6vw,22px); }
+  header h1 { font-size:clamp(20px,2.4vw,34px); margin:0; white-space:nowrap; }
+  .tabs { display:flex; gap:1vw; flex-wrap:wrap; }
+  .tab { border:0; border-radius:999px; padding:0.9vw 2vw; font-size:clamp(16px,1.8vw,26px); font-weight:700;
+         background:rgba(255,255,255,0.18); color:#fff; cursor:pointer; }
+  .tab.on { background:var(--yellow); color:var(--ink); }
+  .tab:disabled { opacity:0.5; cursor:default; }
+  main { flex:1; display:flex; flex-direction:column; gap:1.5vw; padding:1.5vw 2vw 2vw; }
+  #hint { font-size:clamp(15px,1.6vw,22px); color:var(--soft); margin:0; }
+  #stage { flex:1; display:flex; gap:2vw; min-height:0; }
+  #camWrap { position:relative; flex:1.1; background:#111; border-radius:1.5vw; overflow:hidden; display:none; min-height:38vh; }
+  #camWrap.show { display:block; }
+  #camWrap video, #camWrap canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+  #board { flex:1; background:#fff; border-radius:1.5vw; box-shadow:0 0.5vw 2vw rgba(20,40,90,0.08);
+           display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1vw; padding:2vw; position:relative; min-height:38vh; }
+  #count { font-size:clamp(90px,16vw,240px); font-weight:800; line-height:1; color:var(--blue); font-variant-numeric:tabular-nums; }
+  #countLabel { font-size:clamp(18px,2.2vw,32px); font-weight:700; color:var(--soft); }
+  #sub { font-size:clamp(16px,1.8vw,26px); color:var(--ink); text-align:center; }
+  #face { display:none; align-items:center; gap:0.8vw; font-size:clamp(16px,1.8vw,26px); font-weight:700; }
+  #face.show { display:flex; }
+  #faceDot { width:2.6vw; height:2.6vw; min-width:22px; min-height:22px; border-radius:50%; background:#ccc; border:3px solid #fff; box-shadow:0 0 0 2px #ccc; }
+  #flash { position:absolute; top:1.5vw; left:50%; transform:translateX(-50%); padding:0.8vw 2vw; border-radius:999px;
+           font-size:clamp(16px,2vw,28px); font-weight:800; color:#fff; opacity:0; transition:opacity 0.2s; white-space:nowrap; }
+  #flash.ok { background:var(--ok); } #flash.bad { background:var(--bad); } #flash.warn { background:var(--warn); }
+  #flash.show { opacity:1; }
+  #countdown { position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+               background:rgba(255,255,255,0.92); border-radius:1.5vw; font-size:clamp(120px,20vw,300px); font-weight:800; color:var(--blue); }
+  #countdown.show { display:flex; }
+  .controls { display:flex; gap:1.5vw; align-items:center; flex-wrap:wrap; }
+  .btn { border:0; border-radius:1vw; padding:1.2vw 3vw; font-size:clamp(18px,2.2vw,30px); font-weight:800; cursor:pointer; }
+  .btn.go { background:var(--blue); color:#fff; } .btn.stop { background:var(--bad); color:#fff; }
+  .btn:disabled { opacity:0.4; cursor:default; }
+  #status { font-size:clamp(15px,1.6vw,22px); color:var(--soft); }
+  #result { display:none; background:#fff; border-radius:1.5vw; padding:2vw; box-shadow:0 0.5vw 2vw rgba(20,40,90,0.1); }
+  #result.show { display:block; }
+  #result h2 { margin:0 0 1vw; font-size:clamp(22px,2.6vw,38px); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:1vw; }
+  .stat { background:var(--bg); border-radius:1vw; padding:1.2vw 1.5vw; }
+  .stat b { display:block; font-size:clamp(26px,3.4vw,48px); color:var(--blue-d); }
+  .stat span { font-size:clamp(14px,1.5vw,20px); color:var(--soft); }
+  details { background:#fff; border-radius:1.2vw; padding:1vw 1.5vw; font-size:clamp(14px,1.5vw,20px); }
+  summary { cursor:pointer; font-weight:700; }
+  .meter { position:relative; height:22px; background:#e6e9f2; border-radius:11px; overflow:hidden; margin:0.8vw 0; }
+  #meterFill { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--bluef); }
+  #meterMark { position:absolute; top:0; bottom:0; width:3px; background:var(--bad); }
+  .row { display:flex; gap:1.5vw; flex-wrap:wrap; align-items:center; margin:0.6vw 0; }
+  .row label { display:flex; gap:0.5vw; align-items:center; }
+  .row input[type=number] { width:7em; font-size:inherit; padding:4px 6px; }
+  .mono { font-variant-numeric:tabular-nums; }
+  @media (orientation:portrait) { #stage { flex-direction:column; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="home" href="../">← 허브</a>
+  <h1>피클볼 연습</h1>
+  <span class="exp">실험 중 · 기록 저장 안 됨</span>
+  <div class="tabs">
+    <button class="tab on" data-mode="one">한 면 튀기기</button>
+    <button class="tab" data-mode="alt">앞뒤 번갈아</button>
+    <button class="tab" data-mode="dink">딩크 랠리</button>
+  </div>
+  <span id="who"></span>
+</header>
+<main>
+  <p id="hint"></p>
+  <div id="stage">
+    <div id="camWrap"><video id="video" playsinline muted></video><canvas id="overlay"></canvas></div>
+    <div id="board">
+      <div id="flash"></div>
+      <div id="count">0</div>
+      <div id="countLabel">번</div>
+      <div id="face"><div id="faceDot"></div><span id="faceText">면 기다리는 중</span></div>
+      <div id="sub"></div>
+      <div id="countdown">3</div>
+    </div>
+  </div>
+  <div class="controls">
+    <button class="btn go" id="startBtn">시작</button>
+    <button class="btn stop" id="stopBtn" disabled>정지</button>
+    <span id="status">시작을 누르면 마이크를 켭니다.</span>
+  </div>
+  <div id="result"><h2 id="resTitle">결과</h2><div class="stats" id="resStats"></div></div>
+  <details id="calib">
+    <summary>기준 맞추기 (선생님용)</summary>
+    <p>바르게 친 소리와 바닥에 떨어진 소리를 한 번씩 내 보고, 아래 숫자의 중간쯤으로 기준을 정하세요.</p>
+    <div class="meter"><div id="meterFill"></div><div id="meterMark"></div></div>
+    <div class="row mono" id="lastInfo">마지막 소리: -</div>
+    <div class="row mono" id="colorInfo">패들 색: -</div>
+    <div class="row">
+      <label>타구 소리 크기 <input type="number" step="0.01" min="0.02" max="1" data-key="hit"></label>
+      <label>바닥 소리 경계(Hz) <input type="number" step="50" min="200" max="8000" data-key="cent"></label>
+      <label><input type="checkbox" data-key="floor"> 바닥 소리 구분</label>
+    </div>
+    <div class="row">
+      <label>끝 판정(초) <input type="number" step="0.1" min="0.5" max="10" data-key="end"></label>
+      <label>랠리 끊김(초) <input type="number" step="0.1" min="1" max="10" data-key="rally"></label>
+      <label>색 최소 비율 <input type="number" step="0.01" min="0.005" max="0.5" data-key="color"></label>
+    </div>
+    <p>주소에 <b>?hit=0.3</b>처럼 붙여 열어도 이 기기에 기억됩니다. <b>?hit=default</b>는 기본값으로 되돌립니다.</p>
+  </details>
+</main>
+
+<script type="module">
+// ── 설정: 기본값 → 이 기기에 저장된 값 → 주소(?key=) 순으로 덮어씀 ──────────
+const VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+
+const SETTINGS = {
+  hit:   { name: "HIT_LEVEL",  def: 0.22 },  // 타구로 볼 소리 크기 (0~1)
+  gap:   { name: "MIN_GAP",    def: 0.22 },  // 이 시간(초) 안의 소리는 같은 타구로 봄
+  end:   { name: "END_GAP",    def: 2.0 },   // 튀기기: 이 시간 동안 타구가 없으면 끝
+  rally: { name: "RALLY_GAP",  def: 3.0 },   // 딩크: 이 시간 동안 타구가 없으면 랠리 끝
+  cent:  { name: "CENT_SPLIT", def: 1800 },  // 이보다 낮은 높낮이(Hz)는 바닥 소리
+  floor: { name: "FLOOR_ON",   def: 1 },     // 1 = 바닥 소리 구분, 0 = 모든 소리를 타구로
+  color: { name: "COLOR_MIN",  def: 0.04 },  // 패들 색으로 인정할 최소 비율
+};
+const CFG = {};
+const storeGet = (k) => { try { return localStorage.getItem("pb_" + k); } catch (e) { return null; } };
+const storeSet = (k, v) => { try { localStorage.setItem("pb_" + k, String(v)); } catch (e) {} };
+const storeDel = (k) => { try { localStorage.removeItem("pb_" + k); } catch (e) {} };
+const params = new URLSearchParams(location.search);
+for (const [key, s] of Object.entries(SETTINGS)) {
+  let v = s.def;
+  const saved = storeGet(key);
+  if (saved !== null && !isNaN(parseFloat(saved))) v = parseFloat(saved);
+  if (params.has(key)) {
+    let p = params.get(key);
+    if (p === "default") { storeDel(key); v = s.def; }
+    else {
+      if (key === "floor") p = (p === "off" || p === "0") ? "0" : "1";
+      if (!isNaN(parseFloat(p))) { v = parseFloat(p); storeSet(key, v); }
+    }
+  }
+  CFG[s.name] = v;
+}
+
+// ── 화면 요소 ──────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const MODES = {
+  one:  { label: "번", hint: "한 면으로 공을 위로 튀겨요. 떨어뜨리거나 2초 멈추면 끝나요.", cam: false },
+  alt:  { label: "번 연속 번갈아", hint: "패들 앞면에 빨강, 뒷면에 파랑을 붙이고 번갈아 튀겨요. 카메라가 면 색을 봐요.", cam: true },
+  dink: { label: "번 랠리", hint: "둘이 키친 앞에서 낮게 주고받아요. 태블릿은 네트 옆에 두세요. 정지를 누를 때까지 랠리를 세요.", cam: false },
+};
+let mode = "one";
+let running = false;
+let S = null;
+
+function setStatus(t) { $("status").textContent = t; }
+let flashTimer = null;
+function flash(text, kind) {
+  const f = $("flash");
+  f.textContent = text; f.className = kind + " show";
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { f.className = kind; }, 900);
+}
+
+function applyMode() {
+  document.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+  $("hint").textContent = MODES[mode].hint;
+  $("countLabel").textContent = MODES[mode].label;
+  $("camWrap").classList.toggle("show", MODES[mode].cam);
+  $("face").classList.toggle("show", MODES[mode].cam);
+  $("count").textContent = "0";
+  $("sub").textContent = "";
+  $("result").classList.remove("show");
+}
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => {
+  if (running) return;
+  mode = b.dataset.mode;
+  applyMode();
+}));
+
+// ── 소리: 마이크 → 타구/바닥 판정 ─────────────────────────────────────
+let ac = null, analyser = null, timeBuf = null, freqBuf = null;
+async function initAudio() {
+  if (ac) { if (ac.state === "suspended") await ac.resume(); return; }
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+  });
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ac.createMediaStreamSource(stream);
+  analyser = ac.createAnalyser();
+  analyser.fftSize = 1024;            // 약 0.02초 창: 짧은 "딱" 소리를 잡기 좋음
+  analyser.smoothingTimeConstant = 0;
+  src.connect(analyser);
+  timeBuf = new Float32Array(analyser.fftSize);
+  freqBuf = new Float32Array(analyser.frequencyBinCount);
+}
+
+// 스펙트럼 중심: 소리가 높은 쪽(패들 "딱")에 몰렸는지 낮은 쪽(바닥 "퉁")에 몰렸는지
+function spectralCentroid() {
+  analyser.getFloatFrequencyData(freqBuf);
+  const binHz = ac.sampleRate / analyser.fftSize;
+  let num = 0, den = 0;
+  for (let i = 2; i < freqBuf.length; i++) {
+    const m = Math.pow(10, freqBuf[i] / 20);
+    num += m * i * binHz; den += m;
+  }
+  return den ? num / den : 0;
+}
+
+let lastOnset = -1, liveLevel = 0, ignoreUntil = 0;
+function audioTick(t) {
+  analyser.getFloatTimeDomainData(timeBuf);
+  let peak = 0;
+  for (let i = 0; i < timeBuf.length; i++) { const a = Math.abs(timeBuf[i]); if (a > peak) peak = a; }
+  liveLevel = Math.max(peak, liveLevel * 0.92);
+  if (peak >= CFG.HIT_LEVEL && t - lastOnset >= CFG.MIN_GAP && t >= ignoreUntil) {
+    lastOnset = t;
+    const c = spectralCentroid();
+    const kind = (CFG.FLOOR_ON && c < CFG.CENT_SPLIT) ? "floor" : "hit";
+    $("lastInfo").textContent = `마지막 소리: 크기 ${peak.toFixed(2)} · 높낮이 ${Math.round(c)}Hz → ${kind === "hit" ? "패들" : "바닥"}`;
+    if (running) onSound(kind, t);
+  }
+}
+
+// ── 카메라: 손목 앞쪽에 보이는 패들 색 (앞뒤 번갈아 모드만) ─────────────
+let video = null, poseLm = null, camOn = false, camCtx = null, ovl = null, ovlCtx = null;
+let lastVideoTime = -1, faceHist = [];
+const CW = 160, CH = 120;   // 색을 읽을 작은 화면 크기
+
+async function initCam() {
+  if (camOn) return;
+  video = $("video");
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60 } }, audio: false
+  });
+  video.srcObject = stream;
+  await video.play();
+  const c = document.createElement("canvas"); c.width = CW; c.height = CH;
+  camCtx = c.getContext("2d", { willReadFrequently: true });
+  ovl = $("overlay"); ovlCtx = ovl.getContext("2d");
+  camOn = true;
+  setStatus("자세 인식 모델을 불러오는 중…");
+  const V = await import(VISION_URL);
+  const fs = await V.FilesetResolver.forVisionTasks(WASM_URL);
+  for (const delegate of ["GPU", "CPU"]) {
+    try {
+      poseLm = await V.PoseLandmarker.createFromOptions(fs, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate }, runningMode: "VIDEO", numPoses: 1
+      });
+      break;
+    } catch (e) { poseLm = null; }
+  }
+  if (!poseLm) throw new Error("자세 인식 모델을 불러오지 못했어요");
+}
+
+// 빨강 = 1, 파랑 = 2, 그 외 = 0
+function colorClass(r, g, b) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const s = max ? d / max : 0, v = max / 255;
+  if (s < 0.45 || v < 0.25 || d === 0) return 0;
+  let h;
+  if (max === r) h = 60 * (((g - b) / d) % 6);
+  else if (max === g) h = 60 * ((b - r) / d + 2);
+  else h = 60 * ((r - g) / d + 4);
+  if (h < 0) h += 360;
+  if (h <= 15 || h >= 340) return 1;
+  if (h >= 190 && h <= 250) return 2;
+  return 0;
+}
+
+function readColors(data, cx, cy, half) {
+  const hp = half * CW;                       // 정사각형 영역(픽셀)
+  const x0 = Math.max(0, Math.floor(cx * CW - hp)), x1 = Math.min(CW - 1, Math.ceil(cx * CW + hp));
+  const y0 = Math.max(0, Math.floor(cy * CH - hp)), y1 = Math.min(CH - 1, Math.ceil(cy * CH + hp));
+  let red = 0, blue = 0, area = 0;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const i = (y * CW + x) * 4;
+    const k = colorClass(data[i], data[i + 1], data[i + 2]);
+    if (k === 1) red++; else if (k === 2) blue++;
+    area++;
+  }
+  if (!area) return null;
+  const face = red >= blue ? "R" : "B";
+  return { face, ratio: Math.max(red, blue) / area, red: red / area, blue: blue / area, cx, cy, half };
+}
+
+function camTick(t) {
+  if (!poseLm || video.readyState < 2 || video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  const res = poseLm.detectForVideo(video, performance.now());
+  if (ovl.width !== ovl.clientWidth || ovl.height !== ovl.clientHeight) { ovl.width = ovl.clientWidth; ovl.height = ovl.clientHeight; }
+  ovlCtx.clearRect(0, 0, ovl.width, ovl.height);
+  const lm = res.landmarks && res.landmarks[0];
+  if (!lm) { $("colorInfo").textContent = "패들 색: 사람이 안 보여요"; return; }
+  camCtx.drawImage(video, 0, 0, CW, CH);
+  const data = camCtx.getImageData(0, 0, CW, CH).data;
+  const shoulderW = Math.hypot(lm[11].x - lm[12].x, lm[11].y - lm[12].y);
+  const half = Math.max(0.06, shoulderW * 0.55);
+  let best = null;
+  for (const [w, e] of [[15, 13], [16, 14]]) {          // 왼손목·팔꿈치, 오른손목·팔꿈치
+    const W = lm[w], E = lm[e];
+    if ((W.visibility ?? 1) < 0.3) continue;
+    // 패들 머리는 손목에서 팔 방향으로 더 나간 곳에 있음
+    const cx = W.x + (W.x - E.x) * 0.8, cy = W.y + (W.y - E.y) * 0.8;
+    const r = readColors(data, cx, cy, half);
+    if (r && (!best || r.ratio > best.ratio)) best = r;
+  }
+  if (!best) return;
+  const face = best.ratio >= CFG.COLOR_MIN ? best.face : null;
+  faceHist.push({ t, face, ratio: best.ratio });
+  while (faceHist.length && t - faceHist[0].t > 1.5) faceHist.shift();
+  // 영역 표시 (화면은 거울처럼 뒤집혀 보임: 캔버스도 같이 뒤집혀 있음)
+  const sx = ovl.width, sy = ovl.height;
+  ovlCtx.lineWidth = 4;
+  ovlCtx.strokeStyle = face === "R" ? "#e53935" : face === "B" ? "#1e88e5" : "#ffd23f";
+  const hp = best.half * sx;
+  ovlCtx.strokeRect(best.cx * sx - hp, best.cy * sy - hp, hp * 2, hp * 2);
+  $("colorInfo").textContent = `패들 색: 빨강 ${(best.red * 100).toFixed(1)}% · 파랑 ${(best.blue * 100).toFixed(1)}% (기준 ${(CFG.COLOR_MIN * 100).toFixed(1)}%)`;
+}
+
+// 타구 순간 앞뒤 0.25초 안에서 가장 또렷하게 보인 면
+function faceAt(t) {
+  let best = null;
+  for (const f of faceHist) {
+    if (f.t < t - 0.25 || f.t > t + 0.05 || !f.face) continue;
+    if (!best || f.ratio > best.ratio) best = f;
+  }
+  return best ? best.face : null;
+}
+
+function showFace(face) {
+  $("faceDot").style.background = face === "R" ? "var(--red)" : face === "B" ? "var(--bluef)" : "#ccc";
+  $("faceText").textContent = face === "R" ? "빨강 면 (앞)" : face === "B" ? "파랑 면 (뒤)" : "면 확인 안 됨";
+}
+
+// ── 판정 ──────────────────────────────────────────────────────────
+function newSession(t) {
+  return { start: t, hits: [], lastHit: t, count: 0, best: 0, lastFace: null, sameFace: 0, unknownFace: 0,
+           rally: 0, floorsSince: 0, rallies: [], endReason: "" };
+}
+
+function onSound(kind, t) {
+  if (mode === "dink") {
+    if (kind === "hit") { S.rally++; S.floorsSince = 0; S.hits.push(t); S.lastHit = t; }
+    else if (S.rally > 0) { S.floorsSince++; if (S.floorsSince >= 2) endRally("두 번 튐"); }
+    render();
+    return;
+  }
+  if (kind === "floor") { if (S.count > 0) finish("떨어뜨림"); return; }
+  S.hits.push(t); S.lastHit = t;
+  if (mode === "one") {
+    S.count++;
+  } else {
+    const face = faceAt(t);
+    showFace(face);
+    if (!face) { S.unknownFace++; S.count++; }                       // 판정 못 하면 일단 인정(느슨하게)
+    else if (S.lastFace && face === S.lastFace) {                     // 핵심 오류는 엄격하게
+      S.sameFace++; flash("같은 면으로 쳤어요!", "bad");
+      S.best = Math.max(S.best, S.count); S.count = 1; S.lastFace = face;
+    } else { S.count++; S.lastFace = face; }
+  }
+  S.best = Math.max(S.best, S.count);
+  render();
+}
+
+function endRally(reason) {
+  S.rallies.push({ n: S.rally, reason });
+  S.best = Math.max(S.best, S.rally);
+  S.rally = 0; S.floorsSince = 0;
+  flash(`랠리 끝 · ${reason}`, "warn");
+}
+
+function checkTimeouts(t) {
+  if (mode === "dink") {
+    if (S.rally > 0 && t - S.lastHit > CFG.RALLY_GAP) { endRally("끊김"); render(); }
+  } else if (S.count > 0 && t - S.lastHit > CFG.END_GAP) {
+    finish("멈춤");
+  }
+}
+
+function render() {
+  if (mode === "dink") {
+    $("count").textContent = S.rally;
+    $("sub").textContent = `최고 ${S.best}번 · 끝난 랠리 ${S.rallies.length}개`;
+  } else {
+    $("count").textContent = S.count;
+    $("sub").textContent = mode === "alt" ? `최고 ${S.best}번 · 같은 면 ${S.sameFace}번` : "";
+  }
+}
+
+// 리듬 점수: 타구 간격이 고를수록 높음 (간격 흔들림 ÷ 평균 간격)
+function rhythm(hits, maxGap) {
+  const iv = [];
+  for (let i = 1; i < hits.length; i++) { const d = hits[i] - hits[i - 1]; if (d <= maxGap) iv.push(d); }
+  if (iv.length < 3) return null;
+  const m = iv.reduce((a, b) => a + b, 0) / iv.length;
+  const sd = Math.sqrt(iv.reduce((a, b) => a + (b - m) ** 2, 0) / iv.length);
+  return { mean: m, score: Math.max(0, Math.round(100 * (1 - (sd / m) * 2))) };
+}
+
+function stat(value, label) { return `<div class="stat"><b>${value}</b><span>${label}</span></div>`; }
+
+function showResult() {
+  const r = rhythm(S.hits, mode === "dink" ? CFG.RALLY_GAP : CFG.END_GAP);
+  const rhythmTxt = r ? `${r.score}점` : "-";
+  const meanTxt = r ? `${r.mean.toFixed(2)}초` : "-";
+  let html = "";
+  if (mode === "one") {
+    $("resTitle").textContent = `한 면 튀기기 · ${S.endReason}`;
+    html = stat(`${S.count}번`, "연속 튀기기") + stat(rhythmTxt, "리듬 점수") + stat(meanTxt, "평균 간격");
+  } else if (mode === "alt") {
+    $("resTitle").textContent = `앞뒤 번갈아 · ${S.endReason}`;
+    html = stat(`${S.best}번`, "최고 연속 번갈아") + stat(`${S.hits.length}번`, "전체 타구")
+         + stat(`${S.sameFace}번`, "같은 면 오류") + stat(`${S.unknownFace}번`, "면 확인 안 됨") + stat(rhythmTxt, "리듬 점수");
+  } else {
+    const ns = S.rallies.map(x => x.n);
+    const avg = ns.length ? (ns.reduce((a, b) => a + b, 0) / ns.length).toFixed(1) : "-";
+    const twice = S.rallies.filter(x => x.reason === "두 번 튐").length;
+    const broke = S.rallies.filter(x => x.reason === "끊김").length;
+    $("resTitle").textContent = "딩크 랠리";
+    html = stat(`${S.best}번`, "최고 랠리") + stat(`${S.rallies.length}개`, "랠리 수") + stat(avg, "평균 랠리")
+         + stat(`${twice}번`, "두 번 튐") + stat(`${broke}번`, "끊김") + stat(rhythmTxt, "리듬 점수");
+  }
+  $("resStats").innerHTML = html;
+  $("result").classList.add("show");
+}
+
+// ── 시작·정지 ─────────────────────────────────────────────────────
+let wakeLock = null;
+async function keepAwake() { try { wakeLock = await navigator.wakeLock?.request("screen"); } catch (e) {} }
+function releaseAwake() { try { wakeLock?.release(); } catch (e) {} wakeLock = null; }
+
+function setButtons() {
+  $("startBtn").disabled = running;
+  $("stopBtn").disabled = !running;
+  document.querySelectorAll(".tab").forEach(b => b.disabled = running);
+}
+
+function finish(reason) {
+  if (!running) return;
+  running = false;
+  if (mode === "dink" && S.rally > 0) { S.rallies.push({ n: S.rally, reason: "정지" }); S.best = Math.max(S.best, S.rally); S.rally = 0; }
+  S.endReason = reason;
+  showResult();
+  setButtons();
+  releaseAwake();
+  setStatus("다시 하려면 시작을 누르세요.");
+}
+
+$("startBtn").addEventListener("click", async () => {
+  $("startBtn").disabled = true;
+  $("result").classList.remove("show");
+  try {
+    setStatus("마이크를 켜는 중…");
+    await initAudio();
+    if (MODES[mode].cam) await initCam();
+  } catch (e) {
+    setStatus("시작하지 못했어요: " + (e.message || e) + " (마이크·카메라 허용, https 주소인지 확인)");
+    $("startBtn").disabled = false;
+    return;
+  }
+  keepAwake();
+  const cd = $("countdown");
+  cd.classList.add("show");
+  for (const n of [3, 2, 1]) { cd.textContent = n; await new Promise(r => setTimeout(r, 800)); }
+  cd.classList.remove("show");
+  const t = performance.now() / 1000;
+  S = newSession(t);
+  ignoreUntil = t + 0.2;
+  faceHist = [];
+  showFace(null);
+  running = true;
+  setButtons();
+  render();
+  setStatus(mode === "dink" ? "랠리를 세는 중 · 끝내려면 정지" : "세는 중…");
+});
+$("stopBtn").addEventListener("click", () => finish("정지"));
+
+// ── 기준 맞추기 패널 ───────────────────────────────────────────────
+document.querySelectorAll("#calib input").forEach(inp => {
+  const key = inp.dataset.key, name = SETTINGS[key].name;
+  if (inp.type === "checkbox") inp.checked = !!CFG[name];
+  else inp.value = CFG[name];
+  inp.addEventListener("change", () => {
+    const v = inp.type === "checkbox" ? (inp.checked ? 1 : 0) : parseFloat(inp.value);
+    if (isNaN(v)) return;
+    CFG[name] = v; storeSet(key, v);
+  });
+});
+
+// ── 반복 ──────────────────────────────────────────────────────────
+function loop() {
+  const t = performance.now() / 1000;
+  if (analyser) audioTick(t);
+  if (camOn) { try { camTick(t); } catch (e) {} }
+  if (running) checkTimeouts(t);
+  $("meterFill").style.width = Math.min(100, liveLevel * 100) + "%";
+  $("meterMark").style.left = Math.min(100, CFG.HIT_LEVEL * 100) + "%";
+  requestAnimationFrame(loop);
+}
+const who = params.get("name");
+if (who) $("who").textContent = who;
+applyMode();
+requestAnimationFrame(loop);
+</script>
+<script>
+  // PWA: 서비스 워커 등록 (자세 인식 모델을 저장해 두어 다음부터 빨리 열림)
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(console.error));
+  }
+</script>
+</body>
+</html>

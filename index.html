@@ -84,6 +84,7 @@
   .card b{font-size:24px;font-weight:800;letter-spacing:-.5px}
   .card span{font-size:15px;font-weight:600;color:#5b6b80}
   .card .tag{position:absolute;top:14px;right:14px;font-size:13px;font-weight:800;padding:4px 10px;border-radius:999px;background:#e7f0fb;color:var(--blue)}
+  .card.exp .tag{background:#fff3c4;color:#8a5a00}
   .card.soon{opacity:.55;cursor:default}
   .card.soon .tag{background:#eee;color:#777}
   button:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
@@ -252,6 +253,7 @@ const ICON = {
   highknee: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="34" cy="10" r="6" fill="currentColor"/><path d="M34 18v22M34 40l-2 22M34 40h14v14M34 25l-10 9M34 25l11-6"/><path d="M10 64h52" stroke="#f5c518"/></svg>',
   legraise: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="52" r="6" fill="currentColor"/><path d="M22 54h20V18M28 54l2 8"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   burpee: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><circle cx="36" cy="14" r="6" fill="currentColor"/><path d="M36 22v18M24 6l12 20 12-20M28 54l8-14 8 14"/><path d="M10 66h52" stroke="#f5c518"/></svg>',
+  pickleball: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="14" width="30" height="36" rx="14"/><path d="M25 50v14"/><circle cx="54" cy="20" r="9" stroke="#f5c518"/><path d="M46 36q6 6 0 12" stroke="#f5c518" stroke-width="4"/></svg>',
   hanging: '<svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8h56" stroke="#f5c518"/><path d="M26 8l6 16M46 8l-6 16"/><circle cx="36" cy="30" r="6" fill="currentColor"/><path d="M36 38v16M36 54l-6 12M36 54l6 12"/></svg>'
 };
 const EXERCISES = [
@@ -270,7 +272,8 @@ const EXERCISES = [
   { id: 'plank',       name: '플랭크',         desc: '바른 자세로 버틴 시간',   url: 'plank/',  ready: true, tag: '카메라 · 옆에서' },
   { id: 'treadmill',   name: '트레드밀',       desc: '운동 시간 · 거리 기록', url: 'treadmill/', ready: true, tag: '타이머' },
   { id: 'hanging',     name: '행잉',           desc: '버틴 시간 기록',        url: 'hang/',      ready: true, tag: '타이머' },
-  { id: 'rowing',      name: '로잉머신',       desc: '시간 · 거리 · SPM 기록', url: 'rowing/',    ready: true, tag: '입력' }
+  { id: 'rowing',      name: '로잉머신',       desc: '시간 · 거리 · SPM 기록', url: 'rowing/',    ready: true, tag: '입력' },
+  { id: 'pickleball',  name: '피클볼',         desc: '한 면 · 앞뒤 번갈아 · 딩크 (기록 저장 안 됨)', url: 'pickleball/', ready: true, direct: true, exp: true, tag: '실험 중' }
 ];
 
 const $ = id => document.getElementById(id);
@@ -554,7 +557,7 @@ function renderMenu() {
   const grid = $('grid');
   EXERCISES.forEach(ex => {
     const b = document.createElement('button');
-    b.className = 'card' + (ex.ready ? '' : ' soon');
+    b.className = 'card' + (ex.ready ? '' : ' soon') + (ex.exp ? ' exp' : '');
     b.innerHTML = `<span class="tag">${ex.tag}</span>${ICON[ex.id] || ''}<b>${ex.name}</b><span>${ex.desc}</span>`;
     b.onclick = () => !ex.ready ? toast(ex.name + '은 준비 중이에요') : ex.direct ? (location.href = ex.url) : openPicker(ex);
     grid.appendChild(b);

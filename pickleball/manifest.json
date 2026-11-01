@@ -1,0 +1,11 @@
+{
+  "name": "피클볼 연습",
+  "id": "/sports/pickleball/",
+  "short_name": "피클볼",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#163f97",
+  "theme_color": "#1e5bd8",
+  "icons": [{ "src": "../icon-512.png", "sizes": "512x512", "type": "image/png" }]
+}
