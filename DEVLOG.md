@@ -4,6 +4,9 @@
 
 ## 2026-11-02
 
+- **심박 → Firebase 전송**(`hr-test.html`). 로그인 → 학생 번호 → 심박계 연결 → 심박이 올 때마다 `live/heartrate/s<번호 2자리>`에 `{ bpm, contact, device, online, at(서버 시각) }`를 씀. 화면 ③에 모든 기기의 값을 실시간 표로 보여 줌(5초 넘게 안 오면 흐리게).
+  - 이름은 올리지 않고 번호만(이름 연결은 시트에서). 브라우저가 닫히거나 인터넷이 끊기면 `onDisconnect`로 서버가 `online:false`를 씀.
+  - Firebase 설정을 `config.js`의 `SITE.FIREBASE`로 옮김(학교별 값은 config.js 한 곳 규칙). `firebase-test.html`도 이 값을 읽게 고침. INSTALL.md 값 목록에 한 줄.
 - **심박계 연결 시험 페이지**(`hr-test.html`, 저장소 맨 위). 와후 TICKR FIT 1대를 Web Bluetooth로 연결해 심박을 크게 표시. 아직 Firebase로 보내지 않음(1대 연결 확인이 먼저).
   - 표준 심박 서비스(`heart_rate` → `heart_rate_measurement`) 알림을 받음. 첫 바이트 flags의 0번 비트로 8/16비트 값 구분, 1·2번 비트로 피부 접촉 표시. 배터리는 `battery_service`(읽을 수 있으면).
   - 끊기면 1·2·3·4·5초 간격으로 5번 다시 연결. 5초 넘게 값이 안 들어오면 '밴드 접촉 확인' 표시. 최근 60초 그래프(80·120·160 기준선).

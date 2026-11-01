@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Firebase 연결 시험</title>
+<script src="./config.js"></script>
 <style>
   body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
   button, input { font-size: 18px; padding: 8px 12px; }
@@ -28,15 +29,8 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAzDmRPiO_ohQphOCveGIVnVquXuLYv00U",
-  authDomain: "smart-sports-live.firebaseapp.com",
-  databaseURL: "https://smart-sports-live-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "smart-sports-live",
-  storageBucket: "smart-sports-live.firebasestorage.app",
-  messagingSenderId: "52998599232",
-  appId: "1:52998599232:web:5afd16ebb022e1bda925a5"
-};
+// 학교별 값은 config.js 한 곳에만 (CLAUDE.md 공통 규칙)
+const firebaseConfig = window.SITE.FIREBASE;
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);

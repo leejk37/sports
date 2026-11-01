@@ -56,7 +56,7 @@
 ## 공통 규칙
 
 - **학교별 값은 두 곳에만** (2026-10-25~, 다른 학교 이식용. 설치 순서는 `INSTALL.md`)
-  - 화면: 저장소 맨 위 `config.js` → `window.SITE` (`SCHOOL_NAME`·`DOMAIN`·`GAS_URL`·`TOKEN`·`RIDE_GAS_URL`). 모든 화면이 `<script src="../config.js">`로 읽고 `CONFIG`에서 `SITE.GAS_URL` 처럼 씀. 제목에 학교 이름은 `data-school` 속성
+  - 화면: 저장소 맨 위 `config.js` → `window.SITE` (`SCHOOL_NAME`·`DOMAIN`·`GAS_URL`·`TOKEN`·`RIDE_GAS_URL`·`FIREBASE`). 모든 화면이 `<script src="../config.js">`로 읽고 `CONFIG`에서 `SITE.GAS_URL` 처럼 씀. 제목에 학교 이름은 `data-school` 속성
   - GAS: 시트 `설정` 탭(항목·값·설명) → `getConfig('토큰')`·`getConfig('학교도메인')` (`Setup.gs`, 5분 캐시, 바로 반영 `clearConfigCache()`). `SQUAT_CONFIG.TOKEN`·`.DOMAIN`은 이 값을 읽는 getter
   - **코드에 도메인·웹앱 주소·토큰·시트 ID를 직접 쓰지 않습니다.** 새 화면도 config.js를 읽게 만듭니다
   - `설치()`(시트 메뉴 '스마트스포츠실 → 설치·점검'): 설정 탭·입퇴실·포인트 탭, `DASH_KEY`, 트리거 4개(warmStamp·fillDashArchive·closeOpenCheckins·pointsNightly)를 한 번에. 여러 번 실행해도 됨
@@ -149,7 +149,7 @@
 
 ## 지금 진행 중
 
-- Firebase 도입(2026-11-02): 프로젝트 `smart-sports-live`, Realtime Database(싱가포르). 연결 시험 `firebase-test.html`(성공) → 심박계 1대 연결 시험 `hr-test.html`(Web Bluetooth, 크롬·엣지만) → 다음은 여러 대 연결 한계 확인 후 와후 심박계 실시간 현황판. 실시간 값만 Firebase, 최종 기록은 시트
+- Firebase 도입(2026-11-02): 프로젝트 `smart-sports-live`, Realtime Database(싱가포르). 연결 시험 `firebase-test.html`(성공) → 심박계 1대 연결 시험 `hr-test.html`(Web Bluetooth, 크롬·엣지만, Firebase `live/heartrate/s01` 형식으로 전송: bpm·contact·device·online·at) → 다음은 여러 대 연결 한계 확인 후 와후 심박계 실시간 현황판. 실시간 값만 Firebase, 최종 기록은 시트
 - 전교생 확장: 명단을 전교생으로, QR 이름표 인쇄를 서킷트레이닝 GAS(`?page=qr`)로 이전
 - 대시보드: ① 큰 화면 현황판(`board/`) 완료 ② 다음은 학생 「내 성장」 (설계는 Claude Doc '스마트스포츠실 운동 대시보드 설계')
 - 다음 방향(2026-10-31): 종목별로 운동 강도를 높이고, 포인트를 '30초 통과' 대신 **정확한 동작 개수** 기준으로 서서히 바꾸기(스쿼트 20회=1P가 첫 사례)

@@ -18,7 +18,20 @@ window.SITE = Object.freeze({
   TOKEN: 'cpe_smart_sports',
 
   // 인도어라이딩 기록판 GAS 웹앱 주소 (gas/ride 를 배포한 …/exec). 쓰지 않으면 ''
-  RIDE_GAS_URL: 'https://script.google.com/macros/s/AKfycbwbHFh2YXxqtg5d99KSq32ioD1fMbCXOs9PVDrSCmJwwPq32qHURyBz85zLLIN9iPa8/exec'
+  RIDE_GAS_URL: 'https://script.google.com/macros/s/AKfycbwbHFh2YXxqtg5d99KSq32ioD1fMbCXOs9PVDrSCmJwwPq32qHURyBz85zLLIN9iPa8/exec',
+
+  // Firebase 설정(실시간 화면용: 심박 현황판 등). 쓰지 않으면 null
+  // Firebase 콘솔 → 프로젝트 설정 → 일반 → 내 앱 → SDK 설정 및 구성 → '구성'의 값.
+  // apiKey는 비밀이 아닙니다. 실제 보호는 Realtime Database 보안 규칙(학교 도메인만)입니다
+  FIREBASE: {
+    apiKey: 'AIzaSyAzDmRPiO_ohQphOCveGIVnVquXuLYv00U',
+    authDomain: 'smart-sports-live.firebaseapp.com',
+    databaseURL: 'https://smart-sports-live-default-rtdb.asia-southeast1.firebasedatabase.app',
+    projectId: 'smart-sports-live',
+    storageBucket: 'smart-sports-live.firebasestorage.app',
+    messagingSenderId: '52998599232',
+    appId: '1:52998599232:web:5afd16ebb022e1bda925a5'
+  }
 });
 
 /* data-school 이 붙은 제목 앞에 학교 이름을 붙입니다 (예: <h1 data-school>스마트스포츠</h1> → 청평 스마트스포츠) */
