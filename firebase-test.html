@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firebase 연결 시험</title>
+<style>
+  body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+  button, input { font-size: 18px; padding: 8px 12px; }
+  #live { font-size: 72px; margin: 24px 0; }
+  #msg { color: #b00020; }
+</style>
+</head>
+<body>
+<h2>Firebase 연결 시험</h2>
+
+<button id="login">로그인</button>
+<p id="who">로그인 전</p>
+
+<input id="bpm" type="number" placeholder="심박수">
+<button id="send">보내기</button>
+
+<div id="live">-</div>
+<p id="msg"></p>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAzDmRPiO_ohQphOCveGIVnVquXuLYv00U",
+  authDomain: "smart-sports-live.firebaseapp.com",
+  databaseURL: "https://smart-sports-live-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "smart-sports-live",
+  storageBucket: "smart-sports-live.firebasestorage.app",
+  messagingSenderId: "52998599232",
+  appId: "1:52998599232:web:5afd16ebb022e1bda925a5"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const showError = e => { document.getElementById("msg").textContent = "오류: " + e.message; };
+
+document.getElementById("login").onclick = () =>
+  signInWithPopup(auth, new GoogleAuthProvider()).catch(showError);
+
+onAuthStateChanged(auth, user => {
+  if (!user) return;
+  document.getElementById("who").textContent = "로그인: " + user.email;
+  // 값이 바뀔 때마다 자동으로 받기
+  onValue(ref(db, "test/s01"),
+    snap => { document.getElementById("live").textContent = snap.val() ?? "-"; },
+    showError);
+});
+
+// 값 쓰기
+document.getElementById("send").onclick = () => {
+  const v = Number(document.getElementById("bpm").value);
+  set(ref(db, "test/s01"), v).catch(showError);
+};
+</script>
+</body>
+</html>
