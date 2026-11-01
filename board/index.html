@@ -22,6 +22,8 @@
   #date{font-size:1.4vw;font-weight:700;color:var(--soft)}
   #clock{font-size:2.1vw;font-weight:800;font-variant-numeric:tabular-nums}
   #status{font-size:1vw;color:var(--soft)}
+  /* 내비게이션 단추가 늘어도 날짜·시계·기준 시각은 한 줄로 (2026-11-01) — 줄어드는 건 내비게이션 쪽 */
+  #date,#clock,#status,#dnav,#pastBadge{flex-shrink:0;white-space:nowrap}
   #status.off{color:#ffb3a1}
 
   #main{display:grid;grid-template-columns:27vw 1fr;gap:1.1vw;padding:1.1vw 2vw 1.1vw;min-height:0}
