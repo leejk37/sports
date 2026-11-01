@@ -25,6 +25,9 @@
   /* 내비게이션 단추가 늘어도 날짜·시계·기준 시각은 한 줄로 (2026-11-01) — 줄어드는 건 내비게이션 쪽 */
   #date,#clock,#status,#dnav,#pastBadge{flex-shrink:0;white-space:nowrap}
   #status.off{color:#ffb3a1}
+  /* 날짜 글자는 날짜 칸과, 기준 시각은 시계와 겹쳐 숨김 (2026-11-01). 안내 문구(불러오는 중·연결 끊김·열쇠)만 #status에 */
+  #date{display:none}
+  #status:empty{display:none}
 
   #main{display:grid;grid-template-columns:27vw 1fr;gap:1.1vw;padding:1.1vw 2vw 1.1vw;min-height:0}
   .card{background:var(--blue-d);border-radius:1.1vw;padding:.8vw 1.2vw;min-height:0}
@@ -515,7 +518,9 @@ async function load() {
     if (!d || !d.ok) throw new Error((d && d.error) || '응답 오류');
     render(d);
     if (!d.past) loadTicker();
-    $('status').textContent = (d.past ? '지난 기록 · 하루 마감' : d.updated + ' 기준') + (d.keyOk === false ? ' · 열쇠가 맞지 않아요' : '');
+    // 평소에는 비움(날짜는 날짜 칸, 시각은 시계에 있음). 갱신 시각은 마우스를 올리면 보임
+    $('status').textContent = d.keyOk === false ? '열쇠가 맞지 않아요' : '';
+    $('status').title = d.past ? '지난 기록 · 하루 마감' : d.updated + ' 기준';
     $('status').classList.remove('off');
     setTimeout(() => prefetchPrev(want), 1500);
   } catch (e) {
