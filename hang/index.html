@@ -105,6 +105,7 @@
         <h2 id="waitTitle">철봉을<br>두 손으로 잡아요</h2>
         <p id="waitText">두 손이 머리 위 철봉을 잡으면 3-2-1이 시작돼요.</p>
         <div id="waitState"></div>
+        <button class="btn line" id="barBtn">📏 철봉선 맞추기</button>
         <button class="btn line" id="forceStart">바로 시작</button>
       </section>
 
@@ -137,11 +138,17 @@ const CONFIG = {
   DOMAIN:  SITE.DOMAIN,
 
   // ---- 판정 기준 (길이는 어깨너비 S에 대한 비율) ----
-  // 화면에는 철봉부터 허리까지만 보이면 돼요 (발은 안 보여도 됨)
+  // 화면에는 철봉부터 무릎까지 보이면 돼요 (2026-11-01: 발은 안 보여도 됨)
   BENT_ELBOW: 130,       // 매달리기: 팔꿈치가 이보다 굽으면 '팔 펴기' 안내
   START_STABLE_MS: 800,  // 두 손으로 철봉을 이만큼 잡고 있으면 3-2-1 시작
   COUNTDOWN_SEC: 3,      // 카운트다운 (시작 소리에 발을 뗌)
-  END_GRACE_MS: 500,     // 조건이 이만큼 깨져 있어야 끝 (순간 인식 흔들림 무시)
+  END_GRACE_MS: 1000,    // 조건이 이만큼 깨져 있어야 끝 (순간 인식 흔들림 무시. 0.5초 → 1초, 학생 의견)
+  // ---- 철봉 잡기·넓게 잡기·매달림·흔들림 (2026-11-01, 학생 의견) ----
+  BAR_TOL: 0.7,          // 철봉선을 맞춰 두면: 두 손목이 철봉선에서 어깨너비의 이만큼 안에 있어야 '잡음' (팔만 들면 손이 철봉보다 아래)
+  GRIP_MIN: 1.2,         // 손 간격 ÷ 어깨너비가 이 이상이어야 시작 ('넓게 잡기'). 현장 조정: ?grip=1.0 (태블릿마다 기억, ?grip=0 기본값)
+  LIFT_MIN: 0.12,        // 무릎(안 보이면 엉덩이)이 서 있을 때보다 어깨너비의 이만큼 올라가야 '매달림'(발이 떨어짐)
+  LIFT_WAIT_SEC: 6,      // '발 떼!' 뒤 이 시간 안에 안 매달리면 다시 대기
+  SWING_MAX: 0.35,       // 엉덩이 가운데가 두 손 가운데에서 좌우로 어깨너비의 이만큼 넘게 벗어나면 '흔들림' → 그동안 시간 멈춤
   LOST_MS: 1500,         // 사람을 이만큼 못 찾으면 끝
   MAX_SEC: 180,          // 최대 측정 시간
   VIS_MIN: 0.5,          // 어깨·코 인식 신뢰도
@@ -161,6 +168,7 @@ let email = '', clientId = '';
 let S0 = null, lastS = null, cdTimer = null, cdLostSince = null;
 let hangSince = null, startAt = 0, lastGoodAt = 0, badSince = null, lastSeenAt = 0;
 let result = null;
+let baseBuf = [], baseY = null, lifted = false, liftedAt = 0, holdMs = 0, swingMs = 0, lastT = 0, landSince = null, swingSince = null, swinging = false, barSetting = false;
 let lastQr = 0, lastVideoTime = -1;
 let audio, wakeLock;
 
@@ -172,7 +180,7 @@ function show(m) {
 }
 const HINTS = {
   scan: 'QR 이름표를 화면 가운데에 비춰 주세요',
-  wait: '철봉부터 허리까지 화면에 들어오게 해요',
+  wait: '철봉부터 무릎까지 화면에 들어오게 해요',
   countdown: '철봉을 잡은 채 기다려요',
 };
 function setHint(text) { $('hint').textContent = text ?? HINTS[mode] ?? ''; }
@@ -217,17 +225,30 @@ function analyze(lm) {
   const W = canvas.width, H = canvas.height;
   const p = i => ({ x: lm[i].x * W, y: lm[i].y * H, v: lm[i].visibility ?? 0 });
   const nose = p(0), ls = p(11), rs = p(12), le = p(13), re = p(14), lw = p(15), rw = p(16),
-        lh = p(23), rh = p(24), la = p(27), ra = p(28);
+        lh = p(23), rh = p(24), la = p(27), ra = p(28), lk = p(25), rk = p(26);
   const bodyOk = [nose, ls, rs].every(q => q.v > CONFIG.VIS_MIN);
   const S = Math.max(20, Math.hypot(ls.x - rs.x, ls.y - rs.y));   // 어깨너비
   const wA = lw.v > CONFIG.VIS_WRIST ? lw : null, wB = rw.v > CONFIG.VIS_WRIST ? rw : null;
+  const kneesOk = lk.v > CONFIG.VIS_MIN && rk.v > CONFIG.VIS_MIN, hipsOk = lh.v > CONFIG.VIS_MIN && rh.v > CONFIG.VIS_MIN;
   return {
     bodyOk, S, nose, wA, wB,
+    // 매달림 판정용 높이: 무릎(없으면 엉덩이) 가운데 y — 작을수록 위
+    lowY: kneesOk ? (lk.y + rk.y) / 2 : hipsOk ? (lh.y + rh.y) / 2 : null, lowBy: kneesOk ? 'knee' : hipsOk ? 'hip' : '',
+    hipX: hipsOk ? (lh.x + rh.x) / 2 : null,
+    grip: wA && wB ? Math.abs(wA.x - wB.x) / S : 0,
     elbow: Math.min(angle(ls, le, lw), angle(rs, re, rw)),
     segs: [[ls, rs], [ls, le], [le, lw], [rs, re], [re, rw], [ls, lh], [rs, rh], [lh, rh], [lh, p(25)], [p(25), la], [rh, p(26)], [p(26), ra]]
   };
 }
-const handUp = (w, r) => !!w && w.y < r.nose.y;          // 손목이 코보다 위
+/* 철봉선: 화면 높이에 대한 비율(0~1), 태블릿마다 기억. 맞춰 두면 손목이 철봉선 가까이 있어야 '잡음' */
+let barY = (() => { try { const v = Number(localStorage.getItem('hangBar')); return v > 0 && v < 1 ? v : null; } catch (e) { return null; } })();
+{ // ?grip=1.0 처럼 넓게 잡기 기준도 기억 (?grip=0 이면 기본값)
+  const g = new URLSearchParams(location.search).get('grip');
+  try { if (g === '0') localStorage.removeItem('hangGrip'); else if (g) localStorage.setItem('hangGrip', g); } catch (e) {}
+  let gv = 0; try { gv = Number(localStorage.getItem('hangGrip')); } catch (e) {}
+  if (gv >= 0.5 && gv <= 3) CONFIG.GRIP_MIN = gv;
+}
+const handUp = (w, r) => !!w && (barY != null ? Math.abs(w.y - barY * canvas.height) < CONFIG.BAR_TOL * r.S : w.y < r.nose.y);   // 철봉선 가까이(없으면 코보다 위)
 
 /* ===== 그리기 ===== */
 const mirror = () => facing === 'user';
@@ -251,6 +272,15 @@ function drawPose(r, live) {
     ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.setLineDash(dash);
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); ctx.restore();
   };
+  drawBar();
+  if (baseY != null && mode === 'measure') line(baseY - CONFIG.LIFT_MIN * (S0 || r.S), 'rgba(126,232,181,.6)', [14, 10]);   // 이 선보다 무릎이 위면 매달림
+}
+function drawBar() {
+  if (barY == null) return;
+  const y = barY * canvas.height;
+  ctx.save(); ctx.strokeStyle = '#f5c518'; ctx.lineWidth = 6; ctx.setLineDash([22, 12]);
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  ctx.fillStyle = '#f5c518'; ctx.font = 'bold 30px sans-serif'; ctx.fillText('철봉', 14, y - 12); ctx.restore();
 }
 
 /* ===== 메인 루프 ===== */
@@ -267,7 +297,8 @@ function loop() {
 
   const lm = pose.detectForVideo(video, now).landmarks?.[0];
   if (!lm || !analyzeOk(lm)) {
-    setHint('철봉부터 허리까지 화면에 들어오게 해 주세요');
+    drawBar();
+    setHint('철봉부터 무릎까지 화면에 들어오게 해 주세요');
     if (mode === 'countdown') countdownCheck(false, now);
     if (mode === 'measure' && now - lastSeenAt > CONFIG.LOST_MS) finish(lastGoodAt);
     return;
@@ -276,7 +307,11 @@ function loop() {
   const r = analyze(lm);
   if (r.bodyOk) lastS = r.S;
   if (mode === 'wait') return wait(r, now);
-  if (mode === 'countdown') { const up = bothUp(r); drawPose(r, up); return countdownCheck(up, now); }
+  if (mode === 'countdown') {
+    const up = bothUp(r); drawPose(r, up);
+    if (r.lowY != null) { baseBuf.push(r.lowY); if (baseBuf.length > 20) baseBuf.shift(); }   // 서 있을 때 무릎 높이
+    return countdownCheck(up, now);
+  }
   measure(r, now);
 }
 function analyzeOk(lm) { return lm && lm.length > 28; }
@@ -308,15 +343,18 @@ function toWait(m = method) {
 
 /* ===== 2단계: 두 손 잡음 확인 → 3-2-1 → 시작 ===== */
 function wait(r, now) {
-  const up = bothUp(r);
-  drawPose(r, up);
-  $('waitState').textContent = up ? '✓ 두 손 확인!' : '두 손으로 철봉을 잡아요…';
-  if (!up) { hangSince = null; return; }
+  if (barSetting) { drawPose(r, false); return; }
+  const up = bothUp(r), wide = r.grip >= CONFIG.GRIP_MIN;
+  drawPose(r, up && wide);
+  $('waitState').textContent = !up ? (barY != null ? '두 손으로 철봉(노란 선)을 잡아요…' : '두 손으로 철봉을 잡아요…')
+    : !wide ? `손을 어깨보다 넓게 잡아요! (지금 ${r.grip.toFixed(1)}배 → ${CONFIG.GRIP_MIN}배)` : '✓ 넓게 잡았어요!';
+  if (up && !wide) setHint('손을 어깨보다 넓게!');
+  if (!up || !wide) { hangSince = null; return; }
   hangSince ??= now;
   if (now - hangSince > CONFIG.START_STABLE_MS) startCountdown();
 }
 function startCountdown() {
-  show('countdown'); cdLostSince = null;
+  show('countdown'); cdLostSince = null; baseBuf = [];
   let n = CONFIG.COUNTDOWN_SEC;
   const tick = () => {
     if (mode !== 'countdown') return;
@@ -333,6 +371,9 @@ function countdownCheck(up, now) {   // 카운트다운 중 손을 놓으면 다
 function startMeasure(now = performance.now()) {
   S0 = lastS;
   startAt = now; lastGoodAt = now; lastSeenAt = now; badSince = null;
+  const sorted = baseBuf.slice().sort((a, b) => a - b);
+  baseY = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;   // 카운트다운 동안 무릎 높이의 가운데 값
+  lifted = baseY == null; liftedAt = now; holdMs = 0; swingMs = 0; lastT = now; landSince = null; swingSince = null; swinging = false;
   clientId = crypto.randomUUID?.() || String(Date.now()) + Math.random();
   $('mainUnit').textContent = '초';
   $('mainNum').textContent = '0.0';
@@ -342,29 +383,50 @@ function startMeasure(now = performance.now()) {
 }
 
 /* ===== 3단계: 측정 ===== */
+/* 측정: 손이 철봉에 있고 + 발이 떨어져(무릎이 올라가) 있고 + 흔들리지 않는 동안만 시간이 흐름 */
 function measure(r, now) {
-  const sec = (now - startAt) / 1000;
-  if (sec >= CONFIG.MAX_SEC) return finish(now);
-  const ok = bothUp(r);
-  setHint(ok && r.elbow < CONFIG.BENT_ELBOW ? '팔을 쭉 펴요' : '');
-  if (ok) $('mainNum').textContent = sec.toFixed(1);
-  drawPose(r, ok);
-
-  if (ok) { lastGoodAt = now; badSince = null; return; }
-  badSince ??= now;
-  if (now - badSince > CONFIG.END_GRACE_MS) finish(lastGoodAt);
+  const dt = Math.min(200, now - lastT); lastT = now;
+  if ((now - startAt) / 1000 >= CONFIG.MAX_SEC) return finish();
+  const ok = bothUp(r), S = S0 || r.S;
+  const up = baseY == null || r.lowY == null ? true : r.lowY < baseY - CONFIG.LIFT_MIN * S;   // 무릎이 서 있을 때보다 위
+  // 1) 아직 안 매달림: '발을 떼요' — 시간 안 감
+  if (!lifted) {
+    drawPose(r, false);
+    if (ok && up) { lifted = true; flash('매달렸어요!', true); beep(1200, 80); }
+    else {
+      setHint(ok ? '발을 바닥에서 떼요!' : '철봉을 잡아요');
+      if ((now - liftedAt) / 1000 > CONFIG.LIFT_WAIT_SEC) { flash('발을 떼고 매달려야 해요'); toWait(); }
+      return;
+    }
+  }
+  // 2) 흔들림: 엉덩이가 두 손 가운데에서 좌우로 벗어남 → 그동안 시간 멈춤
+  const handX = r.wA && r.wB ? (r.wA.x + r.wB.x) / 2 : null;
+  const off = handX != null && r.hipX != null ? Math.abs(r.hipX - handX) / S : 0;
+  if (off > CONFIG.SWING_MAX) { swingSince ??= now; if (now - swingSince > 300) swinging = true; }
+  else { swingSince = null; swinging = false; }
+  // 3) 끝: 손이 철봉에서 떨어지거나 발이 바닥에 닿은 채(무릎이 내려옴) END_GRACE 넘게
+  const landed = !up && baseY != null && r.lowY != null && r.lowY > baseY - CONFIG.LIFT_MIN * 0.4 * S;
+  if (!ok || landed) { badSince ??= now; if (now - badSince > CONFIG.END_GRACE_MS) return finish(); }
+  else badSince = null;
+  const counting = ok && !landed && badSince == null && !swinging;
+  if (counting) { holdMs += dt; lastGoodAt = now; }
+  else if (swinging && ok) swingMs += dt;
+  setHint(swinging ? '흔들리지 않게 멈춰요!' : ok && r.elbow < CONFIG.BENT_ELBOW ? '팔을 쭉 펴요' : '');
+  $('mainNum').textContent = (holdMs / 1000).toFixed(1);
+  drawPose(r, counting);
 }
 
 /* ===== 결과 ===== */
-function finish(endTime = performance.now()) {
+function finish() {
   if (mode !== 'measure') return;
-  const seconds = Math.max(0, Math.round((endTime - startAt) / 100) / 10);
-  result = { seconds };
+  const seconds = Math.max(0, Math.round(holdMs / 100) / 10);   // 바르게 매달린 시간만 (흔들린 시간 뺌)
+  result = { seconds, swing: Math.round(swingMs / 100) / 10 };
   beep(500, 500);
   show('result');
   setHint('');
   $('resMain').textContent = seconds.toFixed(1); $('resUnit').textContent = '초';
-  $('resRows').innerHTML = '<div class="row"><span>방법</span><span>매달리기</span></div>';
+  $('resRows').innerHTML = '<div class="row"><span>방법</span><span>매달리기</span></div>' +
+    `<div class="row"><span>흔들려서 멈춘 시간</span>${result.swing ? `<b>${result.swing.toFixed(1)}초</b>` : '<span>없음 👍</span>'}</div>`;
   save();
 }
 
@@ -377,7 +439,7 @@ async function save() {
   setSave('저장 중…');
   const body = {
     type: CONFIG.TYPE, token: CONFIG.TOKEN, email, method,
-    seconds: result.seconds, clientId
+    seconds: result.seconds, swing: result.swing, clientId
   };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.SAVE_TIMEOUT_MS);
@@ -435,7 +497,22 @@ document.addEventListener('pointerdown', () => {
 }, { passive: true });
 $('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = () => startCountdown();
-$('stopBtn').onclick = () => finish(lastGoodAt);
+$('stopBtn').onclick = () => finish();
+if (barY != null) $('barBtn').textContent = '📏 철봉선 다시 맞추기';
+/* 철봉선 맞추기: 단추를 누르고 화면에서 철봉 높이를 누름 (이 태블릿에 기억). 다시 누르면 지우기 */
+$('barBtn').onclick = () => {
+  if (barSetting) { barSetting = false; barY = null; try { localStorage.removeItem('hangBar'); } catch (e) {} setHint(); $('barBtn').textContent = '📏 철봉선 맞추기'; flash('철봉선을 지웠어요'); return; }
+  barSetting = true; $('barBtn').textContent = '✕ 철봉선 지우기'; setHint('화면에서 철봉 높이를 눌러요');
+};
+canvas.addEventListener('pointerdown', e => {
+  if (!barSetting) return;
+  const rc = canvas.getBoundingClientRect(), k = Math.min(rc.width / canvas.width, rc.height / canvas.height);   // object-fit: contain
+  const top = rc.top + (rc.height - canvas.height * k) / 2;
+  const y = (e.clientY - top) / (canvas.height * k);
+  if (y <= 0 || y >= 1) return;
+  barY = y; barSetting = false; try { localStorage.setItem('hangBar', String(y)); } catch (err) {}
+  $('barBtn').textContent = '📏 철봉선 다시 맞추기'; setHint(); flash('철봉선을 맞췄어요', true); beep(1200, 80);
+});
 $('again').onclick = () => toWait(method);
 $('retrySave').onclick = save;
 $('flip').onclick = async () => {

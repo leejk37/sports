@@ -23,6 +23,7 @@ function handleHang_(d) {
   if (key && cache.get(key) !== null) return hangJson_({ ok: true, name: cache.get(key), duplicate: true });
 
   const sec = Math.max(0, Math.min(600, Math.round((parseFloat(d.seconds) || 0) * 10) / 10));
+  const swing = d.swing == null ? '' : Math.max(0, Math.min(600, Math.round((parseFloat(d.swing) || 0) * 10) / 10));   // 2026-11-01 흔들려서 멈춘 시간
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -31,6 +32,7 @@ function handleHang_(d) {
       ? SpreadsheetApp.openById(SQUAT_CONFIG.SS_ID)
       : SpreadsheetApp.getActiveSpreadsheet();
     const sh = ss.getSheetByName(HANG_CONFIG.SHEET_NAME) || createHangSheet_(ss);
+    if (String(sh.getRange(1, 11).getValue()).trim() !== '흔들린 시간(초)') sh.getRange(1, 11).setValue('흔들린 시간(초)');   // 예전 '짧게 뗀 손'(안 씀) 칸을 바꿔 씀
     let st = { grade: '', cls: '', no: '', name: '' };
     try { st = lookupStudent_(ss, email) || st; } catch (e) {}
 
@@ -40,7 +42,7 @@ function handleHang_(d) {
       sec,                                 // 기록
       '초',                                // 단위
       sec,                                 // 매달린 시간(초)
-      ''                                   // 짧게 뗀 손 (사용 안 함)
+      swing                                // 흔들린 시간(초) — 이 동안은 기록에서 뺌 (예전 줄은 빈칸)
     ]);
     if (key) cache.put(key, st.name || '', 21600);   // 6시간 동안 중복 방지
     return hangJson_({ ok: true, name: st.name });
@@ -53,7 +55,7 @@ function handleHang_(d) {
 
 function createHangSheet_(ss) {
   const sh = ss.insertSheet(HANG_CONFIG.SHEET_NAME);
-  sh.appendRow(['측정일시', '학년', '반', '번호', '이름', '이메일', '방법', '기록', '단위', '매달린 시간(초)', '짧게 뗀 손']);
+  sh.appendRow(['측정일시', '학년', '반', '번호', '이름', '이메일', '방법', '기록', '단위', '매달린 시간(초)', '흔들린 시간(초)']);
   sh.setFrozenRows(1);
   sh.getRange(1, 1, 1, 11).setFontWeight('bold');
   return sh;

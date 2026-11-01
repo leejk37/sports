@@ -177,20 +177,21 @@ const CONFIG = {
   // ---- 판정 기준 (처음 측정할 때 화면 왼쪽 위 숫자를 보며 조정) ----
   // 일직선 = 어깨–엉덩이–무릎–발목 4점. 엉덩이 각·무릎 각이 모두 180°에 가까울수록 일자
   // (무릎 대고: 어깨–엉덩이–무릎 3점)
-  BODY_MIN: 160,     // 엉덩이 각(어깨–엉덩이–무릎)이 이 이상이어야 바른 자세 → 처짐/솟음 판정
+  BODY_MIN: 150,     // 엉덩이 각(어깨–엉덩이–무릎)이 이 이상이어야 바른 자세 → 처짐/솟음 판정 (2026-11-01 160 → 150, 학생 의견 '너무 어렵다')
   KNEE_ANG_MIN: 0,   // 무릎 각(엉덩이–무릎–발목) 기준. 0이면 검사 안 함(무릎 닿음은 KNEE_MIN이 따로 잡음). 다시 켜려면 140~150
   // 직각삼각형 = 어깨–팔꿈치(지지점)–발목(무릎). 팔꿈치 각이 90°에 가까워야 함
-  ELBOW_TOL: 15,     // 90° ± 이 값 안이면 팔꿈치가 어깨 바로 아래
+  ELBOW_TOL: 25,     // 90° ± 이 값 안이면 팔꿈치가 어깨 바로 아래 (15 → 25)
+  STRAIGHT_MIN: 150, // 팔꿈치 각이 이 이상이면 '팔 편 플랭크'로 인정 (2026-11-01, '팔을 쭉 폈는데 노란불' 의견)
   FLAT_MAX: 40,      // 어깨–발(무릎) 선이 바닥과 이루는 각도가 이보다 크면 엎드린 자세가 아님
   // ---- 몸이 바닥에서 떠 있는지 (위팔 길이를 1로 본 비율) ----
   LIFT_MIN: 0.6,     // 어깨가 바닥 지지점(팔꿈치·손목 중 아래쪽)보다 이만큼 높아야 함 → 배 대고 엎드림 걸러냄
   HIP_MIN: 0.35,     // 엉덩이가 바닥선(지지점–발목/무릎)보다 이만큼 높아야 함 → 상체만 세우고 배 댄 자세 걸러냄
   KNEE_MIN: 0.15,    // (일반) 무릎이 바닥선(지지점–발목)보다 이만큼 높아야 함 → 무릎 대면 걸러냄
-  GRACE_MS: 400,     // 자세가 이만큼 무너져야 '처짐/솟음'으로 셈(순간 흔들림 무시)
-  GIVEUP_SEC: 3,     // 자세가 이만큼 계속 무너지면 측정 끝
+  GRACE_MS: 800,     // 자세가 이만큼 무너져야 '처짐/솟음'으로 셈 + 그동안은 시간도 계속 흐름(센서 떨림 무시. 400 → 800)
+  GIVEUP_SEC: 5,     // 자세가 이만큼 계속 무너지면 측정 끝 (3 → 5)
   VIS_MIN: 0.5,
-  SMOOTH: 0.4,
-  STABLE_MS: 1000,   // 바른 자세로 이만큼 있으면 준비 완료
+  SMOOTH: 0.25,      // 작을수록 점 떨림을 많이 걸러 냄 (0.4 → 0.25, '가만히 있는데 센서가 날뛴다' 의견)
+  STABLE_MS: 600,    // 바른 자세로 이만큼 있으면 준비 완료 (1000 → 600, '자세를 잡아도 시작이 안 된다' 의견)
   MAX_SEC: 300,      // 최대한 오래: 5분이면 자동 종료
   SAVE_TIMEOUT_MS: 30000
 };
@@ -240,7 +241,7 @@ const isLifted = () => sLift != null && sHip != null && sLift >= CONFIG.LIFT_MIN
 /* 무릎이 바닥에서 떠 있는가 (무릎 대고 모드는 항상 통과) */
 const isKneeUp = () => kind === 'knee' || (sKneeUp != null && sKneeUp >= CONFIG.KNEE_MIN);
 /* 팔꿈치가 직각인가 */
-const isRight = () => sElbow != null && Math.abs(sElbow - 90) <= CONFIG.ELBOW_TOL;
+const isRight = () => sElbow != null && (Math.abs(sElbow - 90) <= CONFIG.ELBOW_TOL || sElbow >= CONFIG.STRAIGHT_MIN);   // 팔꿈치 플랭크 또는 팔 편 플랭크
 
 /* ===== 소리 ===== */
 function beep(freq = 880, ms = 120) {
@@ -398,7 +399,7 @@ function loop() {
         !r.ok ? '몸 옆면이 다 보이게 해요…' :
         !isLifted() ? '배를 바닥에서 떼고 몸을 들어요…' :
         !isKneeUp() ? '무릎을 바닥에서 떼요…' :
-        !right ? '팔꿈치를 어깨 바로 아래에 두어요…' :
+        !right ? '팔꿈치(또는 손)를 어깨 바로 아래에 두어요…' :
         sKneeA < CONFIG.KNEE_ANG_MIN ? '무릎을 쭉 펴요…' : '몸을 일자로 하고 엎드려요…';
       return;
     }
@@ -436,7 +437,7 @@ function toReady(g) {
   sBody = sFlat = sLift = sHip = sHipA = sKneeA = sElbow = sKneeUp = null; readySince = null;
   $('readyText').innerHTML = kind === 'knee'
     ? '몸 옆면이 카메라에 보이게 엎드려요.<br>무릎을 바닥에 대고, 어깨–엉덩이–무릎을 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.'
-    : '몸 옆면이 카메라에 보이게 엎드려요.<br>팔꿈치를 어깨 바로 아래에 두고 발끝으로 버텨요.<br>어깨–엉덩이–무릎을 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.';
+    : '몸 옆면이 카메라에 보이게 엎드려요.<br>팔꿈치(또는 팔을 펴고 손)를 어깨 바로 아래에 두고 발끝으로 버텨요.<br>어깨–엉덩이–무릎을 일자로 해요.<br>바른 자세로 가만히 있으면 3-2-1이 시작돼요.';
   beep(660, 60);
   show('ready');
 }
@@ -481,8 +482,8 @@ function judge(now, goodNow, r, lifted, right) {
     $('stateNow').textContent = '좋아요 ✓';
     return;
   }
-  isGood = false;
   badSince ??= now;
+  isGood = now - badSince <= CONFIG.GRACE_MS;   // 잠깐(GRACE_MS) 흔들린 동안은 시간이 계속 흐름
   // 무엇이 무너졌는지 우선순위대로 하나만 고름
   // 'down'·'kneedown' = 배·무릎이 바닥에 닿음(기록은 '처짐'으로 셈 → 시트 열은 그대로)
   // 'knee'·'elbow'는 안내만 하고 처짐/솟음 횟수에는 넣지 않음(시간은 멈춤)
@@ -510,7 +511,7 @@ function judge(now, goodNow, r, lifted, right) {
     flash(MSG[kindNow][1]);
     beep(220, 150);
   }
-  if (now - badSince > CONFIG.GIVEUP_SEC * 1000) finish('자세가 3초 넘게 무너졌어요');
+  if (now - badSince > CONFIG.GIVEUP_SEC * 1000) finish(`자세가 ${CONFIG.GIVEUP_SEC}초 넘게 무너졌어요`);
 }
 function updateNums() {
   $('holdNum').textContent = hold.toFixed(1);
