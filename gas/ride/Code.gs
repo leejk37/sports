@@ -14,13 +14,40 @@ const CONFIG = {
 };
 
 function updateDailyData() {
+  const result = buildRideData_(new Date());
+  PropertiesService.getScriptProperties().setProperty('DAILY_BAKED_DATA', JSON.stringify(result));
+}
+
+/**
+ * 지난 기간 보기 (2026-11-01): ?ref=yyyy-MM-dd → 그날 밤(23:59)을 '오늘'로 보고 다시 계산
+ *  - 지난주: 그 주 일요일을 ref로 → weekDistance·weekAttendance가 그 주 전체
+ *  - 지난달: 그 달 마지막 날을 ref로 → monthDistance·monthAttendance가 그 달 전체
+ *  - 오늘 이후 날짜는 받지 않음. 결과는 1시간 캐시(늦게 넣은 기록은 1시간 안에 반영)
+ */
+function pastRideData_(refKey) {
+  const tz = CONFIG.TZ;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(refKey)) return JSON.stringify({ ok: false, error: 'ref 형식(yyyy-MM-dd)' });
+  const todayKey = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  if (refKey >= todayKey) return JSON.stringify({ ok: false, error: '지난 날짜만 볼 수 있어요' });
+  const cache = CacheService.getScriptCache(), ck = 'ride_past1_' + refKey;
+  const hit = cache.get(ck);
+  if (hit) return hit;
+  const result = buildRideData_(new Date(refKey + 'T23:59:00+09:00'));
+  result.ref = refKey; result.past = true;
+  result.updateTime = Utilities.formatDate(new Date(), tz, 'yyyy년 MM월 dd일 HH:mm 업데이트');
+  const json = JSON.stringify(result);
+  try { cache.put(ck, json, 3600); } catch (e) {}          // 100KB 넘으면 캐시 없이
+  return json;
+}
+
+/** now를 '오늘'로 보고 순위·기록을 계산해 결과 객체로 돌려줌 */
+function buildRideData_(now) {
   const tz = CONFIG.TZ;
   const book = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = book.getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) throw new Error("'" + CONFIG.SHEET_NAME + "' 시트를 찾을 수 없습니다.");
 
   // 기간 계산 (이번 달 / 이번 주: 월~일)
-  const now = new Date();
   const todayKey = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const monthPrefix = Utilities.formatDate(now, tz, 'yyyy-MM');
   const dow = Number(Utilities.formatDate(now, tz, 'u')); // 1=월 ... 7=일
@@ -79,8 +106,7 @@ function updateDailyData() {
     classes: classRank_(riders),
     classesLow: low ? classRank_(low.riders) : []                   // 저학년 학급 순위 (따로)
   };
-
-  PropertiesService.getScriptProperties().setProperty('DAILY_BAKED_DATA', JSON.stringify(result));
+  return result;
 }
 
 /** 탭 하나 읽기 → { riders, school, opMonth, opWeek }. 각 학생에 그 탭의 운영일(wOp)과 저학년 표시(low)를 붙임 */
@@ -217,14 +243,15 @@ function round1_(n) { return Math.round(n * 10) / 10; }
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.refresh === '1') updateDailyData();
+  const json = () => p.ref ? pastRideData_(String(p.ref)) : getDashboardData();   // ?ref= 지난 기간
 
   if (p.format === 'json' && p.callback) {
     const cb = /^[\w.]{1,60}$/.test(p.callback) ? p.callback : 'callback';
-    return ContentService.createTextOutput(cb + '(' + getDashboardData() + ')')
+    return ContentService.createTextOutput(cb + '(' + json() + ')')
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   if (p.format === 'json') {
-    return ContentService.createTextOutput(getDashboardData())
+    return ContentService.createTextOutput(json())
       .setMimeType(ContentService.MimeType.JSON);
   }
 

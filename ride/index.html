@@ -22,6 +22,9 @@
   #clock{font-size:2.3vw;font-weight:800;font-variant-numeric:tabular-nums}
   #status{font-size:1vw;color:var(--soft)}
   #status.off{color:#ffb3a1}
+  /* 날짜 글자는 '○월 ○일 기준'과 겹쳐 숨김, 머리줄 오른쪽은 줄어들거나 꺾이지 않게 (2026-11-01) */
+  #date{display:none}
+  #clock,#status{flex-shrink:0;white-space:nowrap}
 
   main{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.05fr);gap:1.1vw;padding:1vw 1.6vw 1.2vw}
   .period h2{margin:0 0 .7vw;font-size:1.6vw;font-weight:800;display:flex;align-items:baseline;gap:.8vw}
@@ -67,6 +70,13 @@
   .cbar i{display:block;height:100%;background:var(--c);border-radius:999px}
 
   .tabs{display:none}
+  /* 큰 화면(TV): 네 칸을 한꺼번에 보이므로 머리줄 단추로 가운데 두 칸을 이번 ↔ 지난으로 바꿈 (2026-11-01) */
+  #when{flex-shrink:0;display:flex;gap:.3vw;padding:.25vw;border-radius:999px;background:rgba(255,255,255,.1);align-self:center}
+  #when button{font:inherit;font-size:max(13px,.9vw);font-weight:800;color:rgba(255,255,255,.85);background:transparent;border:0;border-radius:999px;padding:max(4px,.3vw) max(10px,.8vw);cursor:pointer;white-space:nowrap}
+  #when button[aria-pressed="true"]{background:var(--yellow);color:var(--blue-d)}
+  .period[data-p="pmonth"],.period[data-p="pweek"]{display:none}
+  body.pastView .period[data-p="month"],body.pastView .period[data-p="week"]{display:none}
+  body.pastView .period[data-p="pmonth"],body.pastView .period[data-p="pweek"]{display:block}
   .stat .k .kk{font-size:.8vw;font-weight:600;color:var(--soft)}
 
   /* 맨 아래 흐르는 띠: 모든 순위(개인 6종 10위까지 + 학급 기록 2종) */
@@ -115,11 +125,12 @@
   @media (max-width:860px){
     header{padding:12px 16px 10px;gap:10px;border-bottom-width:4px;flex-wrap:wrap}
     header h1{font-size:22px} #date{display:none} #clock{font-size:18px} #status{font-size:12px;width:100%}
-    .tabs{display:flex;gap:6px;padding:14px 16px 0}
-    .tabs button{flex:1;font:700 15px Pretendard,system-ui,sans-serif;padding:10px 4px;border:2px solid #fff;border-radius:999px;background:transparent;color:#fff;cursor:pointer}
+    #when{display:none}
+    .tabs{display:flex;gap:5px;padding:14px 16px 0}
+    .tabs button{flex:1;font:700 13px Pretendard,system-ui,sans-serif;padding:9px 2px;white-space:nowrap;border:2px solid #fff;border-radius:999px;background:transparent;color:#fff;cursor:pointer}
     .tabs button[aria-pressed="true"]{background:var(--yellow);border-color:var(--yellow);color:var(--blue-d)}
     main{grid-template-columns:1fr;padding:14px 16px 24px;gap:14px}
-    .period{display:none} .period.on{display:block}
+    .period,body.pastView .period{display:none} .period.on,body.pastView .period.on{display:block}
     .period h2{font-size:20px;margin-bottom:10px;gap:8px} .period h2 small{font-size:13px}
     .boards{gap:14px}
     .card{border-radius:14px;padding:12px 14px 6px;border-top-width:6px}
@@ -154,12 +165,15 @@
   <h1 data-school>인도어사이클 챌린지</h1>
     <a class="pageSwitch" href="../board/" title="스마트스포츠실 현황판으로">📊 현황판 ›</a>
   <span id="date"></span>
+  <div id="when" role="group" aria-label="이번·지난 기간"><button type="button" data-w="now" aria-pressed="true">이번 달·주</button><button type="button" data-w="past" aria-pressed="false">지난달·주</button></div>
   <span id="clock">--:--</span>
   <span id="status">불러오는 중…</span>
 </header>
 <div class="tabs" role="group" aria-label="기간 선택">
   <button type="button" data-p="season" aria-pressed="false">시즌</button>
+  <button type="button" data-p="pmonth" aria-pressed="false">지난달</button>
   <button type="button" data-p="month" aria-pressed="false">이번 달</button>
+  <button type="button" data-p="pweek" aria-pressed="false">지난주</button>
   <button type="button" data-p="week" aria-pressed="true">이번 주</button>
   <button type="button" data-p="school" aria-pressed="false">우리 학교</button>
 </div>
@@ -195,6 +209,16 @@ const PERIODS = [
     { key: 'weekDistance',   title: '거리',   jersey: '파란 저지', c: '#4f8ff7' },
     { key: 'weekAttendance', title: '출석률', jersey: '흰 저지',   c: '#ffffff', white: true } ] }
 ];
+/* 지난달·지난주 (2026-11-01): GAS ?ref=그 기간 마지막 날 → 그날을 오늘로 보고 다시 계산한 결과(PAST)를 같은 순위판으로 */
+PERIODS.splice(1, 0, { id: 'pmonth', past: true, title: () => '지난달', note: d => d.period.monthLabel + ' · 운영 ' + d.period.monthOpDays + '일', boards: PERIODS[1].boards });
+PERIODS.splice(3, 0, { id: 'pweek', past: true, title: () => '지난주', note: d => d.period.weekLabel + ' · 운영 ' + d.period.weekOpDays + '일', boards: PERIODS[3].boards });   // PERIODS[3] = 이번 주 (끼워 넣기 전)
+const PAST = { pmonth: null, pweek: null };   // null = 아직, false = 못 불러옴(GAS 새 버전 전 등)
+const ymd = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+function pastRefs() {   // 지난주 일요일 · 지난달 마지막 날 (한 주 = 월~일)
+  const n = new Date(); n.setHours(12, 0, 0, 0);
+  const dow = (n.getDay() + 6) % 7;                       // 월=0 … 일=6
+  return { pweek: ymd(n.getTime() - (dow + 1) * 864e5), pmonth: ymd(new Date(n.getFullYear(), n.getMonth(), 0, 12)) };
+}
 const JERSEY = 'M10 2 4 5 1 12 6 14 7 11V27H25V11L26 14 31 12 28 5 22 2C21 5 19 6 16 6 13 6 11 5 10 2Z';
 const jerseySvg = b => `<svg viewBox="0 0 32 28" aria-hidden="true"><path d="${JERSEY}" fill="${b.dots ? 'url(#dots)' : b.c}" stroke="${b.dots || b.white ? '#9aa7b4' : 'none'}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
 
@@ -262,13 +286,18 @@ function schoolHtml(d) {
       </section>
     </div></div>`;
 }
-let current = 'week';
+let current = 'week', lastData = null;
 function render(d) {
-  $('periods').innerHTML = PERIODS.map(p => `
-    <div class="period" data-p="${p.id}">
-      <h2>${esc(p.title(d))}${p.note ? `<small>${esc(p.note(d))}</small>` : ''}</h2>
-      <div class="boards">${p.boards.map(b => boardHtml(d, b, p.id === 'week' ? '이번 주 첫 기록을 기다리고 있어요' : '아직 기록이 없어요')).join('')}</div>
-    </div>`).join('') + schoolHtml(d);
+  lastData = d;
+  $('periods').innerHTML = PERIODS.map(p => {
+    const pd = p.past ? PAST[p.id] : d;
+    if (!pd) return `<div class="period" data-p="${p.id}"><h2>${esc(p.title(d))}</h2>
+      <div class="boards"><section class="card" style="--c:var(--yellow)"><div class="empty">${pd === false ? '인도어라이딩 GAS를 새 버전으로 배포하면 나와요' : '불러오는 중…'}</div></section></div></div>`;
+    return `<div class="period" data-p="${p.id}">
+      <h2>${esc(p.title(pd))}${p.note ? `<small>${esc(p.note(pd))}</small>` : ''}</h2>
+      <div class="boards">${p.boards.map(b => boardHtml(pd, b, p.id === 'week' ? '이번 주 첫 기록을 기다리고 있어요' : '기록이 없어요')).join('')}</div>
+    </div>`;
+  }).join('') + schoolHtml(d);
   select(current);
   fitClassLists();
   renderTicker(d);
@@ -347,9 +376,19 @@ function select(id) {
   document.querySelectorAll('.period').forEach(p => p.classList.toggle('on', p.dataset.p === id));
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => select(b.dataset.p)));
+/* 큰 화면 이번 ↔ 지난. 지난 기간은 3분 뒤 저절로 이번으로(TV에 지난 기록이 계속 떠 있지 않게) */
+let whenTimer = null;
+function setWhen(w) {
+  document.body.classList.toggle('pastView', w === 'past');
+  document.querySelectorAll('#when button').forEach(b => b.setAttribute('aria-pressed', b.dataset.w === w));
+  clearTimeout(whenTimer);
+  if (w === 'past') { loadPast(); whenTimer = setTimeout(() => setWhen('now'), 180e3); }
+  fitClassLists();
+}
+document.querySelectorAll('#when button').forEach(b => b.addEventListener('click', () => setWhen(b.dataset.w)));
 
 /* ===== GAS 통신 (JSONP) ===== */
-function jsonp(timeout = 20000) {
+function jsonp(timeout = 20000, ref) {
   return new Promise((resolve, reject) => {
     const cb = 'ridecb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4);
     const s = document.createElement('script');
@@ -357,7 +396,7 @@ function jsonp(timeout = 20000) {
     function done() { clearTimeout(timer); delete window[cb]; s.remove(); }
     window[cb] = data => { done(); resolve(data); };
     s.onerror = () => { done(); reject(new Error('연결 실패')); };
-    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams({ format: 'json', callback: cb });
+    s.src = CONFIG.GAS_URL + '?' + new URLSearchParams(Object.assign({ format: 'json', callback: cb }, ref ? { ref } : {}));
     document.head.appendChild(s);
   });
 }
@@ -366,12 +405,26 @@ async function load() {
     const d = await jsonp();
     if (!d || !d.rankings) throw new Error('응답 오류');
     render(d);
-    $('status').textContent = String(d.updateTime || '').replace(/^\d{4}년\s*/, '').replace(' 업데이트', ' 기준');
+    // 하루 한 번 계산하므로 날짜까지만: '2026년 11월 01일 00:19 업데이트' → '11월 1일 기준'
+    const m = String(d.updateTime || '').match(/(\d{1,2})월\s*(\d{1,2})일/);
+    $('status').textContent = m ? `${+m[1]}월 ${+m[2]}일 기준` : '';
+    loadPast();
     $('status').classList.remove('off');
   } catch (e) {
     $('status').textContent = '연결 끊김 · 다시 시도 중';
     $('status').classList.add('off');
   }
+}
+/* 지난달·지난주: 처음 한 번 + 이후 1시간마다(서버도 1시간 캐시). 둘 다 따로 불러 하나가 늦어도 다른 하나는 나옴 */
+let pastAt = 0;
+function loadPast() {
+  if (Date.now() - pastAt < 3600e3) return;
+  pastAt = Date.now();
+  const R = pastRefs();
+  Object.keys(R).forEach(id => jsonp(30000, R[id])
+    .then(p => { PAST[id] = p && p.rankings && p.ref === R[id] ? p : false; })   // ref를 돌려주지 않으면 옛 GAS(이번 기간이 섞임) → 표시 안 함
+    .catch(() => { if (!PAST[id]) PAST[id] = false; pastAt = 0; })
+    .finally(() => { if (lastData) render(lastData); }));
 }
 load();
 setInterval(load, CONFIG.REFRESH_MIN * 60000);
