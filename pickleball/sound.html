@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>피클볼 소리 측정</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#1b2a41;--sub:#5b6b82;--blue:#1e6fd9;--yellow:#ffc928;--green:#1fa463;--red:#e04848;--line:#dfe6ef}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;min-height:100dvh}
+header{background:var(--blue);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header h1{font-size:clamp(18px,2.2vw,28px);margin:0;flex:1}
+button{font:inherit;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;font-weight:700}
+.b-start{background:var(--yellow);color:var(--ink)}
+.b-light{background:#fff;color:var(--blue)}
+main{display:grid;grid-template-columns:1.6fr 1fr;gap:12px;padding:12px 16px}
+.card{background:var(--card);border-radius:14px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+canvas{width:100%;height:clamp(220px,38vh,460px);display:block;background:#0f1b2d;border-radius:10px}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.num{background:var(--bg);border-radius:10px;padding:8px;text-align:center}
+.num b{display:block;font-size:clamp(26px,4vw,52px);line-height:1.1}
+.num span{font-size:13px;color:var(--sub)}
+.labels{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.labels button{background:var(--bg);color:var(--ink);border:3px solid transparent;text-align:left}
+.labels button.on{border-color:currentColor;background:#fff}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:middle}
+h2{font-size:16px;margin:4px 0 8px}
+.set{display:grid;grid-template-columns:auto 1fr 64px;gap:6px 8px;align-items:center;font-size:14px}
+.set input{width:100%}
+.set output{text-align:right;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:5px 4px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+.hint{font-size:13px;color:var(--sub);margin:6px 0 0;line-height:1.5}
+#log{max-height:200px;overflow:auto;font-size:13px;font-family:ui-monospace,monospace}
+#log div{padding:2px 0;border-bottom:1px dashed var(--line)}
+.ok{color:var(--green);font-weight:700}.no{color:var(--red)}
+#msg{font-size:14px}
+.side{display:flex;flex-direction:column;gap:12px}
+@media (max-width:860px) and (orientation:portrait){main{grid-template-columns:1fr}}
+@media (max-height:500px) and (orientation:landscape){canvas{height:60vh}header{padding:6px 12px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏓 피클볼 소리 측정 <small style="font-weight:400;font-size:.6em">실험용</small></h1>
+  <button id="bStart" class="b-start">🎤 측정 시작</button>
+  <button id="bClear" class="b-light">기록 지우기</button>
+  <button id="bCopy" class="b-light">결과 복사</button>
+</header>
+
+<main>
+  <section class="card">
+    <canvas id="cv"></canvas>
+    <div class="nums">
+      <div class="num"><b id="nCount">0</b><span>인정된 소리 (지금 소리 종류)</span></div>
+      <div class="num"><b id="nPeak">-</b><span>마지막 소리의 가장 큰 주파수 (Hz)</span></div>
+      <div class="num"><b id="nRatio">-</b><span>마지막 소리의 대역 비율</span></div>
+    </div>
+    <p class="hint" id="msg">‘측정 시작’을 누르고 마이크 사용을 허용하세요. 노란 칸이 타구음으로 볼 주파수 범위입니다. 색깔 선은 소리 종류별 최대값입니다.</p>
+  </section>
+
+  <section class="side">
+    <div class="card">
+      <h2>1. 지금 낼 소리 고르기</h2>
+      <div class="labels" id="labels"></div>
+      <p class="hint">한 종류씩 골라 10번쯤 소리를 내 보세요. 패들은 많이, 나머지는 적게 ‘인정’되면 좋은 설정입니다.</p>
+    </div>
+    <div class="card">
+      <h2>2. 결과</h2>
+      <table><thead><tr><th>소리</th><th>감지</th><th>인정</th><th>주파수 중앙값</th><th>비율</th></tr></thead><tbody id="sum"></tbody></table>
+      <p class="hint" id="advice"></p>
+    </div>
+    <div class="card">
+      <h2>3. 판정 설정</h2>
+      <div class="set" id="sets"></div>
+    </div>
+    <div class="card">
+      <h2>최근 소리</h2>
+      <div id="log"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const LABELS=[
+  {id:'paddle',name:'패들 튀기기',color:'#3d8bff'},
+  {id:'floor',name:'바닥 튕김',color:'#2fd17f'},
+  {id:'voice',name:'목소리·웅성',color:'#ff5a5a'},
+  {id:'clap',name:'박수·발소리',color:'#c08cff'}
+];
+const DEF={low:800,high:2500,jump:4,ratio:0.35,gap:150};
+const SETS=[
+  {k:'low',name:'낮은 Hz',min:200,max:3000,step:50},
+  {k:'high',name:'높은 Hz',min:600,max:6000,step:50},
+  {k:'jump',name:'갑자기 커짐(배)',min:2,max:20,step:0.5},
+  {k:'ratio',name:'대역 비율',min:0.1,max:0.9,step:0.05},
+  {k:'gap',name:'다시 안 세는 시간(ms)',min:50,max:400,step:10}
+];
+let S={...DEF};
+try{const s=JSON.parse(localStorage.getItem('pbSound')||'null');if(s)S={...DEF,...s};}catch(e){}
+function save(){try{localStorage.setItem('pbSound',JSON.stringify(S));}catch(e){}}
+
+let cur='paddle',ctx=null,an=null,freq=null,binHz=1,running=false,stream=null;
+let base=null,lastHit=-1e9,pending=null;
+let maxHold={};const hits=[];
+
+/* ---------- 화면 만들기 ---------- */
+const $=id=>document.getElementById(id);
+function buildLabels(){
+  $('labels').innerHTML='';
+  LABELS.forEach(L=>{
+    const b=document.createElement('button');
+    b.innerHTML=`<span class="dot" style="background:${L.color}"></span>${L.name}`;
+    b.style.color=L.color;b.className=L.id===cur?'on':'';
+    b.onclick=()=>{cur=L.id;buildLabels();updateNums();};
+    const t=document.createElement('span');t.style.color='var(--ink)';
+    $('labels').appendChild(b);
+  });
+}
+function buildSets(){
+  $('sets').innerHTML='';
+  SETS.forEach(o=>{
+    const lab=document.createElement('label');lab.textContent=o.name;
+    const r=document.createElement('input');r.type='range';r.min=o.min;r.max=o.max;r.step=o.step;r.value=S[o.k];
+    const out=document.createElement('output');out.textContent=S[o.k];
+    r.oninput=()=>{S[o.k]=Number(r.value);
+      if(S.low>=S.high-100){if(o.k==='low')S.high=S.low+100;else S.low=S.high-100;buildSets();}
+      out.textContent=S[o.k];save();renderSummary();};
+    $('sets').append(lab,r,out);
+  });
+  const rb=document.createElement('button');rb.textContent='기본값으로';rb.className='b-light';rb.style.gridColumn='1/4';rb.style.background='var(--bg)';
+  rb.onclick=()=>{S={...DEF};save();buildSets();renderSummary();};
+  $('sets').appendChild(rb);
+}
+
+/* ---------- 마이크 ---------- */
+async function start(){
+  if(running){stop();return;}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  }catch(e){$('msg').textContent='마이크를 열 수 없어요: '+e.message+' (https 주소인지, 마이크 권한을 허용했는지 확인)';return;}
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const src=ctx.createMediaStreamSource(stream);
+  an=ctx.createAnalyser();an.fftSize=2048;an.smoothingTimeConstant=0;an.minDecibels=-110;an.maxDecibels=-10;
+  src.connect(an);
+  freq=new Float32Array(an.frequencyBinCount);binHz=ctx.sampleRate/an.fftSize;
+  const tr=stream.getAudioTracks()[0],st=tr.getSettings?tr.getSettings():{};
+  $('msg').textContent=`측정 중 · 샘플링 ${ctx.sampleRate}Hz · 칸 하나 ${binHz.toFixed(1)}Hz · 잡음 억제 ${st.noiseSuppression===true?'켜짐(⚠️ 결과가 흔들릴 수 있음)':'꺼짐'} · 자동 음량 ${st.autoGainControl===true?'켜짐(⚠️)':'꺼짐'}`;
+  running=true;base=null;$('bStart').textContent='⏸ 멈춤';
+  requestAnimationFrame(loop);
+}
+function stop(){
+  running=false;$('bStart').textContent='🎤 측정 시작';
+  if(stream)stream.getTracks().forEach(t=>t.stop());
+  if(ctx)ctx.close();ctx=null;
+}
+
+/* ---------- 판정 ---------- */
+function loop(){
+  if(!running)return;
+  an.getFloatFrequencyData(freq);
+  analyze(performance.now());
+  draw();
+  requestAnimationFrame(loop);
+}
+function analyze(now){
+  let band=0,total=0,pk=-Infinity,pkI=0;
+  const lo=Math.floor(S.low/binHz),hi=Math.ceil(S.high/binHz);
+  const tlo=Math.floor(100/binHz),thi=Math.min(freq.length-1,Math.ceil(8000/binHz));
+  for(let i=tlo;i<=thi;i++){
+    const v=freq[i];if(!isFinite(v))continue;
+    const p=Math.pow(10,v/10);total+=p;
+    if(i>=lo&&i<=hi)band+=p;
+    const f=i*binHz;if(f>=150&&f<=6000&&v>pk){pk=v;pkI=i;}
+  }
+  let mh=maxHold[cur];if(!mh)mh=maxHold[cur]=new Float32Array(freq.length).fill(-200);
+  for(let i=0;i<freq.length;i++)if(freq[i]>mh[i])mh[i]=freq[i];
+
+  const ratio=total>0?band/total:0;
+  if(base===null)base=band||1e-12;
+
+  // 감지 뒤 60ms 동안 가장 센 순간을 그 소리의 값으로 씀
+  if(pending){
+    if(band>pending.band){pending.band=band;pending.peak=Math.round(pkI*binHz);pending.ratio=ratio;}
+    if(now-pending.start>60){finish(pending);pending=null;}
+    return;
+  }
+  const jump=band/(base+1e-20);
+  if(now-lastHit>S.gap&&jump>=S.jump){
+    lastHit=now;
+    pending={start:now,band,peak:Math.round(pkI*binHz),ratio,jump,label:cur};
+  }else if(now-lastHit>S.gap){
+    base=base*0.95+band*0.05;
+  }
+}
+function finish(p){
+  const h={t:new Date(),label:p.label,peak:p.peak,db:10*Math.log10(p.band+1e-20),jump:p.jump,ratio:p.ratio,
+           counted:p.ratio>=S.ratio&&p.peak>=S.low&&p.peak<=S.high};
+  hits.push(h);
+  $('nPeak').textContent=h.peak;
+  $('nRatio').textContent=h.ratio.toFixed(2);
+  const L=LABELS.find(x=>x.id===h.label);
+  const d=document.createElement('div');
+  d.innerHTML=`${h.t.toLocaleTimeString('ko-KR')} · ${L.name} · <b>${h.peak}Hz</b> · 비율 ${h.ratio.toFixed(2)} · ${h.jump.toFixed(1)}배 · <span class="${h.counted?'ok':'no'}">${h.counted?'인정':'제외'}</span>`;
+  $('log').prepend(d);while($('log').children.length>40)$('log').lastChild.remove();
+  updateNums();renderSummary();
+}
+function recount(){hits.forEach(h=>h.counted=h.ratio>=S.ratio&&h.peak>=S.low&&h.peak<=S.high);}
+function median(a){if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+function pct(a,q){if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);return s[Math.min(s.length-1,Math.floor(q*(s.length-1)))];}
+function updateNums(){$('nCount').textContent=hits.filter(h=>h.label===cur&&h.counted).length;}
+function renderSummary(){
+  recount();updateNums();
+  $('sum').innerHTML=LABELS.map(L=>{
+    const hs=hits.filter(h=>h.label===L.id);
+    const md=median(hs.map(h=>h.peak)),rt=median(hs.map(h=>h.ratio));
+    return `<tr><td><span class="dot" style="background:${L.color}"></span>${L.name}</td><td>${hs.length}</td><td>${hs.filter(h=>h.counted).length}</td><td>${md==null?'-':Math.round(md)+'Hz'}</td><td>${rt==null?'-':rt.toFixed(2)}</td></tr>`;
+  }).join('');
+  const pp=hits.filter(h=>h.label==='paddle').map(h=>h.peak);
+  if(pp.length>=5){
+    const lo=Math.round(pct(pp,0.1)*0.8/50)*50,hi=Math.round(pct(pp,0.9)*1.25/50)*50;
+    $('advice').innerHTML=`패들 소리 ${pp.length}번 기준 추천 범위: <b>${lo}~${hi}Hz</b> (지금 ${S.low}~${S.high}Hz). 다른 소리의 ‘인정’이 많으면 대역 비율이나 갑자기 커짐 배수를 올려 보세요.`;
+  }else $('advice').textContent='패들 소리를 5번 이상 모으면 추천 범위를 보여 드려요.';
+}
+
+/* ---------- 그리기 ---------- */
+const cv=$('cv'),g=cv.getContext('2d');
+const FMIN=100,FMAX=8000,DBMIN=-110,DBMAX=-10;
+function fx(f,w){return Math.log(f/FMIN)/Math.log(FMAX/FMIN)*w;}
+function dy(db,h){return h-(Math.max(DBMIN,Math.min(DBMAX,db))-DBMIN)/(DBMAX-DBMIN)*h;}
+function draw(){
+  const r=window.devicePixelRatio||1,w=cv.clientWidth*r,h=cv.clientHeight*r;
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  g.clearRect(0,0,w,h);
+  // 판정 대역
+  g.fillStyle='rgba(255,201,40,.22)';g.fillRect(fx(S.low,w),0,fx(S.high,w)-fx(S.low,w),h);
+  // 눈금
+  g.strokeStyle='rgba(255,255,255,.15)';g.fillStyle='rgba(255,255,255,.7)';g.font=`${12*r}px system-ui`;
+  [125,250,500,1000,2000,4000,8000].forEach(f=>{const x=fx(f,w);g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();g.fillText(f>=1000?f/1000+'k':f,x+3*r,h-6*r);});
+  if(!freq)return;
+  const bins=freq.length;
+  // 소리 종류별 최대값 선
+  LABELS.forEach(L=>{const mh=maxHold[L.id];if(!mh)return;
+    g.strokeStyle=L.color;g.lineWidth=2*r;g.beginPath();let st=false;
+    for(let i=1;i<bins;i++){const f=i*binHz;if(f<FMIN||f>FMAX)continue;const x=fx(f,w),y=dy(mh[i],h);st?g.lineTo(x,y):(g.moveTo(x,y),st=true);}
+    g.stroke();});
+  // 지금 소리
+  g.fillStyle='rgba(255,255,255,.35)';g.beginPath();g.moveTo(0,h);
+  for(let i=1;i<bins;i++){const f=i*binHz;if(f<FMIN||f>FMAX)continue;g.lineTo(fx(f,w),dy(freq[i],h));}
+  g.lineTo(w,h);g.closePath();g.fill();
+}
+
+/* ---------- 버튼 ---------- */
+$('bStart').onclick=start;
+$('bClear').onclick=()=>{hits.length=0;maxHold={};$('log').innerHTML='';$('nPeak').textContent='-';$('nRatio').textContent='-';renderSummary();};
+$('bCopy').onclick=async()=>{
+  const lines=[`피클볼 소리 측정 ${new Date().toLocaleString('ko-KR')}`,
+    `설정: ${S.low}~${S.high}Hz, 갑자기 커짐 ${S.jump}배, 대역 비율 ${S.ratio}, 다시 안 세는 시간 ${S.gap}ms`,
+    ...LABELS.map(L=>{const hs=hits.filter(h=>h.label===L.id);const md=median(hs.map(h=>h.peak)),rt=median(hs.map(h=>h.ratio));
+      return `${L.name}: 감지 ${hs.length}, 인정 ${hs.filter(h=>h.counted).length}, 주파수 중앙값 ${md==null?'-':Math.round(md)}Hz, 비율 중앙값 ${rt==null?'-':rt.toFixed(2)}`;}),
+    '--- 소리별 ---',
+    ...hits.map(h=>`${LABELS.find(L=>L.id===h.label).name}\t${h.peak}Hz\t비율 ${h.ratio.toFixed(2)}\t${h.jump.toFixed(1)}배\t${h.counted?'인정':'제외'}`)];
+  try{await navigator.clipboard.writeText(lines.join('\n'));$('msg').textContent='결과를 복사했어요. 대화창에 붙여 넣어 주세요.';}
+  catch(e){$('msg').textContent='복사가 막혔어요: '+e.message;}
+};
+buildLabels();buildSets();renderSummary();draw();
+window.addEventListener('resize',draw);
+</script>
+</body>
+</html>
