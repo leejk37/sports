@@ -212,6 +212,8 @@ const EX = [
     tabs: ['growth', 'streak', 'run', 'best'] },   // 학교체육 순위표(2026-11-01): 어제의 나(성장)·꾸준함·끊김 없이를 앞에, 최고 기록('최대한 많이')은 뒤에
   { id: 'treadmill',   name: '트레드밀',       kind: 'dist',  unit: 'km', goal: 300,    tag: '타이머 · 거리 기록' },
   { id: 'rowing',      name: '로잉머신',       kind: 'dist',  unit: 'km', goal: 200,    tag: '입력 · 거리 기록' },
+  { id: 'morningrun',  name: '아침달리기',     kind: 'time',  unit: '초', goal: 500,    tag: 'NFC 기록대 · 운동장 5바퀴(500m)',
+    low: true, sumKind: 'dist', sumUnit: 'km', tabs: ['best', 'growth', 'streak'] },   // 2026-11-03: 기록은 짧을수록 좋음, 합계·목표·반별은 거리(km)
   { id: 'bike',        name: '실내자전거',     kind: 'dist',  unit: 'km', goal: 100,    tag: '라이딩 기록' }
 ];
 
@@ -231,6 +233,7 @@ const ICON = {
   legraise: S + '<circle cx="16" cy="52" r="6" fill="currentColor"/><path d="M22 54h20V18M28 54l2 8"/><path d="M6 62h60" stroke="#f5c518"/></svg>',
   burpee: S + '<circle cx="36" cy="14" r="6" fill="currentColor"/><path d="M36 22v18M24 6l12 20 12-20M28 54l8-14 8 14"/><path d="M10 66h52" stroke="#f5c518"/></svg>',
   rope: S + '<circle cx="36" cy="12" r="6" fill="currentColor"/><path d="M36 20v22M36 26l-12 10M36 26l12 10M36 42l-6 14M36 42l6 14"/><path d="M24 36C14 52 20 66 36 66s22-14 12-30" stroke="#f5c518" stroke-width="3"/></svg>',
+  morningrun: S + '<circle cx="40" cy="10" r="6" fill="currentColor"/><path d="M38 18l-8 18 10 6-6 14M30 36l-10 8M36 24l12 6"/><ellipse cx="36" cy="62" rx="28" ry="6" stroke="#f5c518" stroke-width="4"/></svg>',
   bike: S + '<circle cx="18" cy="50" r="10"/><circle cx="56" cy="50" r="10" stroke="#f5c518"/><path d="M18 50l12-20h18l8 20M30 30l8 20h-20M44 22h8"/></svg>'
 };
 
@@ -268,6 +271,8 @@ function show(e, v, big) {   // big = 큰 숫자 칸용(단위 작게)
   return `${num(v)}${sm(e.unit)}`;
 }
 const plain = (e, v) => show(e, v).replace(/<[^>]+>/g, '');
+/* 합계·목표·반별에 쓰는 단위 (아침달리기: 기록은 시간, 합계는 거리 km) */
+const sumE = e => e.sumKind ? Object.assign({}, e, { kind: e.sumKind, unit: e.sumUnit }) : e;
 /* 성장: 어디서 어디까지 늘었는지 (서버 Rank.gs가 from·to를 보냄). 횟수·거리는 앞 숫자의 단위를 빼서 짧게: '22 → 67회' */
 const fromTo = (e, r) => {
   if (!r || r.from == null || r.to == null) return '';
@@ -344,10 +349,10 @@ function demoData(e) {
 /* ===== 그리기 ===== */
 let data = null, tab = 0, tabTimer = null;
 const TABS = [
-  { k: 'best',   why: () => ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : ex().sum ? `${PNAME[period]} 한 횟수를 모두 더해 가장 많이 한 친구` : data && data.bestCond ? `${PNAME[period]} '${data.bestCond}'로 한 번에 가장 많이 뛴 기록` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
-    label: () => ex().id === 'bike' ? '🏆 거리 합계' : ex().sum ? '🏆 가장 많이' : data && data.bestCond ? '🏆 ' + data.bestCond : '🏆 최고 기록',
+  { k: 'best',   why: () => ex().low ? `${PNAME[period]} 운동장 5바퀴를 가장 빨리 달린 기록` : ex().id === 'bike' ? `${PNAME[period]} 탄 거리를 모두 더한 기록` : ex().sum ? `${PNAME[period]} 한 횟수를 모두 더해 가장 많이 한 친구` : data && data.bestCond ? `${PNAME[period]} '${data.bestCond}'로 한 번에 가장 많이 뛴 기록` : `${PNAME[period]} 한 번에 가장 ${ex().kind === 'time' ? '오래' : ex().kind === 'dist' ? '멀리' : '많이'} 한 기록`,
+    label: () => ex().low ? '🏆 가장 빨리' : ex().id === 'bike' ? '🏆 거리 합계' : ex().sum ? '🏆 가장 많이' : data && data.bestCond ? '🏆 ' + data.bestCond : '🏆 최고 기록',
     val: (e, v, r) => show(e, v) + (r && r.acc != null ? `<em class="acc${r.acc >= 90 ? ' hi' : r.acc < 60 ? ' lo' : ''}" title="이 기록의 정확도">🎯${r.acc}%</em>` : '') },   // 그 기록의 정확도
-  { k: 'growth', why: () => ex().sum ? `내 하루 최고(하루 합)보다 몇 ${ex().unit} 더 했는지 · 누구나 1등 할 수 있어요` : `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
+  { k: 'growth', why: () => ex().low ? '처음 기록보다 몇 초 빨라졌는지 · 누구나 1등 할 수 있어요' : ex().sum ? `내 하루 최고(하루 합)보다 몇 ${ex().unit} 더 했는지 · 누구나 1등 할 수 있어요` : `처음 기록보다 ${ex().kind === 'time' ? '몇 초 더 버텼는지' : ex().kind === 'dist' ? '얼마나 더 멀리 갔는지' : '몇 ' + ex().unit + ' 더 했는지'} · 누구나 1등 할 수 있어요`,
     val: (e, v, r) => `<span class="up">▲</span>${show(e, v)}` + fromTo(e, r) },   // 아래 작게 '원래 → 지금' (2026-11-01)
   { k: 'run', why: () => `${PNAME[period]} 한 번도 줄에 안 걸리고 이어서 뛴 가장 긴 횟수 · 빠르기보다 끊김 없이!`,
     val: (e, v) => `${num(v)}<small>회</small>`, need: () => !!data && Array.isArray(data.run) },
@@ -372,20 +377,20 @@ function renderHead() {
 
 function render() {
   const e = ex(), d = data; if (!d) return;
-  const P = PNAME[period];
+  const P = PNAME[period], se = sumE(e);
   $('sumLabel').textContent = `${P} 모두 합치면`;
-  $('sum').innerHTML = show(e, d.total, true);
-  $('sumSub').textContent = (d.avgPer != null ? `1인 평균 ${plain(e, d.avgPer)}` : '') + (d.accuracy != null ? ` · 🎯 정확도 ${d.accuracy}%` : '');
+  $('sum').innerHTML = show(se, d.total, true);
+  $('sumSub').textContent = (d.avgPer != null ? `1인 평균 ${plain(se, d.avgPer)}` : '') + (d.accuracy != null ? ` · 🎯 정확도 ${d.accuracy}%` : '');
   $('pplLabel').textContent = `${P} 참여한 친구`;
   $('ppl').textContent = num(d.people);
-  $('pplSub').textContent = (d.best || []).length ? `최고 기록 ${plain(e, Math.max(...d.best.map(b => b.value)))}` : '';
+  $('pplSub').textContent = (d.best || []).length ? `최고 기록 ${plain(e, (e.low ? Math.min : Math.max)(...d.best.map(b => b.value)))}` : '';
 
   // 학교 전체 누적 목표
   $('goalName').textContent = `학교 전체 ${e.name} 도전`;
-  $('goalNow').innerHTML = show(e, d.allTime);
-  $('goalMax').textContent = '/ ' + plain(e, e.goal);
+  $('goalNow').innerHTML = show(se, d.allTime);
+  $('goalMax').textContent = '/ ' + plain(se, e.goal);
   $('goalBar').style.width = Math.min(100, e.goal ? d.allTime / e.goal * 100 : 0) + '%';
-  $('goalSub').textContent = d.allTime >= e.goal ? '🎉 목표 달성!' : `목표까지 ${plain(e, Math.max(0, e.goal - d.allTime))} · 10월부터 모두 더한 값`;
+  $('goalSub').textContent = d.allTime >= e.goal ? '🎉 목표 달성!' : `목표까지 ${plain(se, Math.max(0, e.goal - d.allTime))} · 10월부터 모두 더한 값`;
   $('note').textContent = '순위는 학년 묶음별로 따로 매겨요. 기록·성장·꾸준함' + (d.accuracy != null ? '·정확도' : '') + ' 순위가 차례로 나와요.';
 
   // 반별: 반 친구들 기록을 모두 더한 합계로 비교(많이 한 반부터). 여럿이 참여할수록 올라감 (2026-10-23, 평균 → 합계)
@@ -396,8 +401,8 @@ function render() {
   $('clsLabel').textContent = bySum ? `${P} 반별 합계` : `${P} 반별 1인 평균`;
   $('clsSub').textContent = bySum ? '반 친구들 기록을 더함' : '참여한 친구 기준';
   $('cls').classList.toggle('many', cls.length >= 8);
-  $('cls').innerHTML = cls.length ? cls.map(c => `<div class="cr${cv(c) === max ? ' top' : ''}" title="${c.people}명 참여 · 1인 평균 ${plain(e, c.avg)}">
-      <span class="c">${c.grade}-${c.cls}</span><span class="w"><i data-w="${max ? cv(c) / max * 100 : 0}"></i></span><span class="n">${plain(e, cv(c))}${c.acc != null ? `<small class="acc">${c.acc}%</small>` : ''}</span></div>`).join('')
+  $('cls').innerHTML = cls.length ? cls.map(c => `<div class="cr${cv(c) === max ? ' top' : ''}" title="${c.people}명 참여 · 1인 평균 ${plain(se, c.avg)}">
+      <span class="c">${c.grade}-${c.cls}</span><span class="w"><i data-w="${max ? cv(c) / max * 100 : 0}"></i></span><span class="n">${plain(se, cv(c))}${c.acc != null ? `<small class="acc">${c.acc}%</small>` : ''}</span></div>`).join('')
     : '<div class="label">아직 기록이 없어요</div>';
   if (cls.some(c => c.acc != null)) $('clsSub').textContent = '반 친구들 기록을 더함 · 초록은 정확도';
   requestAnimationFrame(() => document.querySelectorAll('.cr .w i').forEach(i => i.style.width = Math.max(2, i.dataset.w) + '%'));
@@ -429,7 +434,7 @@ function renderTab(keep = false) {
       rows = rows.filter(r => String(r.cond) === c);
       condTxt = `<small class="cond">${esc(condName(c))}</small>`;
     }
-    const top = rows.sort((x, y) => y.value - x.value).slice(0, CONFIG.TOP_N);
+    const top = rows.sort((x, y) => t.k === 'best' && e.low ? x.value - y.value : y.value - x.value).slice(0, CONFIG.TOP_N);   // 아침달리기 최고 기록은 짧은 순
     return `<div class="band"><h3>${b.name}${condTxt}</h3>` + (top.length
       ? top.map((r, i) => { r._rank = i && top[i - 1].value === r.value ? top[i - 1]._rank : i + 1; return r; }).map(r => `<div class="rk${r._rank <= 3 ? ' m' + r._rank : ''}"><span class="no">${r._rank}</span><span class="nm">${esc(mask(r.name))}<small>${esc(r.grade)}학년 ${esc(r.cls)}반</small></span>${(() => { const h = t.val(e, r.value, r); const len = h.replace(/<em[\s\S]*?<\/em>/g, '').replace(/<[^>]+>/g, '').length; return `<span class="v${len > 5 ? ' long' : ''}">${h}</span>`; })()}</div>`).join('')
       : `<div class="none">${PNAME_TOPIC[period]} 아직 기록이 없어요.<br>첫 번째 주인공이 되어 보세요!</div>`) + '</div>';
@@ -459,7 +464,7 @@ function drawTicker() {
   if (!pbs.length) html = `<span class="msg">${PNAME[period]} 새로운 개인 최고 기록을 기다리고 있어요 · 어제의 나를 이겨 보세요!</span>`;
   else {
     html = pbs.map(p => `<span class="tk">${esc(mask(p.name))}<small>${esc(p.grade)}-${esc(p.cls)}</small> ${plain(e, p.value)}` +
-      (p.prev ? ` <em>▲ ${plain(e, Math.max(0, p.value - p.prev))}</em>` : '') + '</span>').join('');
+      (p.prev ? ` <em>▲ ${plain(e, Math.max(0, e.low ? p.prev - p.value : p.value - p.prev))}</em>` : '') + '</span>').join('');
     run = true;
   }
   if (html === tickKey) return;

@@ -41,7 +41,10 @@ const RANK_EX = {
   rope:        { sheet: '줄넘기',         value: 7, cond: 6, bestCond: '최대한 많이', run: 11 },   // 횟수, 방식. 최고 기록은 '최대한 많이'만(없으면 전체), L 최장 연속 순위 (2026-11-01)
   treadmill:   { sheet: '트레드밀',       value: 8 },               // 거리(km)
   rowing:      { sheet: '로잉머신',       value: 9 },               // 거리(km)
-  bike:        { ride: true, sumBest: true }                        // 인도어라이딩 시트(날짜별 km). 최고 기록 = 기간 합계 km
+  bike:        { ride: true, sumBest: true },                       // 인도어라이딩 시트(날짜별 km). 최고 기록 = 기간 합계 km
+  // 아침달리기(2026-11-03): 아침달리기 시트(MorningRun.gs)를 읽음. 값 = 5바퀴 걸린 시간(초), **짧을수록 좋음**(lower)
+  //  최고 기록 = 가장 빠른 기록, 성장 = 몇 초 빨라졌는지, 합계·반별·누적 = 달린 거리(1회 0.5km)
+  morningrun:  { mrun: true, lower: true }
 };
 
 function rankSummary_(exRaw, periodRaw, key) {
@@ -87,6 +90,8 @@ function rankBuild_(exId, cfg, period, keyOk) {
     const all = stampReadAllRide_(roster);                             // Stamp.gs: { id: { 날짜: km } }
     Object.keys(all).forEach(id => Object.keys(all[id]).forEach(d =>
       recs.push({ id, d, t: new Date(d + 'T12:00:00+09:00').getTime(), v: all[id][d], c: '' })));
+  } else if (cfg.mrun) {
+    morningRunRows_().forEach(r => recs.push({ id: r.id, d: r.d, t: r.t || new Date(r.d + 'T08:00:00+09:00').getTime(), v: r.sec, c: '' }));
   } else {
     const sh = ss.getSheetByName(cfg.sheet);
     if (sh && sh.getLastRow() > 1) {
@@ -121,19 +126,21 @@ function rankBuild_(exId, cfg, period, keyOk) {
     return { name: keyOk ? name : rankMask_(name), grade: st.grade || '', cls: st.cls || '' };
   };
   const round = v => Math.round(v * 100) / 100;
+  const better = (a, b) => cfg.lower ? a < b : a > b;              // 아침달리기는 짧을수록 좋음
+  const amt = r => cfg.mrun ? MRUN.KM : r.v;                        // 합계에 더하는 양: 아침달리기는 거리(km)
 
   // 기간 안 / 전 나누기
   const inPall = recs.filter(r => r.d >= from && r.d <= today);   // 정확도용(정확 0회 기록 포함)
   recs = recs.filter(r => r.v > 0);
   const inP = inPall.filter(r => r.v > 0);
-  const total = inP.reduce((s, r) => s + r.v, 0);
+  const total = inP.reduce((s, r) => s + amt(r), 0);
   const ppl = new Set(inP.map(r => r.id));
-  const allTime = recs.filter(r => r.d >= RANK.ALL_FROM && r.d <= today).reduce((s, r) => s + r.v, 0);
+  const allTime = recs.filter(r => r.d >= RANK.ALL_FROM && r.d <= today).reduce((s, r) => s + amt(r), 0);
 
   // 최고 기록: 학생 × 조건
   const bestMap = {};
   const bestOnly = cfg.bestCond && inP.some(r => r.c === cfg.bestCond) ? cfg.bestCond : '';   // 줄넘기: '최대한 많이' 기록이 있으면 그것만
-  inP.forEach(r => { const k = r.id + '\u0001' + r.c; if (!bestMap[k] || r.v > bestMap[k].v) bestMap[k] = r; });
+  inP.forEach(r => { const k = r.id + '\u0001' + r.c; if (!bestMap[k] || better(r.v, bestMap[k].v)) bestMap[k] = r; });
   // 최고 기록 옆에 '그 기록의 정확도'(그 한 번의 정확 ÷ 전체, 플랭크는 유지율)
   let best = Object.values(bestMap).map(r => Object.assign(who(r.id), { value: round(r.v), cond: r.c,
     acc: cfg.acc && r.at > 0 ? Math.round(r.ag / r.at * 100) : null }));
@@ -149,14 +156,14 @@ function rankBuild_(exId, cfg, period, keyOk) {
   const prevBest = {}, firstIn = {};
   recs.forEach(r => {
     const k = r.id + '\u0001' + r.c;
-    if (r.d < from) { if (!prevBest[k] || r.v > prevBest[k]) prevBest[k] = r.v; }
+    if (r.d < from) { if (!prevBest[k] || better(r.v, prevBest[k])) prevBest[k] = r.v; }
     else if (r.d <= today && !(k in firstIn)) firstIn[k] = r.v;
   });
   const growMap = {};
   Object.keys(bestMap).forEach(k => {
     const to = bestMap[k].v, base = k in prevBest ? prevBest[k] : firstIn[k];
-    if (!base || to <= base) return;
-    const pct = (to - base) / base * 100, diff = to - base;
+    if (!base || !better(to, base)) return;
+    const diff = Math.abs(to - base), pct = diff / base * 100;
     const id = bestMap[k].id;
     if (!growMap[id] || diff > growMap[id].diff) growMap[id] = { pct, diff, from: base, to };   // 학생마다 가장 많이 는 조건
   });
@@ -185,7 +192,7 @@ function rankBuild_(exId, cfg, period, keyOk) {
   inP.forEach(r => {
     const st = roster.byId[r.id]; if (!st || !st.grade) return;
     const k = st.grade + '|' + st.cls, c = cls[k] || (cls[k] = { grade: st.grade, cls: st.cls, ids: new Set(), sum: 0 });
-    c.ids.add(r.id); c.sum += r.v;
+    c.ids.add(r.id); c.sum += amt(r);
   });
   // 정확도: 학교 전체 · 반별 · 학생별
   const A = cfg.acc;
@@ -212,8 +219,8 @@ function rankBuild_(exId, cfg, period, keyOk) {
   const run = {}, pbs = [];
   recs.forEach(r => {
     const k = r.id + '\u0001' + r.c, prev = run[k];
-    if (prev != null && r.v > prev && r.d >= from && r.d <= today) pbs.push({ id: r.id, t: r.t, value: round(r.v), prev: round(prev) });
-    if (prev == null || r.v > prev) run[k] = r.v;
+    if (prev != null && better(r.v, prev) && r.d >= from && r.d <= today) pbs.push({ id: r.id, t: r.t, value: round(r.v), prev: round(prev) });
+    if (prev == null || better(r.v, prev)) run[k] = r.v;
   });
   const lastPb = {};
   pbs.forEach(p => { lastPb[p.id] = p; });                              // 학생마다 가장 최근 것
