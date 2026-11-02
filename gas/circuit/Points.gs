@@ -29,6 +29,8 @@ const POINT = {
   ROPE_FROM: '2026-11-01',     // 줄넘기: 이날부터 '종목 통과' 대신 '줄넘기 100회' (그 전 날은 통과 1P 그대로)
   ROPE_PER: 100,               // 줄넘기: 그날 줄넘기 앱('줄넘기' 탭 H열) 횟수 합 이만큼마다 '줄넘기 100회' 포인트
   SQUAT_PER: 20,               // 스쿼트: 그날 정확한 횟수(H열) 합 이만큼마다 '스쿼트 20회' 포인트. 스쿼트는 '종목 통과' 포인트 없음 (2026-10-29)
+  GROUP_FROM: '2026-11-01',    // 이날부터 모둠 도장·완벽 모둠 도장은 '포인트규칙' 탭 숫자(10·20), 그 전 날은 아래 옛 점수
+  GROUP_OLD: 5, GROUP_PERFECT_OLD: 5,
   MRUN_FROM: '2026-11-02',     // 아침달리기 포인트를 주기 시작하는 날 (기록 시작일)
   MRUN_CYCLE: 5,               // 아침달리기 연속: 5일째 다음 날은 다시 1일째 (3·4·5일째에 포인트)
   CACHE_SEC: 600               // 화면용 합계 캐시 (선물 교환은 10분 안에 화면에 반영)
@@ -236,7 +238,8 @@ function pointCompute_(ss, from, to) {
       const bkP = d < POINT.BIKE_FROM ? 0 : Math.floor(Math.max(0, km - stampBikeKm_(st.grade)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
       const pEx = pass * R['종목 통과'] + sqP + rpP + bkP + mrP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
-      const pG = g ? R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0) : 0;
+      const gOld = d < POINT.GROUP_FROM;                        // 2026-11-01부터 모둠 도장 10·완벽 +20
+      const pG = g ? (gOld ? POINT.GROUP_OLD : R['모둠 도장']) + (g === 100 ? (gOld ? POINT.GROUP_PERFECT_OLD : R['완벽 모둠 도장']) : 0) : 0;
       const pSk = (s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 7 === 0 ? R['연속 7일마다'] : 0) : 0) + mrSkP;
       const pPb = pbList.length * R['기록 경신'] + mrPbP;
       const pAc = accList.length * R['바른 자세'];
