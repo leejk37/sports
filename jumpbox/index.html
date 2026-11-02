@@ -29,6 +29,7 @@
   #main{flex:1;display:flex;min-height:0}
   #stage{flex:1;position:relative;background:var(--stage);overflow:hidden;border-right:4px solid var(--yellow)}
   #view{width:100%;height:100%;object-fit:contain;display:block}
+  #view.setting{touch-action:none;cursor:ns-resize}
   #video{display:none}
   #hint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(20,30,50,.85);
     padding:10px 20px;border-radius:999px;font-size:18px;font-weight:700;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
@@ -112,8 +113,9 @@
         <div id="boxState"></div>
         <button class="btn line" id="autoBtn">🧍 박스 위에 서서 맞추기</button>
         <button class="btn line" id="boxBtn">📏 박스선 맞추기</button>
+        <button class="btn line" id="boxClear" hidden>박스선 지우기</button>
         <button class="btn" id="startBtn">시작</button>
-        <p>카메라는 옆에서, 박스와 무릎·발이 다 보이게. 박스 앞에 서서 시작해요. 내려올 때는 한 발씩 걸어서!</p>
+        <p>카메라는 옆에서, 박스와 무릎·발이 다 보이게. 박스 앞에 서서 시작해요.<br>① 두 발 모아 점프해서 박스 위에 → ② 한 발씩 걸어서 내려오기 = 1회</p>
       </section>
 
       <section class="screen" id="s-countdown">
@@ -154,15 +156,17 @@ import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@m
 /* ===== 조정 값 (학생 시험 후 고침) =====
  * 높이·길이는 픽셀이 아니라 정강이 길이(무릎~발목)의 배수로 잽니다. 카메라 거리가 달라도 같은 기준. */
 const CONFIG = {
-  VIS_MIN: 0.5,      // 관절이 이만큼 또렷해야 판정에 씀
-  HOLD: 0.3,         // 두 발이 박스 위에 이만큼(초) 머물러야 '올라섬'
-  BAND_UP: 0.7,      // 발목이 박스선보다 정강이 0.7배 위까지는 '박스 위', 더 높으면 '공중'
-  BAND_DN: 0.25,     // 박스선보다 정강이 0.25배 아래까지도 '박스 위'(선 맞춤 오차)
+  VIS_MIN: 0.5,      // 무릎이 이만큼 또렷해야 정강이 길이로 씀
+  VIS_FOOT: 0.3,     // 발(발목·뒤꿈치·발끝)은 이만큼만 보여도 씀. 옆 촬영에서는 먼 쪽 발이 가려져 낮게 잡힘 (2026-11-02)
+  HOLD: 0.3,         // 보이는 발이 모두 박스 위에 이만큼(초) 머물러야 '올라섬'
+  BAND_UP: 0.7,      // 발바닥이 박스선보다 정강이 0.7배 위까지는 '박스 위', 더 높으면 '공중'
+  BAND_DN: 0.3,      // 박스선보다 정강이 0.3배 아래까지도 '박스 위'(선 맞춤 오차). 0.25 → 0.3
   FLOOR_TOL: 0.35,   // 처음 잰 바닥 높이에서 정강이 0.35배 안이면 '바닥'
-  SYNC: 0.2,         // 두 발이 박스에 닿은 시각 차이가 0.2초 넘으면 오류1 '한 발씩 올라감'
+  SYNC: 0.2,         // 두 발이 다 보일 때만: 박스에 닿은 시각 차이가 0.2초 넘으면 오류1 '한 발씩 올라감'
   KNEE_SOFT: 150,    // 착지 후 0.4초 안 무릎 각이 한 번도 150° 아래로 안 굽으면 오류2 '딱딱한 착지'
   LAND_WIN: 0.4,
-  JUMPDOWN: 0.12     // 내려올 때 두 발이 0.12초 안에 같이 바닥에 닿으면 '뛰어내림'(안전 알림, 오류에는 안 넣음)
+  JUMPDOWN: 0.12,    // 두 발이 다 보일 때만: 내려올 때 두 발이 0.12초 안에 같이 바닥에 닿으면 '뛰어내림'(안전 알림)
+  LOST_SEC: 0.5      // 발이 이만큼 안 보이면 그 발은 판정에서 빼고 보이는 발로만 봄
 };
 const HEIGHTS = [20, 24, 30];   // 인치 (폼 박스 3-in-1: 50.8 · 61 · 76.2cm)
 
@@ -178,7 +182,7 @@ let stream = null, pose = null, facing = store.get('jbFacing') || 'environment';
 let mode = 'loading', lastVideoTime = -1, wakeLock = null, audio = null;
 let height = HEIGHTS.includes(Number(store.get('jbHeight'))) ? Number(store.get('jbHeight')) : 20;
 let target = [0, 5, 10].includes(Number(store.get('jbTarget'))) ? Number(store.get('jbTarget')) : 10;
-let boxSetting = false;
+let boxSetting = false, dragging = false, lastDraw = null;
 const boxKey = h => 'jbBox' + h;   // 박스선은 높이마다 따로 기억 (박스를 돌리면 윗면 위치가 바뀜)
 const getBoxY = () => { const v = Number(store.get(boxKey(height))); return v > 0 && v < 1 ? v : null; };
 
@@ -207,8 +211,10 @@ function renderSetup() {
   document.querySelectorAll('#targets button').forEach(b => b.classList.toggle('on', Number(b.dataset.n) === target));
   const ok = getBoxY() != null;
   $('boxState').textContent = ok ? `${height}인치 박스선 맞춤 완료` : `${height}인치 박스선을 먼저 맞춰요`;
-  $('boxBtn').textContent = boxSetting ? '✕ 취소' : ok ? '📏 박스선 다시 맞추기' : '📏 박스선 맞추기';
-  $('startBtn').disabled = !ok;
+  $('boxBtn').textContent = boxSetting ? '✓ 다 맞췄어요' : ok ? '📏 박스선 다시 맞추기' : '📏 박스선 맞추기';
+  $('boxClear').hidden = !boxSetting || !ok;
+  $('startBtn').disabled = !ok || boxSetting;
+  canvas.classList.toggle('setting', boxSetting);
 }
 
 /* ===== 카메라 ===== */
@@ -230,17 +236,25 @@ function angle(a, b, c) {
   return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 }
 let shin = null;   // 정강이 길이(픽셀), 흔들림을 줄이려고 천천히 따라감
+/* 발바닥 높이: 뒤꿈치·발끝 중 보이는 것의 아래쪽(y가 큰 쪽). 둘 다 안 보이면 발목 + 정강이 0.12배 */
+function sole(an, he, to) {
+  const ys = [he, to].filter(q => q.v > CONFIG.VIS_FOOT).map(q => q.y);
+  if (ys.length) return { y: Math.max(...ys), x: an.x, v: 1 };
+  if (an.v > CONFIG.VIS_FOOT) return { y: an.y + 0.12 * (shin || 60), x: an.x, v: 1 };
+  return null;
+}
 function readPose(lm) {
   const W = canvas.width, H = canvas.height;
   const p = i => ({ x: lm[i].x * W, y: lm[i].y * H, v: lm[i].visibility ?? 0 });
   const lh = p(23), rh = p(24), lk = p(25), rk = p(26), la = p(27), ra = p(28);
-  const ok = [lk, rk, la, ra].every(q => q.v > CONFIG.VIS_MIN);
-  if (ok) {
-    const L = (Math.hypot(lk.x - la.x, lk.y - la.y) + Math.hypot(rk.x - ra.x, rk.y - ra.y)) / 2;
-    shin = shin == null ? L : shin * 0.9 + L * 0.1;
-  }
-  const knee = (lh.v > CONFIG.VIS_MIN && rh.v > CONFIG.VIS_MIN) ? Math.min(angle(lh, lk, la), angle(rh, rk, ra)) : null;
-  return { ok, la, ra, knee, segs: [[lh, rh], [lh, lk], [lk, la], [rh, rk], [rk, ra]] };
+  // 정강이: 보이는 쪽 다리만으로 (옆 촬영에서 먼 다리는 가려짐)
+  const Ls = [[lk, la], [rk, ra]].filter(([k, a]) => k.v > CONFIG.VIS_MIN && a.v > CONFIG.VIS_FOOT).map(([k, a]) => Math.hypot(k.x - a.x, k.y - a.y));
+  if (Ls.length) { const L = Ls.reduce((a, b) => a + b) / Ls.length; shin = shin == null ? L : shin * 0.9 + L * 0.1; }
+  const fl = sole(la, p(29), p(31)), fr = sole(ra, p(30), p(32));
+  const ok = !!shin && (fl || fr);
+  const ka = [[lh, lk, la], [rh, rk, ra]].filter(([h, k, a]) => h.v > CONFIG.VIS_MIN && k.v > CONFIG.VIS_MIN && a.v > CONFIG.VIS_FOOT).map(([h, k, a]) => angle(h, k, a));
+  const knee = ka.length ? Math.min(...ka) : null;
+  return { ok, fl, fr, knee, segs: [[lh, rh], [lh, lk], [lk, la], [rh, rk], [rk, ra]] };
 }
 
 /* ===== 판정: 바닥 → (두 발이 박스 위에 0.3초) 올라섬 → (두 발이 바닥으로) 내려옴 = 1회 ===== */
@@ -248,7 +262,7 @@ let floorY = null, floorSamples = [];
 let S = null;            // 이번 측정
 let st, boxT, onSince, leaveT, landT, kneeHist;
 
-function resetCycle() { st = 'floor'; boxT = { l: null, r: null }; onSince = null; leaveT = { l: null, r: null }; landT = null; }
+function resetCycle() { st = 'floor'; lastZ.l = lastZ.r = null; boxT = { l: null, r: null }; onSince = null; leaveT = { l: null, r: null }; landT = null; }
 
 function zone(y) {
   const by = getBoxY() * canvas.height, L = shin || 60;
@@ -259,28 +273,42 @@ function zone(y) {
 }
 const ZNAME = { air: '공중', box: '박스 위', floor: '바닥', mid: '중간' };
 
+/* 발마다 지금 구역. 잠깐 가려지면(LOST_SEC 안) 마지막 구역을 그대로 씀 */
+const lastZ = { l: null, r: null }, lastSeen = { l: 0, r: 0 };
+function footZone(k, f, t) {
+  if (f) { lastZ[k] = zone(f.y); lastSeen[k] = t; return lastZ[k]; }
+  return t - lastSeen[k] < CONFIG.LOST_SEC ? lastZ[k] : null;   // null = 판정에서 뺌
+}
 function step(r, t) {
-  const zl = zone(r.la.y), zr = zone(r.ra.y);
+  const zl = footZone('l', r.fl, t), zr = footZone('r', r.fr, t);
+  const zs = [zl, zr].filter(z => z), both = zl && zr;
   if (r.knee != null) { kneeHist.push({ t, a: r.knee }); while (kneeHist.length && t - kneeHist[0].t > 3) kneeHist.shift(); }
-  setHint(`왼발 ${ZNAME[zl]} · 오른발 ${ZNAME[zr]}`);
+  const nm = z => z ? ZNAME[z] : '안 보임';
+  setHint(st === 'box' ? `박스 위 ✓ 이제 한 발씩 걸어서 내려와요 (왼발 ${nm(zl)} · 오른발 ${nm(zr)})` : `두 발 모아 점프! (왼발 ${nm(zl)} · 오른발 ${nm(zr)})`);
+  if (!zs.length) return;
 
   if (st === 'floor') {
     // 각 발이 박스 높이에 '내려앉은' 시각 (공중이거나 바닥이면 다시 잼)
     if (zl === 'box') { if (boxT.l == null) boxT.l = t; } else if (zl === 'air' || zl === 'floor') boxT.l = null;
     if (zr === 'box') { if (boxT.r == null) boxT.r = t; } else if (zr === 'air' || zr === 'floor') boxT.r = null;
-    if (zl === 'box' && zr === 'box' && boxT.l != null && boxT.r != null) {
+    if (zs.every(z => z === 'box')) {   // 보이는 발이 모두 박스 위
       onSince ??= t;
       if (t - onSince >= CONFIG.HOLD) {
         st = 'box';
-        landT = Math.max(boxT.l, boxT.r);
-        S.cur = { oneFoot: Math.abs(boxT.l - boxT.r) > CONFIG.SYNC };
-        beep(1100, 70);
+        const ts = [zl && boxT.l, zr && boxT.r].filter(v => v != null);
+        landT = ts.length ? Math.max(...ts) : t - CONFIG.HOLD;
+        S.cur = { oneFoot: both && boxT.l != null && boxT.r != null && Math.abs(boxT.l - boxT.r) > CONFIG.SYNC };
+        flash('올라섰어요! 한 발씩 내려와요', true); beep(1100, 70);
       }
     } else onSince = null;
   } else if (st === 'box') {
+    // 내려오기: 한 발씩 걸어 내려와 보이는 발이 모두 바닥에 닿으면 1회
     if (zl === 'floor') leaveT.l ??= t; else if (zl === 'box') leaveT.l = null;
     if (zr === 'floor') leaveT.r ??= t; else if (zr === 'box') leaveT.r = null;
-    if (leaveT.l != null && leaveT.r != null) finishRep(Math.abs(leaveT.l - leaveT.r) < CONFIG.JUMPDOWN);
+    if (zs.every(z => z === 'floor')) {
+      const jumpDown = both && leaveT.l != null && leaveT.r != null && Math.abs(leaveT.l - leaveT.r) < CONFIG.JUMPDOWN;
+      finishRep(jumpDown);
+    }
   }
 }
 
@@ -294,7 +322,7 @@ function finishRep(jumpDown) {
   if (hard) S.err2++;
   if (jumpDown) S.warn++;
   if (!c.oneFoot && !hard) { S.good++; flash('좋아요!', true); beep(1500, 90); }
-  else flash(c.oneFoot ? '두 발 동시에!' : '무릎을 굽혀 사뿐히!');
+  else flash(c.oneFoot ? '두 발 모아 동시에!' : '무릎을 굽혀 사뿐히!');
   if (jumpDown) setTimeout(() => flash('내려올 땐 걸어서!'), 1050);
   renderMeasure();
   resetCycle();
@@ -320,9 +348,25 @@ function hline(y, color, label, dash) {
   if (label) { ctx.fillStyle = color; ctx.font = 'bold 30px sans-serif'; ctx.fillText(label, 14, y - 12); }
   ctx.restore();
 }
+/* 박스선: 선 + '박스 위'로 보는 범위(노란 띠). 맞추는 중이면 굵은 선과 가운데 ↕ 손잡이 */
 function drawLines() {
   const by = getBoxY();
-  if (by != null) hline(by * canvas.height, '#f5c518', `${height}인치 박스`, [22, 12]);
+  if (by != null) {
+    const y = by * canvas.height, L = shin || canvas.height * 0.12, W = canvas.width;
+    ctx.save();
+    ctx.fillStyle = 'rgba(245,197,24,.16)';
+    ctx.fillRect(0, y - CONFIG.BAND_UP * L, W, (CONFIG.BAND_UP + CONFIG.BAND_DN) * L);
+    ctx.strokeStyle = '#f5c518'; ctx.lineWidth = boxSetting ? 9 : 6; ctx.setLineDash(boxSetting ? [] : [22, 12]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    ctx.fillStyle = '#f5c518'; ctx.font = 'bold 30px sans-serif';
+    ctx.fillText(boxSetting ? `${height}인치 박스 윗면 ↕ 끌어 옮겨요` : `${height}인치 박스`, 14, y - CONFIG.BAND_UP * L - 10);
+    if (boxSetting) {
+      ctx.beginPath(); ctx.arc(W / 2, y, 34, 0, 7); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.font = 'bold 34px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('↕', W / 2, y + 2);
+    }
+    ctx.restore();
+  }
   if (floorY != null && mode === 'measure') hline(floorY, 'rgba(126,232,181,.7)', '바닥', [10, 10]);
 }
 function drawPose(r) {
@@ -333,8 +377,9 @@ function drawPose(r) {
     if (a.v < CONFIG.VIS_MIN || b.v < CONFIG.VIS_MIN) return;
     ctx.beginPath(); ctx.moveTo(X(a.x), a.y); ctx.lineTo(X(b.x), b.y); ctx.stroke();
   });
-  [r.la, r.ra].forEach(a => {
-    if (a.v < CONFIG.VIS_MIN) return;
+  lastDraw = r;
+  [r.fl, r.fr].forEach(a => {   // 발바닥 점: 박스 위면 노랑
+    if (!a) return;
     ctx.fillStyle = getBoxY() != null && zone(a.y) === 'box' ? '#f5c518' : '#fff';
     ctx.beginPath(); ctx.arc(X(a.x), a.y, 14, 0, 7); ctx.fill();
   });
@@ -346,16 +391,17 @@ function loop() {
   if (!video.videoWidth) return;
   drawVideo();
   drawLines();
-  if (!pose || video.currentTime === lastVideoTime) return;
+  if (!pose) return;
+  if (video.currentTime === lastVideoTime) { if (lastDraw) drawPose(lastDraw); return; }   // 새 프레임이 없을 때도 다시 그려 깜빡임 없앰
   lastVideoTime = video.currentTime;
   const t = performance.now() / 1000;
   const lm = pose.detectForVideo(video, performance.now()).landmarks?.[0];
-  if (!lm) { if (mode === 'measure') setHint('사람이 안 보여요. 무릎과 발이 다 보이게'); return; }
+  if (!lm) { lastDraw = null; if (mode === 'measure') setHint('사람이 안 보여요. 무릎과 발이 다 보이게'); return; }
   const r = readPose(lm);
   drawPose(r);
-  if ((mode === 'countdown' || mode === 'autobox') && r.ok) floorSamples.push((r.la.y + r.ra.y) / 2);
+  if ((mode === 'countdown' || mode === 'autobox') && r.ok) { const fs = [r.fl, r.fr].filter(f => f); floorSamples.push(fs.reduce((a, f) => a + f.y, 0) / fs.length); }
   if (mode === 'measure') {
-    if (!r.ok) { setHint('무릎과 발이 다 보이게 서요'); return; }
+    if (!r.ok) { setHint('무릎과 발이 보이게 서요'); return; }
     step(r, t);
   }
 }
@@ -373,7 +419,7 @@ async function startCountdown() {
     floorY = s[Math.floor(s.length / 2)];
   }
   const by = getBoxY() * canvas.height;
-  if (floorY == null || !shin) { show('setup'); renderSetup(); flash('발이 안 보여요. 무릎과 발이 다 보이게 서요'); return; }
+  if (floorY == null || !shin) { show('setup'); renderSetup(); flash('발이 안 보여요. 무릎과 발이 보이게 서요'); return; }
   if (floorY - by < 0.8 * shin) { show('setup'); renderSetup(); flash('박스선이 발과 너무 가까워요. 다시 맞춰요'); return; }
   S = { total: 0, good: 0, err1: 0, err2: 0, warn: 0, cur: null };
   kneeHist = [];
@@ -383,17 +429,16 @@ async function startCountdown() {
   beep(1300, 200);
 }
 
-/* 자동 맞추기: 학생(또는 선생님)이 박스 위에 서 있는 동안 두 발목 높이를 재서 박스선으로 기억.
- * 발목은 박스 윗면보다 조금 위에 있으므로 정강이 0.1배만큼 내려 잡음 */
+/* 자동 맞추기: 학생(또는 선생님)이 박스 위에 서 있는 동안 발바닥 높이를 재서 박스선으로 기억 */
 async function autoBox() {
   floorSamples = []; shin = null; boxSetting = false; setHint('');
   show('autobox');
   for (const n of [3, 2, 1]) { $('big').textContent = n; beep(700, 100); await new Promise(r => setTimeout(r, 900)); }
   $('big').textContent = '';
   show('setup');
-  if (floorSamples.length < 5 || !shin) { renderSetup(); flash('발이 안 보여요. 무릎과 발이 다 보이게'); return; }
+  if (floorSamples.length < 5 || !shin) { renderSetup(); flash('발이 안 보여요. 무릎과 발이 보이게'); return; }
   const s = floorSamples.slice().sort((a, b) => a - b);
-  const y = (s[Math.floor(s.length / 2)] + 0.1 * shin) / canvas.height;
+  const y = s[Math.floor(s.length / 2)] / canvas.height;
   store.set(boxKey(height), y);
   renderSetup();
   flash(`${height}인치 박스선을 맞췄어요`, true); beep(1200, 80);
@@ -433,23 +478,35 @@ document.querySelectorAll('#heights button').forEach(b => b.onclick = () => {
 document.querySelectorAll('#targets button').forEach(b => b.onclick = () => {
   target = Number(b.dataset.n); store.set('jbTarget', target); renderSetup();
 });
+/* 박스선 맞추기 (2026-11-02): 단추 → 선이 굵게(가운데 ↕) → 선 위아래 화면 높이 12% 안을 눌러 끌어 옮김 → '✓ 다 맞췄어요'.
+   아직 선이 없으면 처음 누른 곳에 생김. 높이마다 태블릿에 기억(jbBox20…) */
+const GRAB = 0.12;
 $('boxBtn').onclick = () => {
-  boxSetting = !boxSetting;
-  setHint(boxSetting ? `화면에서 ${height}인치 박스 윗면을 눌러요` : '');
+  boxSetting = !boxSetting; dragging = false;
+  if (!boxSetting && getBoxY() != null) { flash(`${height}인치 박스선을 맞췄어요`, true); beep(1200, 80); }
+  setHint(boxSetting ? (getBoxY() == null ? `화면에서 ${height}인치 박스 윗면을 눌러요` : '노란 선을 박스 윗면까지 끌어요') : '');
   renderSetup();
 };
+$('boxClear').onclick = () => { store.del(boxKey(height)); flash('박스선을 지웠어요'); setHint(`화면에서 ${height}인치 박스 윗면을 눌러요`); renderSetup(); };
+function canvasY(e) {   // 누른 곳 → 캔버스 y(픽셀). object-fit: contain 여백 빼기
+  const rc = canvas.getBoundingClientRect(), k = Math.min(rc.width / canvas.width, rc.height / canvas.height);
+  return (e.clientY - (rc.top + (rc.height - canvas.height * k) / 2)) / k;
+}
+const moveBox = y => store.set(boxKey(height), Math.max(0.02, Math.min(0.98, y / canvas.height)));
 canvas.addEventListener('pointerdown', e => {
   if (!boxSetting) return;
-  const rc = canvas.getBoundingClientRect(), k = Math.min(rc.width / canvas.width, rc.height / canvas.height);   // object-fit: contain
-  const top = rc.top + (rc.height - canvas.height * k) / 2;
-  const y = (e.clientY - top) / (canvas.height * k);
-  if (y <= 0 || y >= 1) return;
-  store.set(boxKey(height), y);
-  boxSetting = false; setHint(); renderSetup();
-  flash(`${height}인치 박스선을 맞췄어요`, true); beep(1200, 80);
+  e.preventDefault();
+  const y = canvasY(e), H = canvas.height, by = getBoxY();
+  if (y < 0 || y > H) return;
+  if (by != null && Math.abs(y - by * H) > GRAB * H) { setHint('노란 선 가까이를 눌러 끌어요'); return; }
+  dragging = true; canvas.setPointerCapture?.(e.pointerId); moveBox(y); renderSetup();
 });
+canvas.addEventListener('pointermove', e => { if (boxSetting && dragging) { e.preventDefault(); moveBox(canvasY(e)); } });
+const endDrag = () => { if (!dragging) return; dragging = false; setHint('노란 선을 박스 윗면까지 끌어요'); renderSetup(); };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
 $('startBtn').onclick = startCountdown;
-$('autoBtn').onclick = autoBox;
+$('autoBtn').onclick = () => { boxSetting = false; renderSetup(); autoBox(); };
 $('stopBtn').onclick = finish;
 $('again').onclick = startCountdown;
 $('toSetup').onclick = () => { show('setup'); renderSetup(); };
