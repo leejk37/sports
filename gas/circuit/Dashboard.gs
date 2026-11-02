@@ -10,6 +10,8 @@
  *   - 종목별 오늘 누적 (운동별 탭 + 체력 기록장 '기록' 탭의 줄넘기·실내자전거)
  *   - 반별 이번 주 참여율 (이번 주 입실했거나 운동 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
  *   - 학교 누적 거리 도전 (실내자전거 km만, START_DATE부터 — 트레드밀·로잉머신은 각자 카드에)
+ *   - 아침달리기 (운동장 NFC 기록대, MorningRun.gs): 오늘 누적 km·참여 인원, 반별 참여율, 축하 소식(처음 도전·개인 최고 = 더 빨리)
+ *     스포츠실 밖 운동이라 '지금 운동 중'·'오늘 다녀간 인원'·거리 도전에는 넣지 않음
  *
  *  실내자전거는 '2026_인도어라이딩' 스프레드시트의 '2026' 시트에서 읽음
  *   스크립트 속성 RIDE_SHEET_ID 에 그 시트 주소의 /d/ 와 /edit 사이 글자를 넣어 둠 (저장소에는 올리지 않음)
@@ -214,6 +216,35 @@ function dashBuild_(pastDay) {
       acc: ex.acc && accT > 0 ? Math.round(accG / accT * 100) : null });   // 그날 정확도(%)
   });
 
+  // ---- 아침달리기 (MorningRun.gs) — 기록은 짧을수록 좋음 ----
+  const mrun = { total: 0, people: new Set() };
+  {
+    const best = {}, tried = new Set(), firstSeen = new Set();
+    morningRunRows_().sort((a, b) => a.d.localeCompare(b.d) || a.t - b.t).forEach(r => {
+      if (r.d > today) return;
+      if (r.d >= monday) {
+        const st = roster[r.id];
+        if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(r.id); }
+      }
+      if (r.d < today) {
+        tried.add(r.id);
+        if (!(r.id in best) || r.sec < best[r.id]) best[r.id] = r.sec;
+        return;
+      }
+      mrun.total += MRUN.KM; mrun.people.add(r.id);
+      const st = roster[r.id];
+      if (!tried.has(r.id)) {
+        if (!firstSeen.has(r.id)) { firstSeen.add(r.id); firstCount++; feedPush(r.t, `${label(st)}{who} 친구가 아침달리기에 처음 도전했어요`, st); }
+        return;
+      }
+      if (r.sec < best[r.id]) {
+        best[r.id] = r.sec; pbCount++;
+        feedPush(r.t, `${label(st)}{who} 친구가 아침달리기 개인 최고 ${mrunFmt_(r.sec)}!`, st);
+      }
+    });
+  }
+  totals.push({ key: 'morningrun', name: '아침달리기', unit: 'km', value: dashRound_(mrun.total, 1), people: mrun.people.size, acc: null });
+
   const log = ss.getSheetByName('기록');
   const logTotals = {};
   DASH_LOG.forEach(it => logTotals[it.key] = { total: 0, people: new Set() });
@@ -252,6 +283,7 @@ function dashBuild_(pastDay) {
     if (it.key === 'bike' && ride) putPeople('bike', ride.todayList);
     else putPeople(it.key, [...logTotals[it.key].people].filter(Boolean).map(personOf));
   });
+  putPeople('morningrun', [...mrun.people].map(personOf));
   DASH_LOG.forEach(it => totals.push({
     key: it.key, name: it.name, unit: it.unit,
     value: dashRound_(logTotals[it.key].total, it.decimals), people: logTotals[it.key].people.size
