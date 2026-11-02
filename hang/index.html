@@ -30,6 +30,7 @@
   #main{flex:1;display:flex;min-height:0}
   #stage{flex:1;position:relative;background:var(--stage);overflow:hidden;border-right:4px solid var(--yellow)}
   #view{width:100%;height:100%;object-fit:contain;display:block}
+  #view.setting{touch-action:none;cursor:ns-resize}
   #video{display:none}
   #hint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(20,30,50,.85);
     padding:10px 20px;border-radius:999px;font-size:18px;font-weight:700;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
@@ -105,7 +106,8 @@
         <h2 id="waitTitle">철봉을<br>두 손으로 잡아요</h2>
         <p id="waitText">두 손이 머리 위 철봉을 잡으면 3-2-1이 시작돼요.</p>
         <div id="waitState"></div>
-        <button class="btn line" id="barBtn">📏 철봉선 맞추기</button>
+        <button class="btn line" id="barBtn">📏 철봉선·무릎선 맞추기</button>
+        <button class="btn line" id="barClear" hidden>철봉선 지우기</button>
         <button class="btn line" id="forceStart">바로 시작</button>
       </section>
 
@@ -144,9 +146,10 @@ const CONFIG = {
   COUNTDOWN_SEC: 3,      // 카운트다운 (시작 소리에 발을 뗌)
   END_GRACE_MS: 1000,    // 조건이 이만큼 깨져 있어야 끝 (순간 인식 흔들림 무시. 0.5초 → 1초, 학생 의견)
   // ---- 철봉 잡기·넓게 잡기·매달림·흔들림 (2026-11-01, 학생 의견) ----
-  BAR_TOL: 0.7,          // 철봉선을 맞춰 두면: 두 손목이 철봉선에서 어깨너비의 이만큼 안에 있어야 '잡음' (팔만 들면 손이 철봉보다 아래)
+  BAR_TOL: 1.0,          // 철봉선을 맞춰 두면: 두 손목이 철봉선에서 어깨너비의 이만큼 안(노란 띠)에 있어야 '잡음'. 0.7 → 1.0 (2026-11-02, 너무 좁음). 현장 조정: ?bar=1.3 (태블릿마다 기억, ?bar=0 기본값)
+  LAND_GAP: 0.03,        // 매달린 뒤에는 무릎이 '서 있던 무릎 높이 + 어깨너비의 이만큼'까지 내려와도(초록 띠) 계속 매달림. 0.048 → 0.03 (2026-11-02)
   GRIP_MIN: 1.2,         // 손 간격 ÷ 어깨너비가 이 이상이어야 시작 ('넓게 잡기'). 현장 조정: ?grip=1.0 (태블릿마다 기억, ?grip=0 기본값)
-  LIFT_MIN: 0.12,        // 무릎(안 보이면 엉덩이)이 서 있을 때보다 어깨너비의 이만큼 올라가야 '매달림'(발이 떨어짐)
+  LIFT_MIN: 0.15,        // (0.12 → 0.15, 2026-11-02: 초록 띠를 넓히려고) 무릎선 = 서 있을 때 무릎(안 보이면 엉덩이)보다 어깨너비의 이만큼 위. 무릎이 이 선을 넘어야 '매달림'. 대기 화면에서 무릎선을 끌어 바꾸면 태블릿마다 기억(hangLift)
   LIFT_WAIT_SEC: 6,      // '발 떼!' 뒤 이 시간 안에 안 매달리면 다시 대기
   SWING_MAX: 0.35,       // 엉덩이 가운데가 두 손 가운데에서 좌우로 어깨너비의 이만큼 넘게 벗어나면 '흔들림' → 그동안 시간 멈춤
   LOST_MS: 1500,         // 사람을 이만큼 못 찾으면 끝
@@ -168,7 +171,7 @@ let email = '', clientId = '';
 let S0 = null, lastS = null, cdTimer = null, cdLostSince = null;
 let hangSince = null, startAt = 0, lastGoodAt = 0, badSince = null, lastSeenAt = 0;
 let result = null;
-let baseBuf = [], baseY = null, lifted = false, liftedAt = 0, holdMs = 0, swingMs = 0, lastT = 0, landSince = null, swingSince = null, swinging = false, barSetting = false;
+let baseBuf = [], baseY = null, lifted = false, liftedAt = 0, holdMs = 0, swingMs = 0, lastT = 0, landSince = null, swingSince = null, swinging = false, lineSetting = false, dragLine = null, lastR = null, lastDraw = null;
 let lastQr = 0, lastVideoTime = -1;
 let audio, wakeLock;
 
@@ -248,7 +251,22 @@ let barY = (() => { try { const v = Number(localStorage.getItem('hangBar')); ret
   let gv = 0; try { gv = Number(localStorage.getItem('hangGrip')); } catch (e) {}
   if (gv >= 0.5 && gv <= 3) CONFIG.GRIP_MIN = gv;
 }
-const handUp = (w, r) => !!w && (barY != null ? Math.abs(w.y - barY * canvas.height) < CONFIG.BAR_TOL * r.S : w.y < r.nose.y);   // 철봉선 가까이(없으면 코보다 위)
+{ // ?bar=1.3 처럼 철봉선 띠 너비도 기억 (?bar=0 이면 기본값)
+  const b = new URLSearchParams(location.search).get('bar');
+  try { if (b === '0') localStorage.removeItem('hangBarTol'); else if (b) localStorage.setItem('hangBarTol', b); } catch (e) {}
+  let bv = 0; try { bv = Number(localStorage.getItem('hangBarTol')); } catch (e) {}
+  if (bv >= 0.3 && bv <= 3) CONFIG.BAR_TOL = bv;
+}
+{ // 무릎선 높이(끌어서 맞춘 값) 기억
+  let lv = NaN; try { const s = localStorage.getItem('hangLift'); if (s != null) lv = Number(s); } catch (e) {}
+  if (lv >= 0 && lv <= 1.5) CONFIG.LIFT_MIN = lv;
+}
+const handUp = (w, r) => !!w && (barY != null ? Math.abs(w.y - barY * canvas.height) < CONFIG.BAR_TOL * r.S : w.y < r.nose.y);   // 철봉선 띠 안(없으면 코보다 위)
+/* 무릎선 y: 측정 중에는 카운트다운 때 잰 무릎 높이 기준, 대기 중에는 지금 서 있는 무릎 기준 */
+const kneeBase = r => mode === 'measure' ? baseY : r?.lowY;
+const kneeS = r => mode === 'measure' ? (S0 || r.S) : r.S;
+const kneeLineY = r => { const b = kneeBase(r); return b == null ? null : b - CONFIG.LIFT_MIN * kneeS(r); };
+const kneeLandY = r => { const b = kneeBase(r); return b == null ? null : b - CONFIG.LAND_GAP * kneeS(r); };   // 이보다 내려오면 발이 닿음
 
 /* ===== 그리기 ===== */
 const mirror = () => facing === 'user';
@@ -259,6 +277,7 @@ function drawVideo() {
   ctx.restore();
 }
 function drawPose(r, live) {
+  lastDraw = [r, live];
   const X = x => mirror() ? canvas.width - x : x;
   ctx.lineWidth = 8; ctx.lineCap = 'round';
   ctx.strokeStyle = live ? '#5fd3a6' : '#f0a070';
@@ -268,19 +287,34 @@ function drawPose(r, live) {
   });
   ctx.fillStyle = '#fff';
   [r.wA, r.wB].forEach(w => { if (w) { ctx.beginPath(); ctx.arc(X(w.x), w.y, 12, 0, 7); ctx.fill(); } });
-  const line = (y, color, dash) => {
-    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.setLineDash(dash);
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); ctx.restore();
-  };
-  drawBar();
-  if (baseY != null && mode === 'measure') line(baseY - CONFIG.LIFT_MIN * (S0 || r.S), 'rgba(126,232,181,.6)', [14, 10]);   // 이 선보다 무릎이 위면 매달림
+  drawBar(r);
+  drawKnee(r);
 }
-function drawBar() {
+/* 선 하나 + 띠(판정 범위). 맞추는 중이면 굵은 손잡이와 '끌어 옮겨요' 표시 */
+function drawLine(y, top, bottom, color, band, label) {
+  const W = canvas.width;
+  ctx.save();
+  ctx.fillStyle = band; ctx.fillRect(0, top, W, bottom - top);   // 판정 범위 띠
+  ctx.strokeStyle = color; ctx.lineWidth = lineSetting ? 9 : 6; ctx.setLineDash(lineSetting ? [] : [22, 12]);
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  ctx.fillStyle = color; ctx.font = 'bold 30px sans-serif';
+  ctx.fillText(lineSetting ? label + ' ↕ 끌어 옮겨요' : label, 14, top > 40 ? top - 10 : y - 12);
+  if (lineSetting) {   // 가운데 손잡이
+    ctx.beginPath(); ctx.arc(W / 2, y, 34, 0, 7); ctx.fill();
+    ctx.fillStyle = '#000'; ctx.font = 'bold 34px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('↕', W / 2, y + 2);
+  }
+  ctx.restore();
+}
+function drawBar(r) {
   if (barY == null) return;
-  const y = barY * canvas.height;
-  ctx.save(); ctx.strokeStyle = '#f5c518'; ctx.lineWidth = 6; ctx.setLineDash([22, 12]);
-  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-  ctx.fillStyle = '#f5c518'; ctx.font = 'bold 30px sans-serif'; ctx.fillText('철봉', 14, y - 12); ctx.restore();
+  const y = barY * canvas.height, h = CONFIG.BAR_TOL * (r?.S || lastS || canvas.height * 0.12);
+  drawLine(y, y - h, y + h, '#f5c518', 'rgba(245,197,24,.18)', '철봉');
+}
+function drawKnee(r) {
+  if (!r || (mode !== 'measure' && !lineSetting)) return;   // 무릎선은 측정 중과 맞추는 중에만
+  const y = kneeLineY(r); if (y == null) return;
+  drawLine(y, y, Math.max(y, kneeLandY(r)), '#7ee8b5', 'rgba(126,232,181,.16)', '무릎');
 }
 
 /* ===== 메인 루프 ===== */
@@ -292,19 +326,21 @@ function loop() {
 
   if (mode === 'scan' && now - lastQr > 250) { lastQr = now; scanQr(); return; }
   if (!['wait', 'countdown', 'measure'].includes(mode) || !pose) return;
-  if (video.currentTime === lastVideoTime) return;
+  if (video.currentTime === lastVideoTime) { if (lastDraw) drawPose(...lastDraw); else drawBar(); return; }   // 새 프레임이 없을 때도 선·뼈대를 다시 그려 깜빡이지 않게
   lastVideoTime = video.currentTime;
 
   const lm = pose.detectForVideo(video, now).landmarks?.[0];
   if (!lm || !analyzeOk(lm)) {
+    lastDraw = null; lastR = null;
     drawBar();
-    setHint('철봉부터 무릎까지 화면에 들어오게 해 주세요');
+    if (!lineSetting) setHint('철봉부터 무릎까지 화면에 들어오게 해 주세요');
     if (mode === 'countdown') countdownCheck(false, now);
     if (mode === 'measure' && now - lastSeenAt > CONFIG.LOST_MS) finish(lastGoodAt);
     return;
   }
   lastSeenAt = now;
   const r = analyze(lm);
+  lastR = r;
   if (r.bodyOk) lastS = r.S;
   if (mode === 'wait') return wait(r, now);
   if (mode === 'countdown') {
@@ -343,7 +379,7 @@ function toWait(m = method) {
 
 /* ===== 2단계: 두 손 잡음 확인 → 3-2-1 → 시작 ===== */
 function wait(r, now) {
-  if (barSetting) { drawPose(r, false); return; }
+  if (lineSetting) { drawPose(r, false); hangSince = null; return; }
   const up = bothUp(r), wide = r.grip >= CONFIG.GRIP_MIN;
   drawPose(r, up && wide);
   $('waitState').textContent = !up ? (barY != null ? '두 손으로 철봉(노란 선)을 잡아요…' : '두 손으로 철봉을 잡아요…')
@@ -354,6 +390,7 @@ function wait(r, now) {
   if (now - hangSince > CONFIG.START_STABLE_MS) startCountdown();
 }
 function startCountdown() {
+  if (lineSetting) setLineSetting(false);
   show('countdown'); cdLostSince = null; baseBuf = [];
   let n = CONFIG.COUNTDOWN_SEC;
   const tick = () => {
@@ -388,7 +425,8 @@ function measure(r, now) {
   const dt = Math.min(200, now - lastT); lastT = now;
   if ((now - startAt) / 1000 >= CONFIG.MAX_SEC) return finish();
   const ok = bothUp(r), S = S0 || r.S;
-  const up = baseY == null || r.lowY == null ? true : r.lowY < baseY - CONFIG.LIFT_MIN * S;   // 무릎이 서 있을 때보다 위
+  const kY = kneeLineY(r);
+  const up = kY == null || r.lowY == null ? true : r.lowY < kY;   // 무릎이 무릎선보다 위
   // 1) 아직 안 매달림: '발을 떼요' — 시간 안 감
   if (!lifted) {
     drawPose(r, false);
@@ -405,7 +443,8 @@ function measure(r, now) {
   if (off > CONFIG.SWING_MAX) { swingSince ??= now; if (now - swingSince > 300) swinging = true; }
   else { swingSince = null; swinging = false; }
   // 3) 끝: 손이 철봉에서 떨어지거나 발이 바닥에 닿은 채(무릎이 내려옴) END_GRACE 넘게
-  const landed = !up && baseY != null && r.lowY != null && r.lowY > baseY - CONFIG.LIFT_MIN * 0.4 * S;
+  const landY = kneeLandY(r);
+  const landed = !up && landY != null && r.lowY != null && r.lowY > landY;   // 초록 띠보다 아래로 내려옴(발이 닿음)
   if (!ok || landed) { badSince ??= now; if (now - badSince > CONFIG.END_GRACE_MS) return finish(); }
   else badSince = null;
   const counting = ok && !landed && badSince == null && !swinging;
@@ -498,21 +537,64 @@ document.addEventListener('pointerdown', () => {
 $('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = () => startCountdown();
 $('stopBtn').onclick = () => finish();
-if (barY != null) $('barBtn').textContent = '📏 철봉선 다시 맞추기';
-/* 철봉선 맞추기: 단추를 누르고 화면에서 철봉 높이를 누름 (이 태블릿에 기억). 다시 누르면 지우기 */
+/* 철봉선·무릎선 맞추기 (2026-11-02): 단추를 누르면 두 선이 굵게 나오고, 화면을 눌러 가까운 선을 위아래로 끌어 옮김.
+   - 철봉선: 철봉이 보이는 높이에 맞춤 (태블릿마다 기억, hangBar). 아직 없으면 처음 누른 곳에 생김
+   - 무릎선: 학생이 철봉을 잡고 서 있을 때 그 무릎 위로 얼마나 올라가야 '매달림'인지 (태블릿마다 기억, hangLift)
+   누를 곳이 넓도록 선 위아래 화면 높이의 12% 안이면 그 선을 잡음 */
+const GRAB = 0.12;
+function setLineSetting(on) {
+  lineSetting = on; dragLine = null;
+  canvas.classList.toggle('setting', on);
+  $('barBtn').textContent = on ? '✓ 다 맞췄어요' : barY != null ? '📏 철봉선·무릎선 다시 맞추기' : '📏 철봉선·무릎선 맞추기';
+  $('barClear').hidden = !on || barY == null;
+  setHint(on ? (barY == null ? '화면에서 철봉 높이를 눌러요' : '선을 위아래로 끌어 맞춰요') : undefined);
+}
+if (barY != null) $('barBtn').textContent = '📏 철봉선·무릎선 다시 맞추기';
 $('barBtn').onclick = () => {
-  if (barSetting) { barSetting = false; barY = null; try { localStorage.removeItem('hangBar'); } catch (e) {} setHint(); $('barBtn').textContent = '📏 철봉선 맞추기'; flash('철봉선을 지웠어요'); return; }
-  barSetting = true; $('barBtn').textContent = '✕ 철봉선 지우기'; setHint('화면에서 철봉 높이를 눌러요');
+  if (lineSetting) { setLineSetting(false); flash('선을 맞췄어요', true); beep(1200, 80); }
+  else setLineSetting(true);
 };
-canvas.addEventListener('pointerdown', e => {
-  if (!barSetting) return;
-  const rc = canvas.getBoundingClientRect(), k = Math.min(rc.width / canvas.width, rc.height / canvas.height);   // object-fit: contain
+$('barClear').onclick = () => {
+  barY = null; try { localStorage.removeItem('hangBar'); } catch (e) {}
+  flash('철봉선을 지웠어요'); setLineSetting(true);
+};
+function canvasY(e) {   // 누른 곳 → 캔버스 y(픽셀). object-fit: contain 여백 빼기
+  const rc = canvas.getBoundingClientRect(), k = Math.min(rc.width / canvas.width, rc.height / canvas.height);
   const top = rc.top + (rc.height - canvas.height * k) / 2;
-  const y = (e.clientY - top) / (canvas.height * k);
-  if (y <= 0 || y >= 1) return;
-  barY = y; barSetting = false; try { localStorage.setItem('hangBar', String(y)); } catch (err) {}
-  $('barBtn').textContent = '📏 철봉선 다시 맞추기'; setHint(); flash('철봉선을 맞췄어요', true); beep(1200, 80);
+  return (e.clientY - top) / k;
+}
+function moveLine(y) {
+  const H = canvas.height;
+  y = Math.max(H * 0.02, Math.min(H * 0.98, y));
+  if (dragLine === 'bar') { barY = y / H; return; }
+  const r = lastR; if (!r || r.lowY == null) return;
+  const lift = (r.lowY - y) / r.S;   // 서 있는 무릎보다 어깨너비 몇 배 위
+  CONFIG.LIFT_MIN = Math.max(CONFIG.LAND_GAP + 0.03, Math.min(1.5, lift));
+}
+canvas.addEventListener('pointerdown', e => {
+  if (!lineSetting) return;
+  e.preventDefault();
+  const y = canvasY(e), H = canvas.height;
+  if (y < 0 || y > H) return;
+  const kY = lastR ? kneeLineY(lastR) : null;
+  const dBar = barY != null ? Math.abs(y - barY * H) : Infinity, dKnee = kY != null ? Math.abs(y - kY) : Infinity;
+  if (barY == null && (dKnee > GRAB * H)) dragLine = 'bar';   // 철봉선이 없으면 새로 만듦
+  else if (Math.min(dBar, dKnee) > GRAB * H) { setHint(kY == null ? '무릎선은 학생이 철봉을 잡고 서 있을 때 나와요' : '노란 선이나 초록 선 가까이를 눌러요'); return; }
+  else dragLine = dBar <= dKnee ? 'bar' : 'knee';
+  canvas.setPointerCapture?.(e.pointerId);
+  moveLine(y);
 });
+canvas.addEventListener('pointermove', e => { if (lineSetting && dragLine) { e.preventDefault(); moveLine(canvasY(e)); } });
+const endDrag = () => {
+  if (!dragLine) return;
+  try {
+    if (dragLine === 'bar') localStorage.setItem('hangBar', String(barY));
+    else localStorage.setItem('hangLift', CONFIG.LIFT_MIN.toFixed(3));
+  } catch (err) {}
+  dragLine = null; $('barClear').hidden = barY == null; setHint('선을 위아래로 끌어 맞춰요');
+};
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
 $('again').onclick = () => toWait(method);
 $('retrySave').onclick = save;
 $('flip').onclick = async () => {
