@@ -29,6 +29,8 @@ const POINT = {
   ROPE_FROM: '2026-11-01',     // 줄넘기: 이날부터 '종목 통과' 대신 '줄넘기 100회' (그 전 날은 통과 1P 그대로)
   ROPE_PER: 100,               // 줄넘기: 그날 줄넘기 앱('줄넘기' 탭 H열) 횟수 합 이만큼마다 '줄넘기 100회' 포인트
   SQUAT_PER: 20,               // 스쿼트: 그날 정확한 횟수(H열) 합 이만큼마다 '스쿼트 20회' 포인트. 스쿼트는 '종목 통과' 포인트 없음 (2026-10-29)
+  MRUN_FROM: '2026-11-02',     // 아침달리기 포인트를 주기 시작하는 날 (기록 시작일)
+  MRUN_CYCLE: 5,               // 아침달리기 연속: 5일째 다음 날은 다시 1일째 (3·4·5일째에 포인트)
   CACHE_SEC: 600               // 화면용 합계 캐시 (선물 교환은 10분 안에 화면에 반영)
 };
 /* 기본 규칙 [항목, 포인트, 설명] — 탭에서 숫자만 고치면 됨. 항목 이름은 바꾸지 않음 */
@@ -46,7 +48,13 @@ const POINT_RULES = [
   ['기록 경신', 2, '전날까지의 내 최고 기록을 넘은 종목마다 (처음 한 종목은 제외)'],
   ['기록 경신 하루 최대', 3, '하루에 경신 포인트를 받는 종목 수'],
   ['바른 자세', 1, '그날 정확도가 기준 이상인 카메라 종목마다 (20회·60초 이상 했을 때)'],
-  ['바른 자세 기준(%)', 80, '']
+  ['바른 자세 기준(%)', 80, ''],
+  // 아침달리기(운동장 NFC 기록대, MorningRun.gs) — 2026-11-03 선생님 결정. 도장과는 따로
+  ['아침달리기 참여', 5, '아침달리기(운동장 5바퀴)를 한 날 (하루 한 번)'],
+  ['아침달리기 기록 경신', 5, '전날까지 내 가장 빠른 기록보다 빨리 달린 날 (첫 기록은 빼고, 하루 최대 개수와 따로)'],
+  ['아침달리기 연속 3일', 5, '아침달리기 연속 3일째 (주말·휴일은 건너뛰고 셈, 5일째 다음 날은 다시 1일째)'],
+  ['아침달리기 연속 4일', 7, '아침달리기 연속 4일째'],
+  ['아침달리기 연속 5일', 10, '아침달리기 연속 5일째']
 ];
 /* 뱃지: 원장 숫자로 자동. what = 무엇을 세는지 */
 const POINT_BADGES = [
@@ -144,6 +152,14 @@ function pointCompute_(ss, from, to) {
     });
   });
 
+  // 1-2) 아침달리기: id → 날짜 → 그날 가장 빠른 기록(초)
+  const mr = {};
+  morningRunRows_().forEach(r => {                            // MorningRun.gs
+    if (!roster.byId[r.id] || staff.has(r.id) || r.d < POINT.MRUN_FROM || r.d > to) return;
+    const m = mr[r.id] = mr[r.id] || {};
+    m[r.d] = m[r.d] ? Math.min(m[r.d], r.sec) : r.sec;
+  });
+
   // 2) 기록 경신: 조건(측정시간·방식)별로 날짜 순서대로 '전날까지 최고'와 비교
   const pbs = {};           // id → 날짜 → [종목 이름…]
   const exName = {}; DASH_EX.forEach(ex => exName[ex.key] = ex.name);
@@ -166,7 +182,7 @@ function pointCompute_(ss, from, to) {
   for (let t = new Date('2026-09-01T12:00:00+09:00'); ; t = new Date(t.getTime() + 864e5)) {
     const d = stampFmt_(t, 'yyyy-MM-dd'); if (d > to) break; days.push(d);
   }
-  const active = roster.list.filter(st => !staff.has(st.id) && (best[st.id] || ctx.bike[st.id]));
+  const active = roster.list.filter(st => !staff.has(st.id) && (best[st.id] || ctx.bike[st.id] || mr[st.id]));
   const stampOf = {};       // id → 날짜 → 0/90/100
   const passOf = {};        // id → 날짜 → 통과 종목 수(주말 제외 없이 모든 종목, 스쿼트는 20회 규칙으로 따로)
   active.forEach(st => {
@@ -191,10 +207,20 @@ function pointCompute_(ss, from, to) {
   const pbMax = R['기록 경신 하루 최대'], accPct = R['바른 자세 기준(%)'];
   active.forEach(st => {
     let streak = 0;
+    let mrStreak = 0, mrBest = null;                          // 아침달리기 연속(학교 가는 날만) · 전날까지 가장 빠른 기록
     days.forEach(d => {
       const s = stampOf[st.id][d];
       if (s) streak++; else streak = 0;                       // 주말·휴일도 도장이 없으면 끊김 (Stamp.gs와 같게)
+      // 아침달리기: 참여 · 경신(더 빨리) · 연속(주말·휴일은 건너뜀, 5일째 다음은 1일째)
+      const mrSec = (mr[st.id] || {})[d] || 0;
+      const off = Number(stampFmt_(new Date(d + 'T12:00:00+09:00'), 'u')) >= 6 || !!(ctx.holi || {})[d];
+      if (mrSec) mrStreak = mrStreak % POINT.MRUN_CYCLE + 1; else if (!off) mrStreak = 0;
+      const mrPb = !!mrSec && mrBest != null && mrSec < mrBest;
+      if (mrSec) mrBest = mrBest == null ? mrSec : Math.min(mrBest, mrSec);
       if (d < from) return;
+      const mrP = mrSec ? R['아침달리기 참여'] : 0;
+      const mrPbP = mrPb ? R['아침달리기 기록 경신'] : 0;
+      const mrSkP = !mrSec ? 0 : mrStreak === 3 ? R['아침달리기 연속 3일'] : mrStreak === 4 ? R['아침달리기 연속 4일'] : mrStreak === 5 ? R['아침달리기 연속 5일'] : 0;
       const pass = passOf[st.id][d];
       const g = st.gkey ? groupOf[st.gkey][d] : 0;
       const pbList = ((pbs[st.id] || {})[d] || []).slice(0, Math.max(0, pbMax));
@@ -208,19 +234,20 @@ function pointCompute_(ss, from, to) {
       const rpN = (rp[st.id] || {})[d] || 0, rpP = d < POINT.ROPE_FROM ? 0 : Math.floor(rpN / POINT.ROPE_PER) * R['줄넘기 100회'];
       const km = (ctx.bike[st.id] || {})[d] || 0;
       const bkP = d < POINT.BIKE_FROM ? 0 : Math.floor(Math.max(0, km - stampBikeKm_(st.grade)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
-      const pEx = pass * R['종목 통과'] + sqP + rpP + bkP;
+      const pEx = pass * R['종목 통과'] + sqP + rpP + bkP + mrP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const pG = g ? R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0) : 0;
-      const pSk = s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 7 === 0 ? R['연속 7일마다'] : 0) : 0;
-      const pPb = pbList.length * R['기록 경신'];
+      const pSk = (s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 7 === 0 ? R['연속 7일마다'] : 0) : 0) + mrSkP;
+      const pPb = pbList.length * R['기록 경신'] + mrPbP;
       const pAc = accList.length * R['바른 자세'];
       const total = pEx + pSt + pG + pSk + pPb + pAc;
       if (!total) return;
-      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', rpP ? `줄넘기 ${rpN}회 ${rpP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
-        pSk ? `연속 ${streak}일` : '', pbList.length ? '경신: ' + pbList.join(', ') : '', accList.length ? '자세: ' + accList.join(', ') : '']
+      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', rpP ? `줄넘기 ${rpN}회 ${rpP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '',
+        mrSec ? `아침달리기 ${mrunFmt_(mrSec)}` + (mrPb ? ' 경신' : '') + (mrSkP ? ` 연속 ${mrStreak}일` : '') + ` ${mrP + mrPbP + mrSkP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
+        pSk - mrSkP ? `연속 ${streak}일` : '', pbList.length ? '경신: ' + pbList.join(', ') : '', accList.length ? '자세: ' + accList.join(', ') : '']
         .filter(Boolean).join(' · ');
       rows.push([d, st.grade, st.cls, st.no, st.name, st.id + SQUAT_CONFIG.DOMAIN, pEx, pSt, pG, pSk, pPb, pAc, total,
-        s, g, s ? streak : 0, pbList.length, accList.length, memo]);
+        s, g, s ? streak : 0, pbList.length + (mrPb ? 1 : 0), accList.length, memo]);
     });
   });
   rows.sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0);
