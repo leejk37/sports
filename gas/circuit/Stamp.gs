@@ -446,8 +446,9 @@ function stampRide_() {
         // ① 구글 계정(이메일 칸이 있을 때) → ② 학년·반·번호 → ③ 같은 학년의 이름
         const byMail = ec >= 0 ? body.find(r => stampIdOf_(r[ec]) === st.id) : null;
         const row = byMail || (ec >= 0 && body.some(r => stampIdOf_(r[ec]) && stampIdOf_(r[ec]) !== st.id && s(r[3]) === s(st.name)) ? null
-                 : body.find(r => s(r[0]) === s(st.grade) && s(r[1]) === s(st.cls) && s(r[2]) === s(st.no))
-                 || body.find(r => s(r[3]) === s(st.name) && (!s(r[0]) || s(r[0]) === s(st.grade))));
+                 : (s(st.grade) && s(st.cls) && s(st.no)                // ② 학년·반·번호가 모두 있을 때만 (교직원은 빈칸이라 빈 줄과 잘못 맞음, 2026-11-03)
+                     ? body.find(r => s(r[0]) === s(st.grade) && s(r[1]) === s(st.cls) && s(r[2]) === s(st.no)) : null)
+                 || body.find(r => s(r[3]) && s(r[3]) === s(st.name) && (!s(r[0]) || s(r[0]) === s(st.grade))));
         if (!row) return;
         cols.forEach(({ c, d }) => { const v = Number(row[c]); if (isFinite(v) && v > 0) out[d] = (out[d] || 0) + v; });
       });
