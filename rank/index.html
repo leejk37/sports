@@ -458,16 +458,17 @@ function renderTab(keep = false) {
 
 /* 아래 띠: 기간 안에 개인 최고 기록을 새로 세운 친구 */
 let tickKey = '';
+const TICK_MIN = 3;   // 개인 최고 소식이 이만큼 이상일 때만 흐르게
 function drawTicker() {
   const e = ex(), track = $('tickTrack');
   const pbs = (data?.pbs || []).filter(p => p.value > 0);
   let html, run = false;
-  if (!pbs.length) html = `<span class="msg">${PNAME[period]} 새로운 개인 최고 기록을 기다리고 있어요 · 어제의 나를 이겨 보세요!</span>`;
-  else {
-    html = pbs.map(p => `<span class="tk">${esc(mask(p.name))}<small>${esc(p.grade)}-${esc(p.cls)}</small> ${plain(e, p.value)}` +
-      (p.prev ? ` <em>▲ ${plain(e, Math.max(0, e.low ? p.prev - p.value : p.value - p.prev))}</em>` : '') + '</span>').join('');
-    run = true;
-  }
+  const wait = `<span class="msg">${PNAME[period]} 새로운 개인 최고 기록을 기다리고 있어요 · 어제의 나를 이겨 보세요!</span>`;
+  const item = p => `<span class="tk">${esc(mask(p.name))}<small>${p.grade ? esc(p.grade) + '-' + esc(p.cls) : '선생님'}</small> ${plain(e, p.value)}` +
+    (p.prev ? ` <em>▲ ${plain(e, Math.max(0, e.low ? p.prev - p.value : p.value - p.prev))}</em>` : '') + '</span>';
+  if (!pbs.length) html = wait;
+  else if (pbs.length < TICK_MIN) html = pbs.map(item).join('') + wait;   // 몇 명뿐이면 같은 이름을 되풀이해 흘리지 않고 한 번만 멈춰서 (2026-11-03)
+  else { html = pbs.map(item).join(''); run = true; }
   if (html === tickKey) return;
   tickKey = html;
   track.classList.remove('run'); track.innerHTML = html;
