@@ -22,7 +22,8 @@ const RANK = {
   CACHE_SEC: 60,
   GROWTH_CAP: 300,
   ACC_MIN_COUNT: 20,          // 정확도 순위에 오르려면 기간 안에 이만큼 이상 (횟수 종목: 회)
-  ACC_MIN_SEC: 60             // 플랭크: 전체 시간(초)
+  ACC_MIN_SEC: 60,            // 플랭크: 전체 시간(초)
+  RIDE_TAB: '2026'            // 실내자전거 순위는 인도어라이딩 시트의 이 탭에 있는 사람(학생·교직원)만 (2026-11-03)
 };
 /* id는 rank/index.html EX의 id와 같게. value: 대표 기록 열, cond: 측정 조건 열(같은 조건끼리만 최고 기록 비교) */
 const RANK_EX = {
@@ -41,7 +42,7 @@ const RANK_EX = {
   rope:        { sheet: '줄넘기',         value: 7, cond: 6, bestCond: '최대한 많이', run: 11 },   // 횟수, 방식. 최고 기록은 '최대한 많이'만(없으면 전체), L 최장 연속 순위 (2026-11-01)
   treadmill:   { sheet: '트레드밀',       value: 8 },               // 거리(km)
   rowing:      { sheet: '로잉머신',       value: 9 },               // 거리(km)
-  bike:        { ride: true, sumBest: true },                       // 인도어라이딩 시트(날짜별 km). 최고 기록 = 기간 합계 km
+  bike:        { ride: true, sumBest: true },                       // 인도어라이딩 시트 '2026' 탭(날짜별 km)의 줄 = 한 사람. 최고 기록 = 기간 합계 km
   // 아침달리기(2026-11-03): 아침달리기 시트(MorningRun.gs)를 읽음. 값 = 5바퀴 걸린 시간(초), **짧을수록 좋음**(lower)
   //  최고 기록 = 가장 빠른 기록, 성장 = 몇 초 빨라졌는지, 합계·반별·누적 = 달린 거리(1회 0.5km)
   morningrun:  { mrun: true, lower: true }
@@ -57,7 +58,7 @@ function rankSummary_(exRaw, periodRaw, key) {
 
   // 결과를 6시간 보관하고 CACHE_SEC(60초)가 지나면 새로 만듦. 새로 만들다 실패하면(시간 초과·동시 실행 한도 등) 옛 결과로 답함
   const cache = CacheService.getScriptCache();
-  const ck = 'rank11_' + exId + '_' + period + (keyOk ? '_k' : '');
+  const ck = 'rank12_' + exId + '_' + period + (keyOk ? '_k' : '');
   let old = null;
   const hit = cache.get(ck);
   if (hit) { try { old = JSON.parse(hit); } catch (e) {} }
@@ -86,10 +87,14 @@ function rankBuild_(exId, cfg, period, keyOk) {
 
   // 기록 모으기: [{ id, d(날짜), t(시각 ms), v(값), c(조건) }] — 시간순
   let recs = [];
+  const extra = {};                                                    // 학생명단에 없는 사람(인도어라이딩 탭에만 있는 사람)의 이름·학년·반
   if (cfg.ride) {
-    const all = stampReadAllRide_(roster);                             // Stamp.gs: { id: { 날짜: km } }
-    Object.keys(all).forEach(id => Object.keys(all[id]).forEach(d =>
-      recs.push({ id, d, t: new Date(d + 'T12:00:00+09:00').getTime(), v: all[id][d], c: '' })));
+    // 인도어라이딩 '2026' 탭의 줄 하나 = 한 사람. 이름·학년·반도 그 줄에서 (학생명단과 맞추지 않음 → 탭에 없는 사람은 절대 안 나옴)
+    rankRideRows_().forEach((p, i) => {
+      const id = 'ride' + i;
+      extra[id] = { name: p.name, grade: p.grade, cls: p.cls };
+      Object.keys(p.km).forEach(d => recs.push({ id, d, t: new Date(d + 'T12:00:00+09:00').getTime(), v: p.km[d], c: '' }));
+    });
   } else if (cfg.mrun) {
     morningRunRows_().forEach(r => recs.push({ id: r.id, d: r.d, t: r.t || new Date(r.d + 'T08:00:00+09:00').getTime(), v: r.sec, c: '' }));
   } else {
@@ -120,8 +125,9 @@ function rankBuild_(exId, cfg, period, keyOk) {
     recs = Object.values(m).sort((a, b) => a.t - b.t);
   }
 
+  const info = id => roster.byId[id] || extra[id];
   const who = id => {
-    const st = roster.byId[id] || {};
+    const st = info(id) || {};
     const name = String(st.name || id);
     return { name: keyOk ? name : rankMask_(name), grade: st.grade || '', cls: st.cls || '' };
   };
@@ -190,7 +196,7 @@ function rankBuild_(exId, cfg, period, keyOk) {
   // 반별
   const cls = {};
   inP.forEach(r => {
-    const st = roster.byId[r.id]; if (!st || !st.grade) return;
+    const st = info(r.id); if (!st || !st.grade) return;
     const k = st.grade + '|' + st.cls, c = cls[k] || (cls[k] = { grade: st.grade, cls: st.cls, ids: new Set(), sum: 0 });
     c.ids.add(r.id); c.sum += amt(r);
   });
@@ -239,6 +245,28 @@ function rankBuild_(exId, cfg, period, keyOk) {
   };
 }
 
+/** 인도어라이딩 시트 RANK.RIDE_TAB 탭 → [{ name, grade, cls, km: { 'yyyy-MM-dd': km } }] (이름 없는 줄·합계 줄은 건너뜀) */
+function rankRideRows_() {
+  const sid = rideSheetId_();                                          // Setup.gs
+  if (!sid) return [];
+  try {
+    const sh = SpreadsheetApp.openById(sid).getSheetByName(RANK.RIDE_TAB); if (!sh) return [];
+    const rows = sh.getDataRange().getValues();
+    const cols = rideDateCols_(rows[STAMP.RIDE_HEAD_ROW - 1] || [], RANK.TZ, STAMP.RIDE_YEAR);   // Stamp.gs
+    const s = v => String(v == null ? '' : v).trim();
+    const out = [];
+    rows.slice(STAMP.RIDE_HEAD_ROW).forEach(r => {
+      const name = s(r[3]); if (!name || /합계|평균|계$/.test(name)) return;
+      const km = {};
+      cols.forEach(({ c, d }) => { const v = Number(r[c]); if (isFinite(v) && v > 0) km[d] = (km[d] || 0) + v; });
+      out.push({ name, grade: s(r[0]), cls: s(r[1]), km });
+    });
+    return out;
+  } catch (e) {
+    return [];
+  }
+}
+
 /** 이름 가운데 가리기: 김응서 → 김*서, 이준 → 이*, 남궁태윤 → 남**윤 */
 function rankMask_(n) {
   n = String(n || '');
@@ -248,7 +276,7 @@ function rankMask_(n) {
 
 /** 편집기에서 확인: 스쿼트 이번 주 순위 요약과 걸린 시간 */
 function diagRank() {
-  CacheService.getScriptCache().remove('rank11_squat_week');
+  CacheService.getScriptCache().remove('rank12_squat_week');
   const t = Date.now(), r = rankSummary_('squat', 'week');
   Logger.log((Date.now() - t) + 'ms · 합계 ' + r.total + ' · ' + r.people + '명 · 최고 ' + r.best.length + '줄 · 성장 ' + r.growth.length + ' · 갱신 ' + r.pbs.length);
   Logger.log(JSON.stringify(r).slice(0, 800));
