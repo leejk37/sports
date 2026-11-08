@@ -79,6 +79,8 @@
 
   /* ===== 안내 ===== */
   .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  @media (min-width:1100px){ .steps{grid-template-columns:repeat(4,1fr)} }   /* 하루 · 완벽 · 모둠 · (연속 일수 위, 주말·휴일 아래) 한 줄 */
+  .stcol{display:flex;flex-direction:column;gap:12px}
   .stp{background:rgba(0,0,0,.15);border-radius:16px;padding:14px 16px}
   .stp h3{margin:0 0 6px;font-size:18px;font-weight:900;display:flex;align-items:center;gap:8px}
   .stp h3 .badge{font-size:13px;padding:3px 9px;border-radius:999px;background:var(--yellow);color:var(--blue-dd)}
@@ -222,7 +224,7 @@ let R = {
     ['pushup', '팔굽혀펴기'], ['plank', '플랭크'], ['jumprope', '줄넘기'], ['legraise', '레그레이즈'], ['burpee', '버피테스트'],
     ['hanging', '행잉', 1], ['treadmill', '트레드밀', 1], ['rowing', '로잉머신', 1]
   ].map(([key, name, room]) => ({ key, name, min: 30, weekendOff: !!room, from: '' })),
-  bikeKm: 7.5, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 17, bikeFrom: '2026-11-01',
+  bikeKm: 7, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 17, bikeFrom: '2026-11-01',
   squatPer: 20, ropePer: 100, ropeFrom: '2026-11-01', accMinCount: 20, accMinSec: 60, badges: [], gifts: [], today: ''
 };
 
@@ -354,15 +356,17 @@ function drawGuide() {
       <div class="exl">${list(ex)}</div>
       ${later.length ? `<p style="margin-top:8px;font-size:14px">${later.map(e => esc(e.name)).join('·')}는 ${later[0].from.slice(5).replace('-', '월 ')}일부터 도장 종목이에요.</p>` : ''}</div>
     <div class="stp"><h3>⭐ 완벽 도장 <span class="badge">+${P(r['완벽 도장'])}점 더</span></h3>
-      <p>하루 도장 + 그날 <b class="y">실내자전거 ${R.bikeKm}km</b> 이상 (1·2학년은 ${lo}km, 11월 9일부터 7.5km로 올림).<br>
+      <p>하루 도장 + 그날 <b class="y">실내자전거 ${R.bikeKm}km</b> 이상 (1·2학년은 ${lo}km, 11월 9일부터 7km로 올림).<br>
       자전거 기록은 모아서 입력하므로 오늘 도장에는 <b>${R.bikeFromHour}시부터</b> 보여요.</p></div>
-    <div class="stp"><h3>🏖️ 주말·휴일</h3>
-      <p>스포츠실에 갈 수 없으니 <b>${ex.filter(e => e.weekendOff).map(e => esc(e.name)).join('·')}</b>(점선)은 안 해도 돼요.
-      나머지 <b>${ex.filter(e => !e.weekendOff).length}종목</b>을 모두 하면 자전거 없이도 <b class="y">완벽 도장</b>!</p></div>
     <div class="stp"><h3>🤝 모둠 도장 <span class="badge">+${P(r['모둠 도장'])}점</span></h3>
       <p>우리 모둠 <b>모두</b> 그날 도장을 받으면 모둠원 모두에게 모둠 도장. 모두 완벽 도장이면 <b class="y">완벽 모둠 도장</b> +${P(r['완벽 모둠 도장'])}점 더.</p></div>
-    <div class="stp"><h3>🔥 연속 일수</h3>
-      <p>도장을 받은 날이 이어진 날 수예요. <b>주말·휴일도 도장이 없으면 끊겨요.</b> 하루 10분이면 되니까 매일 이어 가 봐요!</p></div>`;
+    <div class="stcol">
+      <div class="stp"><h3>🔥 연속 일수</h3>
+      <p>도장을 받은 날이 이어진 날 수예요. <b>주말·휴일도 도장이 없으면 끊겨요.</b> 하루 10분이면 되니까 매일 이어 가 봐요!</p></div>
+      <div class="stp"><h3>🏖️ 주말·휴일</h3>
+      <p>스포츠실에 갈 수 없으니 <b>${ex.filter(e => e.weekendOff).map(e => esc(e.name)).join('·')}</b>(점선)은 안 해도 돼요.
+      나머지 <b>${ex.filter(e => !e.weekendOff).length}종목</b>을 모두 하면 자전거 없이도 <b class="y">완벽 도장</b>!</p></div>
+    </div>`;
 
   // 포인트 표: 상자 5개를 나란히 (운동 · 도장 · 꾸준히 · 더 잘하기 · 아침달리기)
   const box = (t, sub, items) => `<div class="pg"><h3>${t}${sub ? `<small>${sub}</small>` : ''}</h3>${items.join('')}</div>`;

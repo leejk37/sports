@@ -28,7 +28,7 @@ const STAMP = {
   CRITERIA_SHEET: '통과기준',
   HOLIDAY_SHEET: '휴일',       // A 날짜 · B 이름. 주말이 아닌 휴일(공휴일·대체공휴일·재량휴업일)을 선생님이 적음
   DEFAULT_SEC: 30,
-  BIKE_KM: 7.5,               // 실내자전거 그날 이만큼 이상이면 통과 (2026-11-09부터 7.5km, 그전 5km = 10분)
+  BIKE_KM: 7,                 // 실내자전거 그날 이만큼 이상이면 통과 (2026-11-09부터 7km, 그전 5km = 10분)
   BIKE_KM_OLD: 5,             // BIKE_KM_FROM 전날까지의 기준
   BIKE_KM_FROM: '2026-11-09', // 이 날부터 BIKE_KM (지난 날 도장·포인트는 예전 기준 그대로)
   BIKE_KM_BY_GRADE: { 1: 1, 2: 1 },   // 학년별 예외: 저학년은 마이후쉬 기록이라 1km면 통과
