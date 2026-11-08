@@ -4,14 +4,16 @@
  *  시트를 매번 다 읽지 않도록 60초 동안 캐시합니다.
  *
  *  보여 주는 것
- *   - 지금 운동 중 · 오늘 다녀간 인원 ('입퇴실' 탭 + 운동 기록)
+ *   - 지금 운동 중 · 오늘 다녀간 인원 ('입퇴실' 탭 + 운동 기록 + 아침달리기)
  *     허브 공용 모드를 거치지 않은 학생(이 기기 모드, 운동 앱 직접 실행)도 빠지지 않도록
  *     오늘 운동 기록이 있으면 '다녀감', 최근 NOW_MIN분 안에 기록을 저장했으면 '지금 운동 중'으로 함께 셈
  *   - 종목별 오늘 누적 (운동별 탭 + 체력 기록장 '기록' 탭의 줄넘기·실내자전거)
  *   - 반별 이번 주 참여율 (이번 주 입실했거나 운동 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
- *   - 학교 누적 거리 도전 (실내자전거 km만, START_DATE부터 — 트레드밀·로잉머신은 각자 카드에)
+ *   - 학교 누적 거리 도전 2개 (START_DATE부터, 2026-11-09 나눔 — 트레드밀·로잉머신은 각자 카드에)
+ *     distance    = 실내자전거 km, 목표 DISTANCE_GOAL_KM(5000) / 스크립트 속성 GOAL_KM · GOAL_NAME
+ *     distanceRun = 아침달리기 km, 목표 RUN_GOAL_KM(100)       / 스크립트 속성 RUN_GOAL_KM · RUN_GOAL_NAME
  *   - 아침달리기 (운동장 NFC 기록대, MorningRun.gs): 오늘 누적 km·참여 인원, 반별 참여율, 축하 소식(처음 도전·개인 최고 = 더 빨리)
- *     스포츠실 밖 운동이라 '지금 운동 중'·'오늘 다녀간 인원'·거리 도전에는 넣지 않음
+ *     '오늘 다녀간 인원'·'어제보다'·'3일 연속'에도 넣음 (2026-11-06). 스포츠실 밖 운동이라 '지금 운동 중'에는 넣지 않음
  *
  *  실내자전거는 '2026_인도어라이딩' 스프레드시트의 '2026' 시트에서 읽음
  *   스크립트 속성 RIDE_SHEET_ID 에 그 시트 주소의 /d/ 와 /edit 사이 글자를 넣어 둠 (저장소에는 올리지 않음)
@@ -36,8 +38,10 @@ const DASH = {
   NOW_MIN: 15,                          // 운동 기록을 이 시간(분) 안에 저장했으면 '지금 운동 중'으로 봄 (이 기기 모드 대비)
   PAST_CACHE_SEC: 21600,                // 지난 날짜 캐시(6시간, CacheService 최대)
   START_DATE: '2026-10-01',             // 누적 거리 도전을 세기 시작한 날
-  DISTANCE_GOAL_KM: 100,                // 누적 거리 목표 (스크립트 속성 GOAL_KM 이 있으면 그 값)
-  DISTANCE_GOAL_NAME: '',               // 제목 (스크립트 속성 GOAL_NAME 이 있으면 그 값, 없으면 '학교 전체 ○km 도전')
+  DISTANCE_GOAL_KM: 5000,               // 실내자전거 누적 거리 목표 (스크립트 속성 GOAL_KM 이 있으면 그 값)
+  DISTANCE_GOAL_NAME: '',               // 제목 (스크립트 속성 GOAL_NAME 이 있으면 그 값, 없으면 '실내자전거 ○km 도전')
+  RUN_GOAL_KM: 100,                     // 아침달리기 누적 거리 목표 (스크립트 속성 RUN_GOAL_KM 이 있으면 그 값)
+  RUN_GOAL_NAME: '',                    // 제목 (스크립트 속성 RUN_GOAL_NAME 이 있으면 그 값, 없으면 '아침달리기 ○km 도전')
   FEED_MAX: 20,                 // 축하 소식 최대 개수(현황판에서 넘치면 위로 돌아감)
   RIDE_TABS: ['2026', '2026_저학년'],   // 인도어라이딩 시트에서 읽을 탭들 (없는 탭은 건너뜀)
   RIDE_HEAD_ROW: 3,                     // 날짜가 적힌 줄
@@ -74,7 +78,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d7_' + target : 'dash_v7';
+  const cacheKey = past ? 'dash_d9_' + target : 'dash_v9';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -121,7 +125,7 @@ function dashBuild_(pastDay) {
 
   // ---- 입퇴실: 지금 운동 중, 오늘 입실, 이번 주 반별 참여 ----
   const inNow = new Set(), inToday = new Set(), weekByClass = {};
-  // 날짜별로 다녀간 친구(입퇴실 + 운동 기록) — '어제보다'와 '연속 운동' 계산용, 기준일 포함 14일
+  // 날짜별로 다녀간 친구(입퇴실 + 운동 기록 + 아침달리기) — '어제보다'와 '연속 운동' 계산용, 기준일 포함 14일
   const since14 = day(new Date(base.getTime() - 13 * 864e5)), byDay = {};
   const seen = (d, id) => { if (d >= since14 && d <= today) (byDay[d] = byDay[d] || new Set()).add(id); };
   const visit = {};                                      // 아이디 → {첫 입실, 마지막 퇴실, 횟수, 지금 이용 중}
@@ -217,13 +221,16 @@ function dashBuild_(pastDay) {
   });
 
   // ---- 아침달리기 (MorningRun.gs) — 기록은 짧을수록 좋음 ----
-  const mrun = { total: 0, people: new Set() };
+  //  오늘 다녀간 친구·어제보다·3일 연속에는 넣고, 지금 운동 중에는 넣지 않음
+  const mrun = { total: 0, people: new Set(), sinceKm: 0 };
   {
     const best = {}, tried = new Set(), firstSeen = new Set();
     morningRunRows_().sort((a, b) => a.d.localeCompare(b.d) || a.t - b.t).forEach(r => {
       if (r.d > today) return;
+      if (r.d >= DASH.START_DATE) mrun.sinceKm += MRUN.KM;   // 아침달리기 거리 도전
+      seen(r.d, r.id);                                     // 어제보다 · 3일 연속 계산에 포함
+      const st = roster[r.id];
       if (r.d >= monday) {
-        const st = roster[r.id];
         if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(r.id); }
       }
       if (r.d < today) {
@@ -232,7 +239,15 @@ function dashBuild_(pastDay) {
         return;
       }
       mrun.total += MRUN.KM; mrun.people.add(r.id);
-      const st = roster[r.id];
+      // 오늘 다녀간 친구와 명단에 넣음 (시각 = 아침달리기 기록 시각)
+      inToday.add(r.id);
+      {
+        const v = visit[r.id] || (visit[r.id] = { id: r.id, name: (st && st.name) || '', first: '', last: '', n: 0, now: false });
+        const h = r.t ? Utilities.formatDate(new Date(r.t), DASH.TZ, 'HH:mm') : '';
+        v.n++;
+        if (h && (!v.first || h < v.first)) v.first = h;
+        if (h && h > v.last) v.last = h;
+      }
       if (!tried.has(r.id)) {
         if (!firstSeen.has(r.id)) { firstSeen.add(r.id); firstCount++; feedPush(r.t, `${label(st)}{who} 친구가 아침달리기에 처음 도전했어요`, st); }
         return;
@@ -325,9 +340,10 @@ function dashBuild_(pastDay) {
     prevIn, prevDay: p1, streak3, pbCount, firstCount,
     accToday: allAccT > 0 ? Math.round(allAccG / allAccT * 100) : null,
     totals, classes,
-    distance: dashGoal_(dashRound_(distanceKm, 1)),
+    distance: dashGoal_(dashRound_(distanceKm, 1)),         // 실내자전거
+    distanceRun: dashRunGoal_(dashRound_(mrun.sinceKm, 1)),  // 아침달리기
     feedRaw: feed.slice(0, DASH.FEED_MAX).map(f => ({ tpl: f.tpl, name: f.name })),
-    exPeopleRaw,                                           // dashSummary_가 이름 규칙(실명/가림)을 적용해 exPeople로 바꿈   // dashSummary_가 이름을 넣어 feed로 바꿈
+    exPeopleRaw,                                           // dashSummary_가 이름 규칙(실명/가림)을 적용해 exPeople로 바꿈
     visitors: Object.values(visit).map(v => {             // dashSummary_가 열쇠 확인 후에만 내보냄
       const st = roster[v.id] || {};
       return {
@@ -369,11 +385,18 @@ function dashRide_(today) {
   }
 }
 
-/** 거리 목표: 스크립트 속성 GOAL_KM · GOAL_NAME 으로 바꿀 수 있음 (배포 다시 안 해도 1분 뒤 반영) */
+/** 실내자전거 거리 목표: 스크립트 속성 GOAL_KM · GOAL_NAME 으로 바꿀 수 있음 (배포 다시 안 해도 1분 뒤 반영) */
 function dashGoal_(km) {
   const pr = PropertiesService.getScriptProperties();
   const goal = Number(pr.getProperty('GOAL_KM')) || DASH.DISTANCE_GOAL_KM;
-  const name = pr.getProperty('GOAL_NAME') || DASH.DISTANCE_GOAL_NAME || `학교 전체 ${goal.toLocaleString()}km 도전`;
+  const name = pr.getProperty('GOAL_NAME') || DASH.DISTANCE_GOAL_NAME || `실내자전거 ${goal.toLocaleString()}km 도전`;
+  return { km, goal, name, from: DASH.START_DATE };
+}
+/** 아침달리기 거리 목표: 스크립트 속성 RUN_GOAL_KM · RUN_GOAL_NAME 으로 바꿀 수 있음 (배포 다시 안 해도 1분 뒤 반영) */
+function dashRunGoal_(km) {
+  const pr = PropertiesService.getScriptProperties();
+  const goal = Number(pr.getProperty('RUN_GOAL_KM')) || DASH.RUN_GOAL_KM;
+  const name = pr.getProperty('RUN_GOAL_NAME') || DASH.RUN_GOAL_NAME || `아침달리기 ${goal.toLocaleString()}km 도전`;
   return { km, goal, name, from: DASH.START_DATE };
 }
 
@@ -382,14 +405,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v7');
+  CacheService.getScriptCache().remove('dash_v9');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d7_' + y);
+  CacheService.getScriptCache().remove('dash_d9_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 
