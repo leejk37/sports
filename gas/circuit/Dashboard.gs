@@ -11,7 +11,7 @@
  *   - 반별 참여율 (그 기간 입실했거나 운동·아침달리기 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
  *     classesDay = 오늘 · classes = 이번 주(월~오늘) · classesMonth = 이번 달(1일~오늘)  (2026-11-09 오늘·이번 달 추가)
  *     classPeople = { day|week|month: { '4학년 해반': ['김*서', …] } } 막대에 마우스를 올리면 보이는 명단(이름 규칙은 축하 소식과 같음)
- *   - 오늘의 숫자 명단 statPeople = { pb: 개인 최고 · acc: 바른 자세(학생별 %) · streak: 3일 연속 } — [{ w: '4학년 해반', n: 이름, x: 덧붙임 }]
+ *   - 오늘의 숫자 명단 statPeople = { pb: 개인 최고 · acc: 바른 자세(학생별·종목별 %) · streak: 3일 연속 } — [{ w: '4학년 해반', n: 이름, x: 덧붙임 }]
  *   - 학교 누적 거리 도전 2개 (START_DATE부터, 2026-11-09 나눔 — 트레드밀·로잉머신은 각자 카드에)
  *     distance    = 실내자전거 km, 목표 DISTANCE_GOAL_KM(5000) / 스크립트 속성 GOAL_KM · GOAL_NAME
  *     distanceRun = 아침달리기 km, 목표 RUN_GOAL_KM(100)       / 스크립트 속성 RUN_GOAL_KM · RUN_GOAL_NAME
@@ -81,7 +81,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d12_' + target : 'dash_v12';
+  const cacheKey = past ? 'dash_d13_' + target : 'dash_v13';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -212,7 +212,7 @@ function dashBuild_(pastDay) {
           if (ex.acc) {
             const g = num(r[ex.acc.good]), tt = ex.acc.total != null ? num(r[ex.acc.total]) : g + ex.acc.bad.reduce((t, c) => t + num(r[c]), 0);
             accG += g; accT += tt;
-            const a = accBy[id] || (accBy[id] = { g: 0, t: 0 }); a.g += g; a.t += tt;
+            const a = (accBy[id] = accBy[id] || {})[ex.name] || (accBy[id][ex.name] = { g: 0, t: 0 }); a.g += g; a.t += tt;
           }
         }
         if (d < today) {
@@ -373,7 +373,8 @@ function dashBuild_(pastDay) {
   const stOut = list => list.filter(p => p.n).sort(stOrder).map(p => ({ w: p.g ? `${p.g}학년 ${p.c}반` : '교직원', n: p.n, x: p.x }));
   const statPeopleRaw = {
     pb: stOut(pbList.map(p => stRow(p.id, p.x))),
-    acc: stOut(Object.keys(accBy).filter(id => accBy[id].t > 0).map(id => stRow(id, Math.round(accBy[id].g / accBy[id].t * 100) + '%'))),
+    acc: stOut(Object.keys(accBy).map(id => stRow(id, Object.keys(accBy[id]).filter(k => accBy[id][k].t > 0)       // 종목별: 스쿼트 92% · 플랭크 80%
+      .map(k => `${k} ${Math.round(accBy[id][k].g / accBy[id][k].t * 100)}%`).join(' · '))).filter(p => p.x)),
     streak: stOut(streakIds.map(id => stRow(id, '')))
   };
 
@@ -453,14 +454,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v12');
+  CacheService.getScriptCache().remove('dash_v13');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d12_' + y);
+  CacheService.getScriptCache().remove('dash_d13_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 
