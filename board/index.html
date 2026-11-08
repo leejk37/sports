@@ -230,8 +230,8 @@
       </div>
       <div id="tiles"></div>
       <div class="card" id="classes">
-        <div class="head"><div class="label" id="classLabel">이번 주 반별 참여율</div><span id="weekFrom"></span>
-          <div id="cper"><button data-p="day">오늘</button><button data-p="week" class="on">이번 주</button><button data-p="month">이번 달</button></div></div>
+        <div class="head"><div class="label" id="classLabel">오늘 반별 참여율</div><span id="weekFrom"></span>
+          <div id="cper"><button data-p="day" class="on">오늘</button><button data-p="week">이번 주</button><button data-p="month">이번 달</button></div></div>
         <div id="cbars"></div>
       </div>
     </section>
@@ -471,9 +471,9 @@ document.addEventListener('click', hideTip);
 /* ===== 다녀간 친구 명단 ===== */
 let lastData = null, whoMode = null, hoverTimer = null;
 
-/* 반별 참여율 기간: 15초마다 오늘 → 이번 주 → 이번 달, 단추를 누르면 3분 동안 그 기간에 멈춤 */
+/* 반별 참여율 기간: 처음은 오늘, 15초마다 오늘 → 이번 주 → 이번 달, 단추를 누르면 3분 동안 그 기간에 멈춤 */
 const CPER = ['day', 'week', 'month'];
-let cPer = 'week', cHold = 0;
+let cPer = 'day', cHold = 0;                          // 처음은 오늘
 const md = s => s ? s.slice(5).replace('-', '/') : '';
 function drawClasses(d) {
   if (!d) return;
@@ -486,7 +486,7 @@ function drawClasses(d) {
       <div class="well"><span class="r">${c.rate}%</span><div class="col" data-h="${c.rate}"></div></div><span class="c">${esc(c.cls.replace('학년 ', '-').replace('반', ''))}</span></div>`).join('')
     : '<div class="none">명단을 불러오지 못했어요</div>';
   requestAnimationFrame(() => document.querySelectorAll('.cb .col').forEach(el => el.style.height = `calc((100% - 1.6vw) * ${Math.max(2, el.dataset.h) / 100})`));
-  const per = has ? cPer : 'week';                         // 예전 보관 결과(오늘·이번 달 없음)는 이번 주로
+  const per = has ? cPer : 'week';                         // 예전 보관 결과·GAS 배포 전(오늘·이번 달 없음)은 이번 주로
   document.querySelectorAll('#cper button').forEach(b => b.classList.toggle('on', b.dataset.p === per));
   const T = { day: past ? '그날' : '오늘', week: past ? '그 주' : '이번 주', month: past ? '그 달' : '이번 달' };
   $('classLabel').textContent = `${T[per]} 반별 참여율`;
