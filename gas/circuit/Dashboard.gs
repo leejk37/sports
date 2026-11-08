@@ -10,6 +10,7 @@
  *   - 종목별 오늘 누적 (운동별 탭 + 체력 기록장 '기록' 탭의 줄넘기·실내자전거)
  *   - 반별 참여율 (그 기간 입실했거나 운동·아침달리기 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
  *     classesDay = 오늘 · classes = 이번 주(월~오늘) · classesMonth = 이번 달(1일~오늘)  (2026-11-09 오늘·이번 달 추가)
+ *     classPeople = { day|week|month: { '4학년 해반': ['김*서', …] } } 막대에 마우스를 올리면 보이는 명단(이름 규칙은 축하 소식과 같음)
  *   - 학교 누적 거리 도전 2개 (START_DATE부터, 2026-11-09 나눔 — 트레드밀·로잉머신은 각자 카드에)
  *     distance    = 실내자전거 km, 목표 DISTANCE_GOAL_KM(5000) / 스크립트 속성 GOAL_KM · GOAL_NAME
  *     distanceRun = 아침달리기 km, 목표 RUN_GOAL_KM(100)       / 스크립트 속성 RUN_GOAL_KM · RUN_GOAL_NAME
@@ -79,7 +80,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d10_' + target : 'dash_v10';
+  const cacheKey = past ? 'dash_d11_' + target : 'dash_v11';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -90,8 +91,8 @@ function dashSummary_(dateParam, key) {
   }
   if (!hit) { try { cache.put(cacheKey, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {} }
   // 이름 명단은 열쇠가 맞을 때만 내보냄
-  const visitors = out.visitors, feedRaw = out.feedRaw, exPeopleRaw = out.exPeopleRaw;
-  delete out.visitors; delete out.feedRaw; delete out.exPeopleRaw;
+  const visitors = out.visitors, feedRaw = out.feedRaw, exPeopleRaw = out.exPeopleRaw, classPeopleRaw = out.classPeopleRaw;
+  delete out.visitors; delete out.feedRaw; delete out.exPeopleRaw; delete out.classPeopleRaw;
   let keyOk = false;
   if (key) {
     const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
@@ -104,6 +105,14 @@ function dashSummary_(dateParam, key) {
   if (exPeopleRaw) {
     out.exPeople = {};
     Object.keys(exPeopleRaw).forEach(k => out.exPeople[k] = exPeopleRaw[k].map(p => ({ w: p.w, n: keyOk ? p.n : dashMask_(p.n) })));
+  }
+  // 반별 참여한 친구(반별 참여율 막대에 마우스를 올리면 보임) — 번호 순, 이름 규칙은 같음
+  if (classPeopleRaw) {
+    out.classPeople = {};
+    Object.keys(classPeopleRaw).forEach(per => {
+      out.classPeople[per] = {};
+      Object.keys(classPeopleRaw[per]).forEach(c => out.classPeople[per][c] = classPeopleRaw[per][c].map(n => keyOk ? n : dashMask_(n)));
+    });
   }
   return out;
 }
@@ -327,6 +336,14 @@ function dashBuild_(pastDay) {
   })).map(x => Object.assign(x, { rate: x.size ? Math.round(x.came / x.size * 100) : 0 }))
     .sort((a, b) => b.rate - a.rate || a.cls.localeCompare(b.cls, 'ko'));
   const classes = classRates(weekByClass), classesDay = classRates(dayByClass), classesMonth = classRates(monthByClass);
+  // 반별 참여한 친구 이름(번호 순) — dashSummary_가 이름 규칙(실명/가림)을 적용해 classPeople로 바꿈
+  const classNames = byClass => {
+    const o = {};
+    Object.keys(byClass).forEach(c => o[c] = [...byClass[c]].map(id => roster[id] || {})
+      .sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0)).map(st => String(st.name || '')).filter(Boolean));
+    return o;
+  };
+  const classPeopleRaw = { day: classNames(dayByClass), week: classNames(weekByClass), month: classNames(monthByClass) };
 
   // 어제(앞선 평일)와 비교 · 3일 연속(평일 기준, 오늘 포함) 운동한 친구
   byDay[today] = new Set([...(byDay[today] || []), ...inToday]);
@@ -348,6 +365,7 @@ function dashBuild_(pastDay) {
     distanceRun: dashRunGoal_(dashRound_(mrun.sinceKm, 1)),  // 아침달리기
     feedRaw: feed.slice(0, DASH.FEED_MAX).map(f => ({ tpl: f.tpl, name: f.name })),
     exPeopleRaw,                                           // dashSummary_가 이름 규칙(실명/가림)을 적용해 exPeople로 바꿈
+    classPeopleRaw,                                        // dashSummary_가 classPeople로 바꿈
     visitors: Object.values(visit).map(v => {             // dashSummary_가 열쇠 확인 후에만 내보냄
       const st = roster[v.id] || {};
       return {
@@ -409,14 +427,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v10');
+  CacheService.getScriptCache().remove('dash_v11');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d10_' + y);
+  CacheService.getScriptCache().remove('dash_d11_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 
