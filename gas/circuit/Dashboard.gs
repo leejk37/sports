@@ -8,7 +8,8 @@
  *     허브 공용 모드를 거치지 않은 학생(이 기기 모드, 운동 앱 직접 실행)도 빠지지 않도록
  *     오늘 운동 기록이 있으면 '다녀감', 최근 NOW_MIN분 안에 기록을 저장했으면 '지금 운동 중'으로 함께 셈
  *   - 종목별 오늘 누적 (운동별 탭 + 체력 기록장 '기록' 탭의 줄넘기·실내자전거)
- *   - 반별 이번 주 참여율 (이번 주 입실했거나 운동 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
+ *   - 반별 참여율 (그 기간 입실했거나 운동·아침달리기 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
+ *     classesDay = 오늘 · classes = 이번 주(월~오늘) · classesMonth = 이번 달(1일~오늘)  (2026-11-09 오늘·이번 달 추가)
  *   - 학교 누적 거리 도전 2개 (START_DATE부터, 2026-11-09 나눔 — 트레드밀·로잉머신은 각자 카드에)
  *     distance    = 실내자전거 km, 목표 DISTANCE_GOAL_KM(5000) / 스크립트 속성 GOAL_KM · GOAL_NAME
  *     distanceRun = 아침달리기 km, 목표 RUN_GOAL_KM(100)       / 스크립트 속성 RUN_GOAL_KM · RUN_GOAL_NAME
@@ -78,7 +79,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d9_' + target : 'dash_v9';
+  const cacheKey = past ? 'dash_d10_' + target : 'dash_v10';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -117,6 +118,7 @@ function dashBuild_(pastDay) {
   const today = day(base);                                            // 아래 코드에서 '오늘' = 기준 날짜
   const dow = Number(Utilities.formatDate(base, DASH.TZ, 'u'));      // 1=월 … 7=일
   const monday = day(new Date(base.getTime() - (dow - 1) * 864e5));
+  const monthStart = today.slice(0, 8) + '01';                       // 이번 달 1일
   const asDay = v => v instanceof Date ? day(v) : String(v).trim().slice(0, 10);
   const num = v => { const x = Number(v); return isFinite(x) ? x : 0; };
   const roster = rosterMap_(ss);                                        // Main.gs: 아이디 → {grade, cls, no, name}
@@ -124,7 +126,16 @@ function dashBuild_(pastDay) {
   const label = st => st && st.grade ? `${st.grade}학년 ${st.cls}반` : '교직원';
 
   // ---- 입퇴실: 지금 운동 중, 오늘 입실, 이번 주 반별 참여 ----
-  const inNow = new Set(), inToday = new Set(), weekByClass = {};
+  const inNow = new Set(), inToday = new Set(), weekByClass = {}, dayByClass = {}, monthByClass = {};
+  // 반별 참여: 그 날짜가 오늘·이번 주·이번 달에 들면 그 반 목록에 넣음
+  const addClass = (d, id) => {
+    if (d > today || d < monthStart && d < monday) return;
+    const st = roster[id]; if (!st || !st.grade) return;
+    const c = label(st), put = (m) => (m[c] = m[c] || new Set()).add(id);
+    if (d === today) put(dayByClass);
+    if (d >= monday) put(weekByClass);
+    if (d >= monthStart) put(monthByClass);
+  };
   // 날짜별로 다녀간 친구(입퇴실 + 운동 기록 + 아침달리기) — '어제보다'와 '연속 운동' 계산용, 기준일 포함 14일
   const since14 = day(new Date(base.getTime() - 13 * 864e5)), byDay = {};
   const seen = (d, id) => { if (d >= since14 && d <= today) (byDay[d] = byDay[d] || new Set()).add(id); };
@@ -146,20 +157,14 @@ function dashBuild_(pastDay) {
         if (a && (!v.first || a < v.first)) v.first = a;
         if (b && /^\d\d:\d\d$/.test(b) && b > v.last) v.last = b;
       }
-      if (d >= monday && d <= today) {
-        const st = roster[id];
-        if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(id); }
-      }
+      addClass(d, id);
     });
   }
   // 운동 기록으로 본 활동: 아이디 → { first, last (ms) } — 아래 종목 탭을 읽으면서 채움
   const act = {};
   const addAct = (id, d, t) => {
     seen(d, id);
-    if (d >= monday && d <= today) {
-      const st = roster[id];
-      if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(id); }
-    }
+    addClass(d, id);
     if (d !== today || !t) return;
     const a = act[id] || (act[id] = { first: t, last: t });
     if (t < a.first) a.first = t;
@@ -230,9 +235,7 @@ function dashBuild_(pastDay) {
       if (r.d >= DASH.START_DATE) mrun.sinceKm += MRUN.KM;   // 아침달리기 거리 도전
       seen(r.d, r.id);                                     // 어제보다 · 3일 연속 계산에 포함
       const st = roster[r.id];
-      if (r.d >= monday) {
-        if (st && st.grade) { const c = label(st); if (!weekByClass[c]) weekByClass[c] = new Set(); weekByClass[c].add(r.id); }
-      }
+      addClass(r.d, r.id);
       if (r.d < today) {
         tried.add(r.id);
         if (!(r.id in best) || r.sec < best[r.id]) best[r.id] = r.sec;
@@ -319,10 +322,11 @@ function dashBuild_(pastDay) {
   });
   const classSize = {};
   Object.values(roster).forEach(st => { if (st.grade) classSize[label(st)] = (classSize[label(st)] || 0) + 1; });
-  const classes = Object.keys(classSize).map(c => ({
-    cls: c, size: classSize[c], came: weekByClass[c] ? weekByClass[c].size : 0
+  const classRates = byClass => Object.keys(classSize).map(c => ({
+    cls: c, size: classSize[c], came: byClass[c] ? byClass[c].size : 0
   })).map(x => Object.assign(x, { rate: x.size ? Math.round(x.came / x.size * 100) : 0 }))
     .sort((a, b) => b.rate - a.rate || a.cls.localeCompare(b.cls, 'ko'));
+  const classes = classRates(weekByClass), classesDay = classRates(dayByClass), classesMonth = classRates(monthByClass);
 
   // 어제(앞선 평일)와 비교 · 3일 연속(평일 기준, 오늘 포함) 운동한 친구
   byDay[today] = new Set([...(byDay[today] || []), ...inToday]);
@@ -335,11 +339,11 @@ function dashBuild_(pastDay) {
   return {
     ok: true,
     updated: Utilities.formatDate(now, DASH.TZ, 'HH:mm'),
-    past, today, weekFrom: monday,
+    past, today, weekFrom: monday, monthFrom: monthStart,
     now: past ? null : inNow.size, todayIn: inToday.size,
     prevIn, prevDay: p1, streak3, pbCount, firstCount,
     accToday: allAccT > 0 ? Math.round(allAccG / allAccT * 100) : null,
-    totals, classes,
+    totals, classes, classesDay, classesMonth,
     distance: dashGoal_(dashRound_(distanceKm, 1)),         // 실내자전거
     distanceRun: dashRunGoal_(dashRound_(mrun.sinceKm, 1)),  // 아침달리기
     feedRaw: feed.slice(0, DASH.FEED_MAX).map(f => ({ tpl: f.tpl, name: f.name })),
@@ -405,14 +409,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v9');
+  CacheService.getScriptCache().remove('dash_v10');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d9_' + y);
+  CacheService.getScriptCache().remove('dash_d10_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 

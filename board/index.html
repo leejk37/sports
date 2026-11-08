@@ -103,6 +103,10 @@
   #classes .head{display:flex;align-items:baseline;gap:1vw}
   #classes .head .label{flex:1}
   #classes .head span{font-size:1vw;color:var(--soft)}
+  #cper{display:flex;gap:.3vw}
+  #cper button{font:inherit;font-size:.85vw;font-weight:800;padding:.2vw .7vw;border:0;border-radius:999px;cursor:pointer;
+    background:rgba(255,255,255,.12);color:var(--soft)}
+  #cper button.on{background:var(--yellow);color:var(--blue-d)}
   #cbars{display:flex;align-items:flex-end;gap:.6vw;height:6.8vw;margin-top:.5vw}
   .cb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
   .cb .r{font-size:.9vw;font-weight:800;font-variant-numeric:tabular-nums}
@@ -225,7 +229,8 @@
       </div>
       <div id="tiles"></div>
       <div class="card" id="classes">
-        <div class="head"><div class="label" id="classLabel">이번 주 반별 참여율</div><span id="weekFrom"></span></div>
+        <div class="head"><div class="label" id="classLabel">이번 주 반별 참여율</div><span id="weekFrom"></span>
+          <div id="cper"><button data-p="day">오늘</button><button data-p="week" class="on">이번 주</button><button data-p="month">이번 달</button></div></div>
         <div id="cbars"></div>
       </div>
     </section>
@@ -397,17 +402,8 @@ function render(d) {
   $('tiles').innerHTML = tiles.join('');
   if (tipKey) showTip(tipKey);   // 열려 있던 명단은 새 숫자로 다시 그림
 
-  // 반별 참여율
-  const cls = (d.classes || []).slice().sort((a, b) => a.cls.localeCompare(b.cls, 'ko', { numeric: true }));
-  const max = Math.max(0, ...cls.map(c => c.rate));
-  $('cbars').innerHTML = cls.length ? cls.map(c => `<div class="cb${c.rate && c.rate === max ? ' top' : ''}" title="${c.came}/${c.size}명">
-      <div class="well"><span class="r">${c.rate}%</span><div class="col" data-h="${c.rate}"></div></div><span class="c">${esc(c.cls.replace('학년 ', '-').replace('반', ''))}</span></div>`).join('')
-    : '<div class="none">명단을 불러오지 못했어요</div>';
-  requestAnimationFrame(() => document.querySelectorAll('.cb .col').forEach(el => el.style.height = `calc((100% - 1.6vw) * ${Math.max(2, el.dataset.h) / 100})`));
-  $('classLabel').textContent = past ? '그 주 반별 참여율' : '이번 주 반별 참여율';
-  $('weekFrom').textContent = !d.weekFrom ? '' : past
-    ? `${d.weekFrom.slice(5).replace('-', '/')}(월)~${d.today.slice(5).replace('-', '/')} · 그 주 한 번이라도 온 친구 ÷ 반 인원`
-    : `${d.weekFrom.slice(5).replace('-', '/')}(월)부터 · 이번 주 한 번이라도 온 친구 ÷ 반 인원`;
+  // 반별 참여율 (오늘 · 이번 주 · 이번 달)
+  drawClasses(d);
 
   // 다녀간 친구 명단 (열쇠가 맞을 때만 visitors 가 옴)
   lastData = d;
@@ -471,6 +467,38 @@ document.addEventListener('click', hideTip);
 
 /* ===== 다녀간 친구 명단 ===== */
 let lastData = null, whoMode = null, hoverTimer = null;
+
+/* 반별 참여율 기간: 15초마다 오늘 → 이번 주 → 이번 달, 단추를 누르면 3분 동안 그 기간에 멈춤 */
+const CPER = ['day', 'week', 'month'];
+let cPer = 'week', cHold = 0;
+const md = s => s ? s.slice(5).replace('-', '/') : '';
+function drawClasses(d) {
+  if (!d) return;
+  const past = !!d.past;
+  const list = cPer === 'day' ? d.classesDay : cPer === 'month' ? d.classesMonth : d.classes;
+  const has = Array.isArray(list);
+  const cls = (has ? list : d.classes || []).slice().sort((a, b) => a.cls.localeCompare(b.cls, 'ko', { numeric: true }));
+  const max = Math.max(0, ...cls.map(c => c.rate));
+  $('cbars').innerHTML = cls.length ? cls.map(c => `<div class="cb${c.rate && c.rate === max ? ' top' : ''}" title="${c.came}/${c.size}명">
+      <div class="well"><span class="r">${c.rate}%</span><div class="col" data-h="${c.rate}"></div></div><span class="c">${esc(c.cls.replace('학년 ', '-').replace('반', ''))}</span></div>`).join('')
+    : '<div class="none">명단을 불러오지 못했어요</div>';
+  requestAnimationFrame(() => document.querySelectorAll('.cb .col').forEach(el => el.style.height = `calc((100% - 1.6vw) * ${Math.max(2, el.dataset.h) / 100})`));
+  const per = has ? cPer : 'week';                         // 예전 보관 결과(오늘·이번 달 없음)는 이번 주로
+  document.querySelectorAll('#cper button').forEach(b => b.classList.toggle('on', b.dataset.p === per));
+  const T = { day: past ? '그날' : '오늘', week: past ? '그 주' : '이번 주', month: past ? '그 달' : '이번 달' };
+  $('classLabel').textContent = `${T[per]} 반별 참여율`;
+  const from = per === 'day' ? '' : per === 'week' ? `${md(d.weekFrom)}(월)` : md(d.monthFrom);
+  $('weekFrom').textContent = !d.weekFrom ? '' :
+    (per === 'day' ? `${md(d.today)} · ` : past ? `${from}~${md(d.today)} · ` : `${from}부터 · `) + `${T[per]} 한 번이라도 온 친구 ÷ 반 인원`;
+}
+document.getElementById('cper').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  cPer = b.dataset.p; cHold = Date.now() + 180000; drawClasses(lastData);
+});
+setInterval(() => {
+  if (Date.now() < cHold || !lastData || !Array.isArray(lastData.classesDay)) return;
+  cPer = CPER[(CPER.indexOf(cPer) + 1) % CPER.length]; drawClasses(lastData);
+}, 15000);
 function drawWho() {
   const d = lastData; if (!d || !Array.isArray(d.visitors)) return;
   const list = whoMode === 'now' ? d.visitors.filter(v => v.now) : d.visitors;

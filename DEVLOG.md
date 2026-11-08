@@ -4,6 +4,7 @@
 
 ## 2026-11-09
 
+- **반별 참여율을 오늘 · 이번 주 · 이번 달로**(`board/index.html`, `gas/circuit/Dashboard.gs`). GAS 응답에 `classesDay`·`classesMonth`·`monthFrom` 추가(기준: 입퇴실 + 운동 기록 + 아침달리기, 이번 달 = 1일~오늘). 현황판은 15초마다 오늘 → 이번 주 → 이번 달로 바뀌고, 머리줄 단추를 누르면 3분 동안 그 기간에 멈춤. 예전 보관 결과(오늘·이번 달 없음)는 이번 주만 보임. 캐시 이름 `dash_v10`·`dash_d10_`.
 - **현황판 거리 도전을 둘로 나눔**(`board/index.html`, `gas/circuit/Dashboard.gs`). 실내자전거 5,000km · 아침달리기 100km, 한 카드 안에 나란히(TV 화면 높이 그대로). 둘 다 10월 1일(`START_DATE`)부터 누적.
   - GAS 응답에 `distanceRun` 추가(아침달리기 1회 = `MRUN.KM` 0.5km). 목표는 스크립트 속성 `RUN_GOAL_KM`·`RUN_GOAL_NAME`으로 바꿀 수 있음. 실내자전거 기본 목표 100 → 5000, 기본 제목 '실내자전거 ○km 도전'.
   - 캐시 이름 `dash_v9`·`dash_d9_`.
