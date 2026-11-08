@@ -50,8 +50,11 @@
   #stats .s b small{font-size:.9vw;font-weight:800;margin-left:.1vw;color:var(--soft)}
   .big.now b{color:var(--yellow)}
   #feedBox{display:flex;flex-direction:column;overflow:hidden}
-  #feed{list-style:none;margin:.5vw 0 0;padding:0;display:flex;flex-direction:column;gap:.45vw;overflow-y:auto;flex:1;min-height:0;scrollbar-width:none;overscroll-behavior:contain}
-  #feed::-webkit-scrollbar{display:none}   /* 손가락·휠로 스크롤 가능, 막대는 숨김(자동으로 돌아가는 것은 그대로) */
+  #feed{list-style:none;margin:.5vw 0 0;padding:0 .3vw 0 0;display:flex;flex-direction:column;gap:.45vw;overflow-y:auto;flex:1;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.35) transparent;overscroll-behavior:contain}
+  #feed::-webkit-scrollbar{width:.45vw}#feed::-webkit-scrollbar-thumb{background:rgba(255,255,255,.35);border-radius:999px}   /* 손가락·휠·막대로 스크롤(자동으로 돌아가는 것은 그대로) */
+  #feedBox{min-height:0}
+  #stats .s[data-st]{cursor:pointer}#stats .s.on{outline:.15vw solid var(--yellow)}
   #feed li{flex:none}
   #feed.rolled li{animation:none}
   #feed li{font-size:.95vw;font-weight:600;line-height:1.3;padding:.45vw .7vw;border-radius:.7vw;background:rgba(255,255,255,.08);
@@ -97,6 +100,7 @@
   #tip b{display:block;font-size:1.1vw;font-weight:800;margin-bottom:.4vw}
   #tip .tg{font-size:1vw;line-height:1.5;margin-bottom:.25vw}
   #tip .tg span{color:var(--yellow);font-weight:800;margin-right:.4vw}
+  #tip .tg small{font-size:.85vw;color:var(--soft)}
   .tile.zero .v{color:var(--soft)}
   .tile.sum{background:var(--yellow);color:var(--blue-d)}
   .tile.sum .n,.tile.sum .p{color:var(--blue-d)}
@@ -208,9 +212,9 @@
         <div class="card big" data-list="all"><div class="label"><span id="inLabel">오늘 다녀간 친구</span><span class="hint">명단 ▸</span></div><b><span id="todayIn">-</span><small>명</small></b><div class="cmp" id="inCmp"></div></div>
       </div>
       <div class="card" id="stats">
-        <div class="s" title="그때까지의 자기 기록을 넘은 횟수"><span class="k">🏅 개인 최고</span><b><span id="stPb">-</span><small>건</small></b></div>
-        <div class="s" title="자세 판정이 있는 종목 전체의 바른 자세 비율"><span class="k">🎯 바른 자세</span><b><span id="stAcc">-</span><small>%</small></b></div>
-        <div class="s" title="오늘까지 평일 3일 연속 운동한 친구"><span class="k">🔥 3일 연속</span><b><span id="stStreak">-</span><small>명</small></b></div>
+        <div class="s" data-st="pb" title="그때까지의 자기 기록을 넘은 횟수"><span class="k">🏅 개인 최고</span><b><span id="stPb">-</span><small>건</small></b></div>
+        <div class="s" data-st="acc" title="자세 판정이 있는 종목 전체의 바른 자세 비율"><span class="k">🎯 바른 자세</span><b><span id="stAcc">-</span><small>%</small></b></div>
+        <div class="s" data-st="streak" title="오늘까지 평일 3일 연속 운동한 친구"><span class="k">🔥 3일 연속</span><b><span id="stStreak">-</span><small>명</small></b></div>
       </div>
       <div class="card" id="feedBox"><div class="label">🎉 축하해요</div><ul id="feed"></ul></div>
     </section>
@@ -401,7 +405,8 @@ function render(d) {
   tiles.push(`<div class="tile sum"><div class="n">${W} 해 본 종목</div><div class="v">${kinds}<small>종목</small></div><div class="p">모두 ${ORDER.length}종목</div></div>`);
   $('tiles').style.gridTemplateColumns = `repeat(${Math.ceil(tiles.length / 2)},1fr)`;   // 두 줄에 맞춰 칸 수 (종목 15 + 합계 1 → 8칸)
   $('tiles').innerHTML = tiles.join('');
-  if (tipKey && !tipKey.startsWith('cls:')) showTip(tipKey);   // 열려 있던 명단은 새 숫자로 다시 그림
+  if (tipKey && tipKey.startsWith('st:')) showStatTip(tipKey.slice(3));
+  else if (tipKey && !tipKey.startsWith('cls:')) showTip(tipKey);   // 열려 있던 명단은 새 숫자로 다시 그림
 
   // 반별 참여율 (오늘 · 이번 주 · 이번 달)
   drawClasses(d);
@@ -459,7 +464,7 @@ function showTip(key) {
   let y = r.bottom + m; if (y + h > innerHeight - m) y = Math.max(m, r.top - h - m);   // 아래 자리가 없으면 위로
   tp.style.left = x + 'px'; tp.style.top = y + 'px';
 }
-function hideTip() { tipKey = null; $('tip').classList.remove('on'); document.querySelectorAll('.tile.on').forEach(t => t.classList.remove('on')); }
+function hideTip() { tipKey = null; $('tip').classList.remove('on'); document.querySelectorAll('.tile.on,#stats .s.on').forEach(t => t.classList.remove('on')); }
 $('tiles').addEventListener('mouseover', e => { const t = e.target.closest('.tile[data-key]'); if (t && t.dataset.key !== tipKey) showTip(t.dataset.key); });
 $('tiles').addEventListener('mouseleave', hideTip);
 $('tiles').addEventListener('click', e => {         // 터치 화면: 누르면 열고, 다시 누르면 닫음
@@ -467,6 +472,32 @@ $('tiles').addEventListener('click', e => {         // 터치 화면: 누르면 
   e.stopPropagation(); t.dataset.key === tipKey ? hideTip() : showTip(t.dataset.key);
 });
 document.addEventListener('click', hideTip);
+
+/* ===== 개인 최고 · 바른 자세 · 3일 연속 명단 (숫자 칸에 마우스를 올리면) ===== */
+function showStatTip(k) {
+  const box = document.querySelector(`#stats .s[data-st="${k}"]`);
+  const list = lastData && lastData.statPeople && lastData.statPeople[k];
+  document.querySelectorAll('.tile.on,#stats .s.on').forEach(t => t.classList.remove('on'));
+  if (!box || !list || !list.length) { hideTip(); return; }
+  tipKey = 'st:' + k; box.classList.add('on');
+  const groups = {};
+  list.forEach(p => (groups[p.w] = groups[p.w] || []).push(p.x ? `${esc(p.n)} <small>(${esc(p.x)})</small>` : esc(p.n)));
+  const title = box.querySelector('.k').textContent.trim();
+  const cnt = k === 'pb' ? `${list.length}건` : `${list.length}명`;
+  $('tip').innerHTML = `<b>${esc(title)} · ${cnt}</b>` +
+    Object.keys(groups).map(g => `<div class="tg"><span>${esc(g)}</span>${groups[g].join(', ')}</div>`).join('');
+  const tp = $('tip'); tp.classList.add('on');
+  const r = box.getBoundingClientRect(), w = tp.offsetWidth, h = tp.offsetHeight, m = 8;
+  const x = Math.min(Math.max(m, r.left + r.width / 2 - w / 2), innerWidth - w - m);
+  let y = r.bottom + m; if (y + h > innerHeight - m) y = Math.max(m, r.top - h - m);
+  tp.style.left = x + 'px'; tp.style.top = y + 'px';
+}
+$('stats').addEventListener('mouseover', e => { const b = e.target.closest('.s[data-st]'); if (b && tipKey !== 'st:' + b.dataset.st) showStatTip(b.dataset.st); });
+$('stats').addEventListener('mouseleave', hideTip);
+$('stats').addEventListener('click', e => {         // 터치 화면: 누르면 열고, 다시 누르면 닫음
+  const b = e.target.closest('.s[data-st]'); if (!b) return;
+  e.stopPropagation(); tipKey === 'st:' + b.dataset.st ? hideTip() : showStatTip(b.dataset.st);
+});
 
 /* ===== 반별 참여한 친구 (막대에 마우스를 올리면) ===== */
 function showClassTip(cls) {

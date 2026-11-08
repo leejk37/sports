@@ -11,6 +11,7 @@
  *   - 반별 참여율 (그 기간 입실했거나 운동·아침달리기 기록이 있는 학생 수 ÷ 반 인원, '학생명단'의 학생만)
  *     classesDay = 오늘 · classes = 이번 주(월~오늘) · classesMonth = 이번 달(1일~오늘)  (2026-11-09 오늘·이번 달 추가)
  *     classPeople = { day|week|month: { '4학년 해반': ['김*서', …] } } 막대에 마우스를 올리면 보이는 명단(이름 규칙은 축하 소식과 같음)
+ *   - 오늘의 숫자 명단 statPeople = { pb: 개인 최고 · acc: 바른 자세(학생별 %) · streak: 3일 연속 } — [{ w: '4학년 해반', n: 이름, x: 덧붙임 }]
  *   - 학교 누적 거리 도전 2개 (START_DATE부터, 2026-11-09 나눔 — 트레드밀·로잉머신은 각자 카드에)
  *     distance    = 실내자전거 km, 목표 DISTANCE_GOAL_KM(5000) / 스크립트 속성 GOAL_KM · GOAL_NAME
  *     distanceRun = 아침달리기 km, 목표 RUN_GOAL_KM(100)       / 스크립트 속성 RUN_GOAL_KM · RUN_GOAL_NAME
@@ -80,7 +81,7 @@ function dashSummary_(dateParam, key) {
   const past = target < realToday;
 
   const cache = CacheService.getScriptCache();
-  const cacheKey = past ? 'dash_d11_' + target : 'dash_v11';
+  const cacheKey = past ? 'dash_d12_' + target : 'dash_v12';
   let out = null;
   const hit = cache.get(cacheKey);
   if (hit) { try { out = JSON.parse(hit); } catch (e) {} }
@@ -91,8 +92,8 @@ function dashSummary_(dateParam, key) {
   }
   if (!hit) { try { cache.put(cacheKey, JSON.stringify(out), past ? DASH.PAST_CACHE_SEC : DASH.CACHE_SEC); } catch (e) {} }
   // 이름 명단은 열쇠가 맞을 때만 내보냄
-  const visitors = out.visitors, feedRaw = out.feedRaw, exPeopleRaw = out.exPeopleRaw, classPeopleRaw = out.classPeopleRaw;
-  delete out.visitors; delete out.feedRaw; delete out.exPeopleRaw; delete out.classPeopleRaw;
+  const visitors = out.visitors, feedRaw = out.feedRaw, exPeopleRaw = out.exPeopleRaw, classPeopleRaw = out.classPeopleRaw, statPeopleRaw = out.statPeopleRaw;
+  delete out.visitors; delete out.feedRaw; delete out.exPeopleRaw; delete out.classPeopleRaw; delete out.statPeopleRaw;
   let keyOk = false;
   if (key) {
     const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
@@ -105,6 +106,11 @@ function dashSummary_(dateParam, key) {
   if (exPeopleRaw) {
     out.exPeople = {};
     Object.keys(exPeopleRaw).forEach(k => out.exPeople[k] = exPeopleRaw[k].map(p => ({ w: p.w, n: keyOk ? p.n : dashMask_(p.n) })));
+  }
+  // 개인 최고 · 바른 자세 · 3일 연속 명단(숫자 칸에 마우스를 올리면 보임) — 이름 규칙은 같음
+  if (statPeopleRaw) {
+    out.statPeople = {};
+    Object.keys(statPeopleRaw).forEach(k => out.statPeople[k] = statPeopleRaw[k].map(p => ({ w: p.w, n: keyOk ? p.n : dashMask_(p.n), x: p.x || '' })));
   }
   // 반별 참여한 친구(반별 참여율 막대에 마우스를 올리면 보임) — 번호 순, 이름 규칙은 같음
   if (classPeopleRaw) {
@@ -186,6 +192,8 @@ function dashBuild_(pastDay) {
   let distanceKm = 0;
   // 축하 소식: '{who}' 자리에 이름을 넣음(열쇠가 맞으면 실명, 아니면 가운데를 가림 — dashSummary_에서)
   const feedPush = (time, tpl, st) => feed.push({ t: time, tpl, name: st && st.name ? String(st.name) : '' });
+  // 오늘의 숫자 명단: 개인 최고(무엇을) · 바른 자세(학생별 정확·전체)
+  const pbList = [], accBy = {};
 
   DASH_EX.forEach(ex => {
     const sh = ss.getSheetByName(ex.sheet);
@@ -201,7 +209,11 @@ function dashBuild_(pastDay) {
         addAct(id, d, r[0] instanceof Date ? r[0].getTime() : 0);
         if (d === today) {
           total += v; people.add(id);
-          if (ex.acc) { const g = num(r[ex.acc.good]); accG += g; accT += ex.acc.total != null ? num(r[ex.acc.total]) : g + ex.acc.bad.reduce((t, c) => t + num(r[c]), 0); }
+          if (ex.acc) {
+            const g = num(r[ex.acc.good]), tt = ex.acc.total != null ? num(r[ex.acc.total]) : g + ex.acc.bad.reduce((t, c) => t + num(r[c]), 0);
+            accG += g; accT += tt;
+            const a = accBy[id] || (accBy[id] = { g: 0, t: 0 }); a.g += g; a.t += tt;
+          }
         }
         if (d < today) {
           tried.add(id);
@@ -225,6 +237,7 @@ function dashBuild_(pastDay) {
         if (!ex.noPb && k in best && v > best[k] && v > 0) {
           best[k] = v; pbCount++;
           feedPush(time, `${label(st)}{who} 친구가 ${ex.name} 개인 최고 ${dashFmt_(v, ex.decimals)}${ex.unit}!`, st);
+          pbList.push({ id, x: `${ex.name} ${dashFmt_(v, ex.decimals)}${ex.unit}` });
         }
       });
     }
@@ -267,6 +280,7 @@ function dashBuild_(pastDay) {
       if (r.sec < best[r.id]) {
         best[r.id] = r.sec; pbCount++;
         feedPush(r.t, `${label(st)}{who} 친구가 아침달리기 개인 최고 ${mrunFmt_(r.sec)}!`, st);
+        pbList.push({ id: r.id, x: `아침달리기 ${mrunFmt_(r.sec)}` });
       }
     });
   }
@@ -350,7 +364,18 @@ function dashBuild_(pastDay) {
   const prevWeekday = d => { let t = new Date(d + 'T12:00:00+09:00'); do { t = new Date(t.getTime() - 864e5); } while (Number(Utilities.formatDate(t, DASH.TZ, 'u')) >= 6); return day(t); };
   const p1 = prevWeekday(today), p2 = prevWeekday(p1);
   const prevIn = byDay[p1] ? byDay[p1].size : 0;
-  const streak3 = [...inToday].filter(id => byDay[p1] && byDay[p1].has(id) && byDay[p2] && byDay[p2].has(id)).length;
+  const streakIds = [...inToday].filter(id => byDay[p1] && byDay[p1].has(id) && byDay[p2] && byDay[p2].has(id));
+  const streak3 = streakIds.length;
+  // 오늘의 숫자 명단 (학년·반·번호 순) — dashSummary_가 이름 규칙을 적용해 statPeople로 바꿈
+  const stOrder = (a, b) => (a.g === '') - (b.g === '') || String(a.g).localeCompare(String(b.g), 'ko', { numeric: true })
+    || String(a.c).localeCompare(String(b.c), 'ko', { numeric: true }) || (Number(a.no) || 0) - (Number(b.no) || 0);
+  const stRow = (id, x) => { const st = roster[id] || {}; return { g: st.grade || '', c: st.cls || '', no: st.no || '', n: st.name || '', x }; };
+  const stOut = list => list.filter(p => p.n).sort(stOrder).map(p => ({ w: p.g ? `${p.g}학년 ${p.c}반` : '교직원', n: p.n, x: p.x }));
+  const statPeopleRaw = {
+    pb: stOut(pbList.map(p => stRow(p.id, p.x))),
+    acc: stOut(Object.keys(accBy).filter(id => accBy[id].t > 0).map(id => stRow(id, Math.round(accBy[id].g / accBy[id].t * 100) + '%'))),
+    streak: stOut(streakIds.map(id => stRow(id, '')))
+  };
 
   feed.sort((a, b) => b.t - a.t);
   return {
@@ -366,6 +391,7 @@ function dashBuild_(pastDay) {
     feedRaw: feed.slice(0, DASH.FEED_MAX).map(f => ({ tpl: f.tpl, name: f.name })),
     exPeopleRaw,                                           // dashSummary_가 이름 규칙(실명/가림)을 적용해 exPeople로 바꿈
     classPeopleRaw,                                        // dashSummary_가 classPeople로 바꿈
+    statPeopleRaw,                                         // dashSummary_가 statPeople로 바꿈
     visitors: Object.values(visit).map(v => {             // dashSummary_가 열쇠 확인 후에만 내보냄
       const st = roster[v.id] || {};
       return {
@@ -427,14 +453,14 @@ function dashFmt_(v, d) { return d ? Number(v).toFixed(d) : String(Math.round(v)
 
 /** 편집기에서 실행해 결과 확인 */
 function diagDashboard() {
-  CacheService.getScriptCache().remove('dash_v11');
+  CacheService.getScriptCache().remove('dash_v12');
   Logger.log(JSON.stringify(dashSummary_(), null, 2));
 }
 
 /** 지난 날짜 확인: 어제 기준 결과 (캐시 지우고 새로 계산) */
 function diagDashboardYesterday() {
   const y = Utilities.formatDate(new Date(Date.now() - 864e5), DASH.TZ, 'yyyy-MM-dd');
-  CacheService.getScriptCache().remove('dash_d11_' + y);
+  CacheService.getScriptCache().remove('dash_d12_' + y);
   Logger.log(JSON.stringify(dashSummary_(y), null, 2));
 }
 
