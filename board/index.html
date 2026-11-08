@@ -50,7 +50,8 @@
   #stats .s b small{font-size:.9vw;font-weight:800;margin-left:.1vw;color:var(--soft)}
   .big.now b{color:var(--yellow)}
   #feedBox{display:flex;flex-direction:column;overflow:hidden}
-  #feed{list-style:none;margin:.5vw 0 0;padding:0;display:flex;flex-direction:column;gap:.45vw;overflow:hidden;flex:1;min-height:0}
+  #feed{list-style:none;margin:.5vw 0 0;padding:0;display:flex;flex-direction:column;gap:.45vw;overflow-y:auto;flex:1;min-height:0;scrollbar-width:none;overscroll-behavior:contain}
+  #feed::-webkit-scrollbar{display:none}   /* 손가락·휠로 스크롤 가능, 막대는 숨김(자동으로 돌아가는 것은 그대로) */
   #feed li{flex:none}
   #feed.rolled li{animation:none}
   #feed li{font-size:.95vw;font-weight:600;line-height:1.3;padding:.45vw .7vw;border-radius:.7vw;background:rgba(255,255,255,.08);
@@ -428,9 +429,11 @@ function render(d) {
 let feedHover = false;
 $('feedBox').addEventListener('mouseenter', () => feedHover = true);
 $('feedBox').addEventListener('mouseleave', () => feedHover = false);
+let feedPause = 0;                                   // 손가락·휠로 스크롤하면 10초 동안 자동으로 돌지 않음
+['touchstart', 'wheel'].forEach(ev => $('feed').addEventListener(ev, () => feedPause = Date.now() + 10000, { passive: true }));
 setInterval(() => {
   const ul = $('feed'), first = ul.firstElementChild;
-  if (feedHover || !first || first.classList.contains('empty') || ul.scrollHeight <= ul.clientHeight + 2) return;
+  if (feedHover || Date.now() < feedPause || !first || first.classList.contains('empty') || ul.scrollHeight <= ul.clientHeight + 2) return;
   ul.classList.add('rolled');                        // 맨 끝으로 옮길 때 다시 튀어나오지 않게
   const step = first.offsetHeight + parseFloat(getComputedStyle(ul).rowGap || 0);
   ul.scrollTo({ top: step, behavior: 'smooth' });
