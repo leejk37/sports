@@ -6,6 +6,7 @@
  *    action=feedback&ex=curlup&email=…(&key=)     → 한 학생의 그 종목 기록 전체(시간순) + 반 평균 정확도
  *  학생은 허브 '내 자세 피드백' 카드로 자기 기록만(email), 선생님은 열쇠로 누구나
  *  열 위치는 CLAUDE.md '시트 데이터 구조' 표 (0부터)
+ *  기록 종목(2026-11-09): 줄넘기·행잉·트레드밀·로잉머신은 자세 판정이 없어 정확도 대신 기록(횟수·시간·거리)의 변화를 돌려줌 (FB_REC, kind: 'record')
  *************************************************************/
 /* time: 측정시간 열, good: 정확한 횟수(플랭크는 버틴 시간), bad: 자세 오류 열, total: 전체 시간 열(플랭크), mode: 방식·자세 열 */
 const FB_EX = {
@@ -20,6 +21,18 @@ const FB_EX = {
   plank:       { name: '플랭크',         sheet: '플랭크',         time: 9, good: 8, total: 9, bad: [[10, '엉덩이 처짐'], [11, '엉덩이 솟음']], mode: 6, unit: '초' }
 };
 
+/* 기록 종목: value 대표 기록 열, time 측정시간 열, mode 방식 열, extra [열, 이름, 단위] 함께 보여 줄 값 */
+const FB_REC = {
+  jumprope:  { name: '줄넘기',   sheet: '줄넘기',   value: 7, time: 8, mode: 6, unit: '회', decimals: 0,
+               extra: [[11, '최장 연속', '회'], [10, '끊김', '번']] },
+  hanging:   { name: '행잉',     sheet: '행잉',     value: 9, time: 9, mode: 6, unit: '초', decimals: 1,
+               extra: [[10, '흔들린 시간', '초']] },
+  treadmill: { name: '트레드밀', sheet: '트레드밀', value: 8, time: 6, unit: 'km', decimals: 2,
+               extra: [[9, '최고 속도', 'km/h']], speed: true },
+  rowing:    { name: '로잉머신', sheet: '로잉머신', value: 9, time: 7, mode: 6, unit: 'km', decimals: 3,
+               extra: [[10, '평균 SPM', '회/분']], speed: true }
+};
+
 /** 선생님: 학생 명단 (교직원 포함, 아이디는 화면에서 다시 요청할 때만 씀) */
 function fbRoster_(p) {
   if (!pointKeyOk_(p.key)) return { ok: false, error: '선생님 열쇠가 맞지 않아요', needKey: true };
@@ -29,6 +42,7 @@ function fbRoster_(p) {
 
 /** 한 학생의 한 종목 기록 */
 function fbStudent_(p) {
+  if (FB_REC[p.ex]) return fbRecord_(p);
   const cfg = FB_EX[p.ex];
   if (!cfg) return { ok: false, error: '자세 피드백이 없는 종목이에요' };
   const keyOk = pointKeyOk_(p.key);
@@ -69,6 +83,59 @@ function fbStudent_(p) {
     badNames: cfg.bad.map(b => b[1]), hasMode: cfg.mode != null,
     student: { grade: st.grade, cls: st.cls, no: st.no, name: st.name },
     classMedian: median, classPeople: accs.length,
+    recs: recs.map(r => { delete r.t; return r; })
+  };
+}
+
+/** 기록 종목: 한 학생의 기록(시간순) + 같은 반 학생별 평균 기록의 중앙값(방식별) */
+function fbRecord_(p) {
+  const cfg = FB_REC[p.ex];
+  const keyOk = pointKeyOk_(p.key);
+  let email = String(p.email || '').trim().toLowerCase();
+  if (keyOk && email && email.indexOf('@') < 0) email += SQUAT_CONFIG.DOMAIN;
+  if (!email.endsWith(SQUAT_CONFIG.DOMAIN)) return { ok: false, error: '학교 계정이 아니에요' };
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = stampRoster_(ss);
+  const id = stampIdOf_(email), st = roster.byId[id];
+  if (!st) return { ok: false, error: '명단에 없는 학생이에요' };
+
+  const sh = ss.getSheetByName(cfg.sheet);
+  const num = v => { const x = Number(v); return isFinite(x) ? x : 0; };
+  const f = Math.pow(10, cfg.decimals || 0), rnd = v => Math.round(v * f) / f;
+  const recs = [], cls = {};                                   // cls: 방식 → 반 학생별 기록 합·횟수
+  if (sh && sh.getLastRow() > 1) {
+    const width = Math.max(cfg.value, cfg.time, cfg.mode || 0, ...cfg.extra.map(e => e[0])) + 1;
+    sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(width, sh.getLastColumn())).getValues().forEach(r => {
+      if (!(r[0] instanceof Date)) return;
+      const rid = stampIdOf_(r[5]); if (!rid) return;
+      const v = num(r[cfg.value]); if (v <= 0) return;
+      const mode = cfg.mode != null ? String(r[cfg.mode] || '').trim() : '';
+      const rs = roster.byId[rid];
+      if (rs && rs.grade === st.grade && rs.cls === st.cls) {
+        const m = cls[mode] = cls[mode] || {}, c = m[rid] = m[rid] || { s: 0, n: 0 }; c.s += v; c.n++;
+      }
+      if (rid !== id) return;
+      const sec = num(r[cfg.time]);
+      recs.push({
+        t: r[0].getTime(), at: Utilities.formatDate(r[0], STAMP.TZ, 'yyyy-MM-dd HH:mm'),
+        value: rnd(v), sec: Math.round(sec * 10) / 10, mode,
+        extra: cfg.extra.map(e => r[e[0]] === '' || r[e[0]] == null ? null : Math.round(num(r[e[0]]) * 10) / 10),
+        speed: cfg.speed && sec > 0 ? Math.round(v / (sec / 3600) * 10) / 10 : null      // 평균 속도 km/h
+      });
+    });
+  }
+  recs.sort((a, b) => a.t - b.t);
+  const classMedian = {};                                      // 방식 → 반 학생별 평균 기록의 중앙값
+  Object.keys(cls).forEach(m => {
+    const a = Object.values(cls[m]).map(c => c.s / c.n).sort((x, y) => x - y);
+    if (a.length) classMedian[m] = { v: rnd(a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2), n: a.length };
+  });
+  return {
+    ok: true, keyOk, kind: 'record', ex: p.ex, exName: cfg.name, unit: cfg.unit, decimals: cfg.decimals || 0,
+    hasMode: cfg.mode != null, speed: !!cfg.speed, extraNames: cfg.extra.map(e => [e[1], e[2]]),
+    badNames: [],                                              // cues.js 등 예전 화면이 읽어도 깨지지 않게
+    student: { grade: st.grade, cls: st.cls, no: st.no, name: st.name },
+    classMedian,
     recs: recs.map(r => { delete r.t; return r; })
   };
 }

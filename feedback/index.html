@@ -27,6 +27,8 @@
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chips button{font-size:16px;font-weight:800;padding:8px 13px;border-radius:999px;border:0;background:var(--blue-d);color:var(--soft);cursor:pointer}
   .chips button.on{background:var(--yellow);color:var(--blue-dd)}
+  .row[hidden]{display:none}
+  .chips button.rec{box-shadow:inset 0 0 0 2px rgba(143,211,255,.45)}   /* 기록 종목(정확도 대신 기록 변화) */
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .row .lab{font-size:14px;font-weight:800;color:var(--dim)}
   .card{background:var(--blue-d);border-radius:18px;padding:16px}
@@ -86,6 +88,7 @@
 <main>
   <div class="row"><span class="lab">종목</span><div class="chips" id="exs"></div></div>
   <div class="row"><span class="lab">기간</span><div class="chips" id="pers"></div></div>
+  <div class="row" id="modeRow" hidden><span class="lab">방식</span><div class="chips" id="modes"></div></div>
   <div id="app"></div>
 </main>
 <div id="status"></div>
@@ -107,8 +110,10 @@ document.body.classList.toggle('student', STUDENT);
 
 const EX = [
   ['squat', '스쿼트'], ['curlup', '윗몸말아올리기'], ['jumpingjack', '점핑잭'], ['lunge', '런지'], ['highknee', '하이니'],
-  ['pushup', '팔굽혀펴기'], ['legraise', '레그레이즈'], ['burpee', '버피테스트'], ['plank', '플랭크']
+  ['pushup', '팔굽혀펴기'], ['legraise', '레그레이즈'], ['burpee', '버피테스트'], ['plank', '플랭크'],
+  ['jumprope', '줄넘기'], ['hanging', '행잉'], ['treadmill', '트레드밀'], ['rowing', '로잉머신']   // 기록 종목: 정확도 대신 기록 변화 (2026-11-09)
 ];
+const REC_EX = ['jumprope', 'hanging', 'treadmill', 'rowing'];
 const PERS = [['all', '전체'], ['30', '최근 30일'], ['7', '최근 7일']];
 /* 자세 오류별 처방 (오류 이름은 Feedback.gs FB_EX와 같게) */
 const TIP = {
@@ -153,6 +158,7 @@ function chips(id, list, cur, on) {
 }
 function drawChips() {
   chips('exs', EX, ex, k => { ex = k; store.set('fbEx', k); drawChips(); load(); });
+  document.querySelectorAll('#exs button').forEach(b => b.classList.toggle('rec', REC_EX.includes(b.dataset.k)));
   chips('pers', PERS, per, k => { per = k; store.set('fbPer', k); drawChips(); render(); });
 }
 
@@ -222,6 +228,8 @@ const pct = (g, t) => t > 0 ? Math.round(g / t * 100) : null;
 function render() {
   charts.forEach(c => c.destroy()); charts = [];
   const d = data; if (!d) return;
+  $('modeRow').hidden = true;
+  if (d.kind === 'record') { renderRecord(d); return; }
   const cut = per === 'all' ? '' : new Date(Date.now() - new Date().getTimezoneOffset() * 6e4 - (Number(per) - 1) * 864e5).toISOString().slice(0, 10);
   const R = d.recs.filter(r => !cut || r.at.slice(0, 10) >= cut);
   const who = STUDENT ? '' : `${esc(d.student.name)} · `;
@@ -318,6 +326,94 @@ function render() {
     options: { maintainAspectRatio: false, layout: pad, interaction: { mode: 'index', intersect: false },
       scales: { y: { stacked: true, grid, border, ticks: { callback: v => v } }, x: { stacked: true, grid: { ...grid, offset: true }, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
       plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle } } } }
+  }));
+}
+/* ===== 기록 종목 (줄넘기·행잉·트레드밀·로잉머신): 정확도 대신 횟수·시간·거리의 변화 ===== */
+let rmode = {};                                        // 종목별로 고른 방식
+function renderRecord(d) {
+  const cut = per === 'all' ? '' : new Date(Date.now() - new Date().getTimezoneOffset() * 6e4 - (Number(per) - 1) * 864e5).toISOString().slice(0, 10);
+  let R = d.recs.filter(r => !cut || r.at.slice(0, 10) >= cut);
+  // 방식이 다르면 기록을 견줄 수 없음(30초 vs 100회) → 방식 고르기, 처음엔 가장 많이 한 방식
+  if (d.hasMode) {
+    const cnt = {}; d.recs.forEach(r => cnt[r.mode] = (cnt[r.mode] || 0) + 1);
+    const ms = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
+    if (ms.length > 1) {
+      if (!ms.includes(rmode[d.ex])) rmode[d.ex] = ms[0];
+      $('modeRow').hidden = false;
+      chips('modes', ms.map(m => [m, `${m || '방식 없음'} · ${cnt[m]}번`]), rmode[d.ex], k => { rmode[d.ex] = k; render(); });
+      R = R.filter(r => r.mode === rmode[d.ex]);
+    } else rmode[d.ex] = ms[0] || '';
+  }
+  const who = STUDENT ? '' : `${esc(d.student.name)} · `;
+  if (!R.length) {
+    $('app').innerHTML = `<div class="card empty">${who}${esc(d.exName)} 기록이 ${per === 'all' ? '아직 없어요' : '이 기간에 없어요'}
+      <small>${STUDENT ? `${esc(d.exName)} 앱으로 운동하면 여기에 기록이 쌓여요` : '다른 종목이나 기간을 골라 보세요'}</small></div>`;
+    return;
+  }
+  const U = d.unit, fmtV = v => v == null ? '-' : Number(v).toLocaleString('ko-KR', { maximumFractionDigits: d.decimals });
+  const vals = R.map(r => r.value);
+  const n5 = Math.min(5, Math.floor(R.length / 2));
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const first = n5 ? avg(vals.slice(0, n5)) : null, last = n5 ? avg(vals.slice(-n5)) : null;
+  const diff = first != null ? last - first : null;
+  const best = Math.max(...vals), sum = vals.reduce((a, b) => a + b, 0);
+  const days = new Set(R.map(r => r.at.slice(0, 10))).size;
+  const cmo = (d.classMedian || {})[d.hasMode ? rmode[d.ex] : ''];
+  const cm = cmo ? cmo.v : null;
+  const myAvg = avg(vals);
+  const msg = diff == null ? `기록이 2번 넘게 쌓이면 처음과 지금을 비교해 줄게요.`
+    : diff > 0 ? `처음보다 평균 ${fmtV(diff)}${U} 늘었어요! 이 흐름으로 조금씩 더 해 봐요.`
+    : diff < 0 ? `요즘 기록이 조금 내려갔어요. 컨디션을 살피고, 처음 기록부터 다시 도전해 봐요.`
+    : `기록이 꾸준해요. 한 번에 조금만 더 늘려 봐요.`;
+  const ex2 = d.extraNames.map(([n, u], i) => ({ n, u, i, has: R.some(r => r.extra[i] != null) })).filter(e => e.has);
+  $('app').innerHTML = `
+    <div class="sum">
+      <div><b>${fmtV(best)}<small>${U}</small></b><span>최고 기록</span>${cm != null ? `<em class="${myAvg >= cm ? 'up' : 'down'}">반 중앙값 ${fmtV(cm)}${U}</em>` : ''}</div>
+      <div><b>${diff == null ? '-' : (diff > 0 ? '+' : '') + fmtV(diff)}<small>${U}</small></b><span>처음 ${n5 || ''}번 → 최근 ${n5 || ''}번 평균</span>${first != null ? `<em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'}">${fmtV(first)} → ${fmtV(last)}${U}</em>` : '<em class="flat">기록 2개부터</em>'}</div>
+      <div><b>${R.length}<small>번</small></b><span>측정 · ${days}일</span></div>
+      <div><b>${fmtV(sum)}<small>${U}</small></b><span>모두 더하면</span><em class="flat">한 번 평균 ${fmtV(myAvg)}${U}</em></div>
+    </div>
+    <div class="card"><h2>📈 ${esc(d.exName)} 기록 변화 <small>측정할 때마다${d.hasMode && rmode[d.ex] ? ' · ' + esc(rmode[d.ex]) : ''} · 점선은 최근 5번 평균${cm != null ? ' · 노란 선은 반 중앙값(학생별 평균)' : ''}</small></h2>
+      <p style="margin:0 0 10px;font-size:16px;line-height:1.5">${msg}</p><div class="chart"><canvas id="c1"></canvas></div></div>
+    ${ex2.length || d.speed ? `<div class="card"><h2>📊 ${[d.speed ? '평균 속도' : '', ...ex2.map(e => e.n)].filter(Boolean).join(' · ')} <small>측정할 때마다</small></h2><div class="chart"><canvas id="c2"></canvas></div></div>` : ''}
+    <div class="card"><h2>📋 기록 <small>최근 순 · 토요일 파랑, 일요일 빨강</small></h2><div class="tbl"><table>
+      <thead><tr><th>날짜</th>${d.hasMode ? '<th>방식</th>' : ''}<th>시간</th><th>기록</th>${d.speed ? '<th>평균 속도</th>' : ''}${ex2.map(e => `<th>${esc(e.n)}</th>`).join('')}</tr></thead>
+      <tbody>${R.slice().reverse().map(r => `<tr class="${wcls(r.at)}"><td>${mdw(r.at)} ${r.at.slice(11)}</td>${d.hasMode ? `<td>${esc(r.mode)}</td>` : ''}<td>${r.sec}초</td>
+        <td class="acc${r.value === best ? ' hi' : ''}">${fmtV(r.value)}${U}</td>${d.speed ? `<td>${r.speed ?? '-'}km/h</td>` : ''}${ex2.map(e => `<td>${r.extra[e.i] ?? '-'}${r.extra[e.i] != null ? e.u.replace('회/분', '') : ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+
+  if (!window.Chart) return;
+  Chart.defaults.color = 'rgba(255,255,255,.75)';
+  Chart.defaults.font.family = 'Pretendard, system-ui, sans-serif';
+  Chart.defaults.font.size = 13;
+  const labels = R.map(r => mdw(r.at));
+  const tipTitle = items => { const r = R[items[0].dataIndex]; return r ? mdw(r.at) + ' ' + r.at.slice(11) : ''; };
+  const grid = { color: 'rgba(255,255,255,.13)' }, border = { display: true, color: 'rgba(255,255,255,.6)', width: 1.5 };
+  const unitTop = u => ({ id: 'unitTop', afterDraw(c) {
+    const y = c.scales.y, x = c.ctx; x.save(); x.fillStyle = 'rgba(255,255,255,.75)'; x.font = '700 13px Pretendard, system-ui, sans-serif';
+    x.textAlign = 'right'; x.textBaseline = 'bottom'; x.fillText(u, y.right - 6, c.chartArea.top - 6); x.restore(); } });
+  const ma = vals.map((_, i) => { const a = vals.slice(Math.max(0, i - 4), i + 1); return Math.round(avg(a) * 1000) / 1000; });
+  const ds = [
+    { label: '기록', data: vals, borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', pointRadius: R.length > 40 ? 2 : 4, tension: .25, cubicInterpolationMode: 'monotone' },
+    { label: '최근 5번 평균', data: ma, borderColor: '#9ff0b0', borderDash: [6, 4], pointRadius: 0, tension: .3, cubicInterpolationMode: 'monotone' }
+  ];
+  if (cm != null) ds.push({ label: '반 중앙값', data: R.map(() => cm), borderColor: 'rgba(245,197,24,.8)', borderWidth: 1.5, pointRadius: 0 });
+  charts.push(new Chart($('c1'), {
+    type: 'line', data: { labels, datasets: ds }, plugins: [unitTop(`(${U})`)],
+    options: { maintainAspectRatio: false, layout: { padding: { top: 6 } }, interaction: { mode: 'index', intersect: false },
+      scales: { y: { beginAtZero: true, grace: '8%', grid, border }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+      plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle, label: c => `${c.dataset.label} ${fmtV(c.parsed.y)}${U}` } } } }
+  }));
+  if (!$('c2')) return;
+  const colors = ['#f5c518', '#ff9d8a', '#c9a2ff'];
+  const ds2 = [];
+  if (d.speed) ds2.push({ label: '평균 속도', data: R.map(r => r.speed), backgroundColor: '#9ff0b0', u: 'km/h' });
+  ex2.forEach((e, k) => ds2.push({ label: e.n, data: R.map(r => r.extra[e.i]), backgroundColor: colors[k], u: e.u }));
+  const units = [...new Set(ds2.map(x => x.u))];
+  charts.push(new Chart($('c2'), {
+    type: 'bar', data: { labels, datasets: ds2 }, plugins: units.length === 1 ? [unitTop(`(${units[0]})`)] : [],
+    options: { maintainAspectRatio: false, layout: { padding: { top: 6 } }, interaction: { mode: 'index', intersect: false },
+      scales: { y: { beginAtZero: true, grid, border }, x: { grid: { ...grid, offset: true }, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
+      plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle, label: c => `${c.dataset.label} ${c.parsed.y ?? '-'}${ds2[c.datasetIndex].u}` } } } }
   }));
 }
 start();
