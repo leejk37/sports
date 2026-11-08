@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>자세 피드백</title>
+<title>피드백</title>
 <meta name="theme-color" content="#1f4e8c">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png">
@@ -80,7 +80,7 @@
 </head>
 <body>
 <header>
-  <h1>🎯 자세 피드백</h1>
+  <h1>🎯 피드백</h1>
   <span id="who" class="sonly"></span>
   <select class="sel tonly" id="cls" aria-label="반"></select>
   <select class="sel tonly" id="stu" aria-label="학생"></select>
@@ -165,7 +165,7 @@ function drawChips() {
 /* ===== 선생님: 열쇠 · 반 · 학생 ===== */
 function askKey(msg) {
   $('app').innerHTML = `<div class="card empty">${esc(msg || '선생님 열쇠를 넣어 주세요')}
-    <small>현황판·포인트 관리와 같은 열쇠예요. 학생은 허브의 '내 자세 피드백' 카드로 들어와요</small>
+    <small>현황판·포인트 관리와 같은 열쇠예요. 학생은 허브의 '내 피드백' 카드로 들어와요</small>
     <div class="keybox"><input id="key" type="password" placeholder="열쇠" autocomplete="off"><button class="btn" id="keyGo">열기</button></div></div>`;
   const go = () => { KEY = $('key').value.trim(); store.set('dashKey', KEY); start(); };
   $('keyGo').onclick = go; $('key').onkeydown = e => { if (e.key === 'Enter') go(); };

@@ -360,7 +360,7 @@ function renderPub() {
       <div class="box"><h3>${tab[1]} 순위</h3>${rows || '<div style="color:var(--dim);padding:20px 0">아직 기록이 없어요. 오늘 운동하고 첫 번째 주인공이 되어 보세요!</div>'}
         ${top.length > N ? `<button class="more" id="more">더 보기 (${top.length - N}명) ▾</button>` : ''}</div>
       <div>${side}
-        <div class="note">· 포인트는 매일 밤 1시에 확정돼요<br>· 순위는 모은 포인트예요. 선물로 바꿔도 줄지 않아요<br>· 내 남은 포인트와 내역은 허브 '내 도장'에서 볼 수 있어요<br>· 어떻게 포인트를 받는지는 메뉴의 '도장·포인트 규칙'에서</div></div>
+        <div class="note">· 포인트는 매일 밤 1시에 확정돼요<br>· 순위는 모은 포인트예요. 선물로 바꿔도 줄지 않아요<br>· 내 남은 포인트와 내역은 허브 '내 도장'에서 볼 수 있어요<br>· 어떻게 포인트를 받는지는 메뉴의 '포인트 규칙'에서</div></div>
     </div>`;
   document.querySelectorAll('.ptabs button').forEach(b => b.onclick = () => { pubBy = b.dataset.k; store.set('pubSort', pubBy); pubAll = false; renderPub(); });
   if ($('more')) $('more').onclick = () => { pubAll = true; renderPub(); };
