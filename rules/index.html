@@ -47,13 +47,13 @@
   .chip.on i{background:var(--yellow);border-color:var(--yellow);color:var(--blue-dd)}
   .chip.off{opacity:.45}
   .chip small{font-size:12px;font-weight:700;color:var(--dim)}
-  .nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .nums{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
   .num{background:rgba(0,0,0,.15);border-radius:14px;padding:10px 12px}
   .num .t{font-size:15px;font-weight:800}
   .num .t small{display:block;font-size:12px;font-weight:600;color:var(--dim);margin-top:2px;line-height:1.4}
-  .step{display:flex;align-items:center;gap:6px;margin-top:8px}
-  .step button{font:inherit;width:40px;height:40px;flex:none;border-radius:10px;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:22px;font-weight:900;cursor:pointer}
-  .step input{width:100%;min-width:0;height:40px;border-radius:10px;border:0;text-align:center;font:inherit;font-size:20px;font-weight:900;color:var(--blue-dd);background:#fff}
+  .step{display:flex;align-items:center;gap:5px;margin-top:8px}   /* 숫자 칸은 작게(2026-11-09) */
+  .step button{font:inherit;width:34px;height:34px;flex:none;border-radius:9px;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:20px;font-weight:900;cursor:pointer}
+  .step input{width:64px;flex:none;height:34px;border-radius:9px;border:0;text-align:center;font:inherit;font-size:18px;font-weight:900;color:var(--blue-dd);background:#fff}
   .step span{font-size:15px;font-weight:800;color:var(--soft);flex:none}
 
   .result{background:var(--blue-dd);border-radius:18px;padding:18px;border:3px solid var(--yellow)}
