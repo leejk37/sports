@@ -28,7 +28,9 @@ const STAMP = {
   CRITERIA_SHEET: '통과기준',
   HOLIDAY_SHEET: '휴일',       // A 날짜 · B 이름. 주말이 아닌 휴일(공휴일·대체공휴일·재량휴업일)을 선생님이 적음
   DEFAULT_SEC: 30,
-  BIKE_KM: 5,                 // 실내자전거 그날 이만큼 이상이면 통과 (5km = 10분)
+  BIKE_KM: 7.5,               // 실내자전거 그날 이만큼 이상이면 통과 (2026-11-09부터 7.5km, 그전 5km = 10분)
+  BIKE_KM_OLD: 5,             // BIKE_KM_FROM 전날까지의 기준
+  BIKE_KM_FROM: '2026-11-09', // 이 날부터 BIKE_KM (지난 날 도장·포인트는 예전 기준 그대로)
   BIKE_KM_BY_GRADE: { 1: 1, 2: 1 },   // 학년별 예외: 저학년은 마이후쉬 기록이라 1km면 통과
   BIKE_FROM_HOUR: 17,         // 오늘 도장에 자전거를 반영하기 시작하는 시각
   RIDE_TABS: ['2026', '2026_저학년'],   // 인도어라이딩 시트에서 읽을 탭들(같은 모양: 1행 주차·2행 요일·3행 날짜, A~D 학년·반·번·이름). 없는 탭은 건너뜀
@@ -184,15 +186,16 @@ function stampJudge_(ctx, id, d) {
   const done = items.filter(i => i.ok).length;
   const km = Math.round((((ctx.bike[id] || {})[d]) || 0) * 10) / 10;
   const bikeOpen = d < ctx.today || ctx.hour >= STAMP.BIKE_FROM_HOUR;
-  const bikeOk = bikeOpen && km >= stampBikeKm_(ctx.grade[id]);
+  const bikeOk = bikeOpen && km >= stampBikeKm_(ctx.grade[id], d);
   const all = done === items.length;
   return { weekend, holiday, items, done, need: items.length, km, bikeOpen, bikeOk, stamp: all ? (bikeOk || weekend ? 100 : 90) : 0 };
 }
 
-/** 그 학년의 자전거 통과 km (BIKE_KM_BY_GRADE에 없으면 BIKE_KM) */
-function stampBikeKm_(grade) {
+/** 그 학년·그날의 자전거 통과 km (BIKE_KM_BY_GRADE에 없으면 BIKE_KM, BIKE_KM_FROM 전날까지는 BIKE_KM_OLD) */
+function stampBikeKm_(grade, day) {
   const g = String(grade == null ? '' : grade).trim();
-  return g in STAMP.BIKE_KM_BY_GRADE ? STAMP.BIKE_KM_BY_GRADE[g] : STAMP.BIKE_KM;
+  if (g in STAMP.BIKE_KM_BY_GRADE) return STAMP.BIKE_KM_BY_GRADE[g];
+  return day && day < STAMP.BIKE_KM_FROM ? STAMP.BIKE_KM_OLD : STAMP.BIKE_KM;
 }
 
 /** 그 달 1일 ~ 오늘(또는 말일)의 날짜 목록 */
@@ -237,7 +240,7 @@ function stampSummary_(emailRaw, monthRaw) {
   const today = stampFmt_(new Date(), 'yyyy-MM-dd');
   const month = stampMonthOf_(monthRaw, today);
   const cache = CacheService.getScriptCache();
-  const ck = 'stamp5_' + id + '_' + month;
+  const ck = 'stamp6_' + id + '_' + month;
   const hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
@@ -267,7 +270,7 @@ function stampSummary_(emailRaw, monthRaw) {
   const out = {
     ok: true, updated: stampFmt_(ctx.now, 'HH:mm'), today: ctx.today, month,
     student: { name: st.name, grade: st.grade, cls: st.cls, no: st.no, group: st.group },
-    rule: { bikeKm: stampBikeKm_(st.grade), bikeFromHour: STAMP.BIKE_FROM_HOUR },
+    rule: { bikeKm: stampBikeKm_(st.grade, ctx.today), bikeFromHour: STAMP.BIKE_FROM_HOUR },
     todayStatus: stampJudge_(ctx, id, ctx.today), days,
     streak: stampStreak_(ctx.today, d => days[d] ? days[d].stamp : stampJudge_(ctx, id, d).stamp),
     monthCount: Object.values(days).filter(x => x.stamp).length,
@@ -294,7 +297,7 @@ function stampTeam_(p) {
   const today = stampFmt_(new Date(), 'yyyy-MM-dd');
   const month = stampMonthOf_(p.month, today);
   const cache = CacheService.getScriptCache();
-  const ck = 'team3_' + grade + '_' + cls + '_' + month;
+  const ck = 'team4_' + grade + '_' + cls + '_' + month;
   const hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 

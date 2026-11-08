@@ -94,6 +94,17 @@
   td.n{font-weight:800;white-space:nowrap}
   td.h{color:var(--soft);line-height:1.5}
   tr.grp td{padding-top:16px;font-size:14px;font-weight:900;color:var(--green);border-bottom:0}
+  /* 포인트 표: 운동 · 도장 · 꾸준히 · 더 잘하기 · 아침달리기 상자를 나란히 (큰 화면에서 한눈에) */
+  .ptGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+  @media (min-width:1100px){ .ptGrid{grid-template-columns:repeat(5,1fr)} }
+  .pg{background:rgba(0,0,0,.18);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .pg h3{margin:0;font-size:16px;font-weight:900;color:var(--green)}
+  .pg h3 small{display:block;font-size:12px;font-weight:700;color:var(--dim);margin-top:1px}
+  .pi{background:rgba(255,255,255,.06);border-radius:10px;padding:8px 10px}
+  .pi .t{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+  .pi .t b{font-size:15px;font-weight:800;white-space:nowrap}
+  .pi .t span{font-size:15px;font-weight:900;color:var(--yellow);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .pi p{margin:3px 0 0;font-size:12.5px;line-height:1.45;color:var(--soft)}
   .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
   .bd{background:rgba(0,0,0,.15);border-radius:14px;padding:10px;text-align:center}
   .bd .i{font-size:30px}
@@ -143,7 +154,7 @@
   <section class="card" id="points">
     <h2>💎 포인트 표</h2>
     <p class="sub">운동한 만큼 포인트가 쌓여요. 모은 포인트로 선물을 바꿀 수 있어요.</p>
-    <table><thead><tr><th>이렇게 하면</th><th>포인트</th><th>자세히</th></tr></thead><tbody id="ptRows"></tbody></table>
+    <div class="ptGrid" id="ptRows"></div>
   </section>
 
   <section class="card" id="stamp">
@@ -204,14 +215,14 @@ const P = v => (Math.round(v * 10) / 10).toLocaleString();
 /* ===== 기본값 (GAS를 못 읽어도 화면이 나오게. 실제 값은 시트 '포인트규칙'·'통과기준' 탭) ===== */
 let R = {
   rules: { '종목 통과': 1, '스쿼트 20회': 1, '줄넘기 100회': 1, '자전거 추가 1km': 0.5, '하루 도장': 10, '완벽 도장': 5, '모둠 도장': 10, '완벽 모둠 도장': 20,
-    '연속 3일': 5, '연속 7일마다': 15, '기록 경신': 2, '기록 경신 하루 최대': 3, '바른 자세': 1, '바른 자세 기준(%)': 80,
+    '연속 3일': 5, '연속 5일마다': 10, '기록 경신': 2, '기록 경신 하루 최대': 3, '바른 자세': 1, '바른 자세 기준(%)': 80,
     '아침달리기 참여': 5, '아침달리기 기록 경신': 5, '아침달리기 연속 3일': 5, '아침달리기 연속 4일': 7, '아침달리기 연속 5일': 10 },
   exercises: [
     ['squat', '스쿼트'], ['lunge', '런지'], ['jumpingjack', '점핑잭'], ['curlup', '윗몸말아올리기'], ['highknee', '하이니'],
     ['pushup', '팔굽혀펴기'], ['plank', '플랭크'], ['jumprope', '줄넘기'], ['legraise', '레그레이즈'], ['burpee', '버피테스트'],
     ['hanging', '행잉', 1], ['treadmill', '트레드밀', 1], ['rowing', '로잉머신', 1]
   ].map(([key, name, room]) => ({ key, name, min: 30, weekendOff: !!room, from: '' })),
-  bikeKm: 5, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 17, bikeFrom: '2026-11-01',
+  bikeKm: 7.5, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 17, bikeFrom: '2026-11-01',
   squatPer: 20, ropePer: 100, ropeFrom: '2026-11-01', accMinCount: 20, accMinSec: 60, badges: [], gifts: [], today: ''
 };
 
@@ -286,7 +297,7 @@ function calc() {
   const g = stamp ? Math.min(S.group, stamp) : 0;            // 내 도장이 없으면 모둠 도장도 없음
   const gP = g ? r['모둠 도장'] + (g === 100 ? r['완벽 모둠 도장'] : 0) : 0;
   const st = S.n.streak;
-  const skP = stamp ? (st === 3 ? r['연속 3일'] : 0) + (st && st % 7 === 0 ? r['연속 7일마다'] : 0) : 0;
+  const skP = stamp ? (st === 3 ? r['연속 3일'] : 0) + (st && st % 5 === 0 ? r['연속 5일마다'] : 0) : 0;
   const pbN = Math.min(S.n.pb, r['기록 경신 하루 최대']), pbP = pbN * r['기록 경신'];
   const acP = S.n.acc * r['바른 자세'];
   const total = pass * r['종목 통과'] + sqP + rpP + bkP + stP + gP + skP + pbP + acP;
@@ -302,7 +313,7 @@ function calc() {
     line('자전거 추가', bike > bikeKm() ? `${bikeKm()}km 넘은 ${P(bike - bikeKm())}km × ${P(r['자전거 추가 1km'])}점 (소수점 버림)` : `${bikeKm()}km 넘게 타면 생겨요`, bkP),
     line(stamp === 100 ? '완벽 도장' : '하루 도장', stamp ? `하루 도장 ${P(r['하루 도장'])}${stamp === 100 ? ` + 완벽 ${P(r['완벽 도장'])}` : ''}점` : '해야 할 종목을 모두 통과하면', stP),
     line('모둠 도장', g ? `모둠 도장 ${P(r['모둠 도장'])}${g === 100 ? ` + 완벽 ${P(r['완벽 모둠 도장'])}` : ''}점` : (S.group && !stamp ? '내 도장이 있어야 모둠 도장도 받아요' : '모둠원 모두 도장을 받으면'), gP),
-    line('연속 보너스', stamp ? `${st}일째 · 3일째 ${P(r['연속 3일'])}점, 7·14·21…일째 ${P(r['연속 7일마다'])}점` : '도장을 받은 날만', skP),
+    line('연속 보너스', stamp ? `${st}일째 · 3일째 ${P(r['연속 3일'])}점, 5·10·15…일째 ${P(r['연속 5일마다'])}점` : '도장을 받은 날만', skP),
     line('기록 경신', S.n.pb > pbN ? `${S.n.pb}개 중 하루 ${pbN}개까지` : `${pbN}개 × ${P(r['기록 경신'])}점`, pbP),
     line('바른 자세', `${S.n.acc}개 × ${P(r['바른 자세'])}점`, acP)
   ].join('');
@@ -343,7 +354,7 @@ function drawGuide() {
       <div class="exl">${list(ex)}</div>
       ${later.length ? `<p style="margin-top:8px;font-size:14px">${later.map(e => esc(e.name)).join('·')}는 ${later[0].from.slice(5).replace('-', '월 ')}일부터 도장 종목이에요.</p>` : ''}</div>
     <div class="stp"><h3>⭐ 완벽 도장 <span class="badge">+${P(r['완벽 도장'])}점 더</span></h3>
-      <p>하루 도장 + 그날 <b class="y">실내자전거 ${R.bikeKm}km</b> 이상 (약 10분, 1·2학년은 ${lo}km).<br>
+      <p>하루 도장 + 그날 <b class="y">실내자전거 ${R.bikeKm}km</b> 이상 (1·2학년은 ${lo}km, 11월 9일부터 7.5km로 올림).<br>
       자전거 기록은 모아서 입력하므로 오늘 도장에는 <b>${R.bikeFromHour}시부터</b> 보여요.</p></div>
     <div class="stp"><h3>🏖️ 주말·휴일</h3>
       <p>스포츠실에 갈 수 없으니 <b>${ex.filter(e => e.weekendOff).map(e => esc(e.name)).join('·')}</b>(점선)은 안 해도 돼요.
@@ -353,29 +364,35 @@ function drawGuide() {
     <div class="stp"><h3>🔥 연속 일수</h3>
       <p>도장을 받은 날이 이어진 날 수예요. <b>주말·휴일도 도장이 없으면 끊겨요.</b> 하루 10분이면 되니까 매일 이어 가 봐요!</p></div>`;
 
-  const grp = t => `<tr class="grp"><td colspan="3">${t}</td></tr>`;
-  const row = (n, p, h) => `<tr><td class="n">${n}</td><td class="p">${p}</td><td class="h">${h}</td></tr>`;
+  // 포인트 표: 상자 5개를 나란히 (운동 · 도장 · 꾸준히 · 더 잘하기 · 아침달리기)
+  const box = (t, sub, items) => `<div class="pg"><h3>${t}${sub ? `<small>${sub}</small>` : ''}</h3>${items.join('')}</div>`;
+  const row = (n, p, h) => `<div class="pi"><div class="t"><b>${n}</b><span>${p}</span></div><p>${h}</p></div>`;
   $('ptRows').innerHTML =
-    grp('운동하기') +
-    row('종목 통과', `${P(r['종목 통과'])}점`, `통과한 종목마다 (하루에 종목당 한 번). 스쿼트·줄넘기는 빼고 아래 횟수로`) +
-    row('스쿼트', `${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, `그날 한 <b>정확한 횟수</b>를 모두 더해서. 예) 20회 × 3세트 = ${P(3 * r['스쿼트 20회'])}점`) +
-    row('줄넘기', `${R.ropePer}회마다 ${P(r['줄넘기 100회'])}점`, `줄넘기 앱으로 그날 뛴 횟수를 모두 더해서. 예) 1분 120회 + 30초 60회 = 180회 → ${P(Math.floor(180 / R.ropePer) * r['줄넘기 100회'])}점 · <b>${String(R.ropeFrom).slice(5).replace('-', '월 ')}일부터</b>`) +
-    row('실내자전거 더 타기', `1km마다 ${P(r['자전거 추가 1km'])}점`, `완벽 도장 거리(${R.bikeKm}km, 1·2학년 ${lo}km)를 넘은 만큼, 소수점 버림. 예) 20km = ${P(Math.floor(15 * r['자전거 추가 1km']))}점 · <b>${R.bikeFrom.slice(5).replace('-', '월 ')}일부터</b>`) +
-    grp('도장') +
-    row('하루 도장', `${P(r['하루 도장'])}점`, '해야 할 종목을 모두 통과') +
-    row('완벽 도장', `+${P(r['완벽 도장'])}점`, `하루 도장 + 실내자전거 (휴일은 하루 도장만으로)`) +
-    row('모둠 도장', `${P(r['모둠 도장'])}점`, '모둠원 모두 도장 (모둠원 각자에게) · <b>11월 1일부터</b>') +
-    row('완벽 모둠 도장', `+${P(r['완벽 모둠 도장'])}점`, '모둠원 모두 완벽 도장 · <b>11월 1일부터</b>') +
-    grp('꾸준히') +
-    row('연속 3일', `${P(r['연속 3일'])}점`, '도장 연속 3일째 되는 날') +
-    row('연속 7일마다', `${P(r['연속 7일마다'])}점`, '도장 연속 7·14·21…일째 되는 날') +
-    grp('더 잘하기') +
-    row('기록 경신', `${P(r['기록 경신'])}점`, `전날까지 내 최고 기록을 넘은 종목마다 (하루 ${r['기록 경신 하루 최대']}종목까지, 처음 해 본 종목은 빼고)`) +
-    row('바른 자세', `${P(r['바른 자세'])}점`, `카메라 종목에서 그날 정확도 <b>${r['바른 자세 기준(%)']}% 이상</b>일 때 종목마다 (${R.accMinCount}회, 플랭크는 ${R.accMinSec}초 넘게 했을 때)`) +
-    grp('🏃 아침달리기 (운동장 5바퀴, 도장과는 따로)') +
-    row('아침달리기', `${P(r['아침달리기 참여'] ?? 5)}점`, '등교해서 운동장 5바퀴를 달린 날 (하루 한 번)') +
-    row('아침달리기 기록 경신', `${P(r['아침달리기 기록 경신'] ?? 5)}점`, '전날까지 내 가장 빠른 기록보다 <b>빨리</b> 달린 날 (첫 기록은 빼고)') +
-    row('아침달리기 연속', `${P(r['아침달리기 연속 3일'] ?? 5)} · ${P(r['아침달리기 연속 4일'] ?? 7)} · ${P(r['아침달리기 연속 5일'] ?? 10)}점`, '연속 3·4·5일째 되는 날. 주말·휴일은 건너뛰고 세요. 5일째 다음 날은 다시 1일째부터');
+    box('🏋️ 운동', '', [
+      row('종목 통과', `${P(r['종목 통과'])}점`, `통과한 종목마다 (하루 종목당 한 번). 스쿼트·줄넘기는 아래 횟수로`),
+      row('스쿼트', `${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, `그날 <b>정확한 횟수</b>를 더해서. 예) 20회 × 3세트 = ${P(3 * r['스쿼트 20회'])}점`),
+      row('줄넘기', `${R.ropePer}회마다 ${P(r['줄넘기 100회'])}점`, `그날 뛴 횟수를 더해서. 예) 120회 + 60회 = 180회 → ${P(Math.floor(180 / R.ropePer) * r['줄넘기 100회'])}점`),
+      row('실내자전거', `1km마다 ${P(r['자전거 추가 1km'])}점`, `완벽 도장 거리(${R.bikeKm}km, 1·2학년 ${lo}km)를 넘은 만큼, 소수점 버림. 예) 20km = ${P(Math.floor((20 - R.bikeKm) * r['자전거 추가 1km'] + 1e-9))}점`)
+    ]) +
+    box('✅ 도장', '', [
+      row('하루 도장', `${P(r['하루 도장'])}점`, '해야 할 종목을 모두 통과'),
+      row('완벽 도장', `+${P(r['완벽 도장'])}점`, '하루 도장 + 실내자전거 (휴일은 하루 도장만으로)'),
+      row('모둠 도장', `${P(r['모둠 도장'])}점`, '모둠원 모두 도장 (모둠원 각자에게)'),
+      row('완벽 모둠 도장', `+${P(r['완벽 모둠 도장'])}점`, '모둠원 모두 완벽 도장')
+    ]) +
+    box('🔥 꾸준히', '도장을 받은 날이 이어지면', [
+      row('연속 3일', `${P(r['연속 3일'])}점`, '도장 연속 3일째 되는 날'),
+      row('연속 5일마다', `${P(r['연속 5일마다'])}점`, '도장 연속 5·10·15…일째 되는 날')
+    ]) +
+    box('📈 더 잘하기', '', [
+      row('기록 경신', `${P(r['기록 경신'])}점`, `전날까지 내 최고를 넘은 종목마다 (하루 ${r['기록 경신 하루 최대']}종목까지, 처음 해 본 종목은 빼고)`),
+      row('바른 자세', `${P(r['바른 자세'])}점`, `카메라 종목 정확도 <b>${r['바른 자세 기준(%)']}% 이상</b>일 때 종목마다 (${R.accMinCount}회, 플랭크는 ${R.accMinSec}초 넘게 했을 때)`)
+    ]) +
+    box('🏃 아침달리기', '운동장 5바퀴, 도장과는 따로', [
+      row('참여', `${P(r['아침달리기 참여'] ?? 5)}점`, '등교해서 운동장 5바퀴를 달린 날 (하루 한 번)'),
+      row('기록 경신', `${P(r['아침달리기 기록 경신'] ?? 5)}점`, '전날까지 내 가장 빠른 기록보다 <b>빨리</b> 달린 날'),
+      row('연속', `${P(r['아침달리기 연속 3일'] ?? 5)} · ${P(r['아침달리기 연속 4일'] ?? 7)} · ${P(r['아침달리기 연속 5일'] ?? 10)}점`, '연속 3·4·5일째. 주말·휴일은 건너뛰고, 5일째 다음 날은 다시 1일째부터')
+    ]);
 
   const what = { stamp: '도장', perfect: '완벽 도장', streak: '연속', group: '모둠 도장', pb: '기록 경신', acc: '바른 자세', earned: '모은 포인트' };
   $('badgeList').innerHTML = (R.badges || []).length ? R.badges.map(b => `<div class="bd"><div class="i">${b.icon}</div><b>${esc(b.name)}</b><small>${what[b.what] || ''} ${b.n}${b.what === 'streak' ? '일' : b.what === 'earned' ? '점' : b.what === 'pb' || b.what === 'acc' ? '번' : '개'}</small></div>`).join('')

@@ -40,13 +40,13 @@ const POINT_RULES = [
   ['종목 통과', 1, '통과기준 이상 한 종목마다 (하루 종목당 한 번, 스쿼트는 빼고 아래 20회 규칙으로)'],
   ['스쿼트 20회', 1, '스쿼트 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
   ['줄넘기 100회', 1, '줄넘기 앱으로 뛴 횟수를 하루 합해 100회마다 (예: 1분 120회 + 30초 60회 = 1점, 종목P에 더함, 11월 1일부터)'],
-  ['자전거 추가 1km', 0.5, '실내자전거 그날 통과 거리(5km, 1·2학년 1km)를 넘은 1km마다, 소수점 버림, 11월 1일부터 (예: 20km = 7점, 종목P에 더함, 도장과 관계없이)'],
+  ['자전거 추가 1km', 0.5, '실내자전거 그날 통과 거리(7.5km, 11월 8일까지 5km, 1·2학년 1km)를 넘은 1km마다, 소수점 버림, 11월 1일부터 (예: 20km = 7점, 종목P에 더함, 도장과 관계없이)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
   ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
   ['모둠 도장', 10, '모둠원 모두 도장 (모둠원 각자에게)'],
   ['완벽 모둠 도장', 20, '모둠원 모두 완벽 도장 (모둠 도장에 더해서)'],
   ['연속 3일', 5, '도장 연속 3일째 되는 날'],
-  ['연속 7일마다', 15, '도장 연속 7·14·21…일째 되는 날'],
+  ['연속 5일마다', 10, '도장 연속 5·10·15…일째 되는 날 (2026-11-09, 예전 연속 7일마다 15점)'],
   ['기록 경신', 2, '전날까지의 내 최고 기록을 넘은 종목마다 (처음 한 종목은 제외)'],
   ['기록 경신 하루 최대', 3, '하루에 경신 포인트를 받는 종목 수'],
   ['바른 자세', 1, '그날 정확도가 기준 이상인 카메라 종목마다 (20회·60초 이상 했을 때)'],
@@ -85,7 +85,7 @@ const POINT_HEAD = ['날짜', '학년', '반', '번호', '이름', '이메일', 
 
 /* ===== 규칙 읽기 ===== */
 function pointRules_(ss) {
-  const c = CacheService.getScriptCache(), hit = c.get('prule3');
+  const c = CacheService.getScriptCache(), hit = c.get('prule4');
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   const out = {}; POINT_RULES.forEach(r => out[r[0]] = r[1]);
   let sh = ss.getSheetByName(POINT.RULES);
@@ -104,7 +104,7 @@ function pointRules_(ss) {
     });
     POINT_RULES.filter(r => !seen.has(r[0])).forEach(r => { try { sh.appendRow(r); } catch (e) {} });   // 새로 생긴 규칙은 탭 아래에 추가
   }
-  try { c.put('prule3', JSON.stringify(out), 60); } catch (e) {}
+  try { c.put('prule4', JSON.stringify(out), 60); } catch (e) {}
   return out;
 }
 
@@ -235,12 +235,12 @@ function pointCompute_(ss, from, to) {
       const sqN = (sq[st.id] || {})[d] || 0, sqP = Math.floor(sqN / POINT.SQUAT_PER) * R['스쿼트 20회'];
       const rpN = (rp[st.id] || {})[d] || 0, rpP = d < POINT.ROPE_FROM ? 0 : Math.floor(rpN / POINT.ROPE_PER) * R['줄넘기 100회'];
       const km = (ctx.bike[st.id] || {})[d] || 0;
-      const bkP = d < POINT.BIKE_FROM ? 0 : Math.floor(Math.max(0, km - stampBikeKm_(st.grade)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
+      const bkP = d < POINT.BIKE_FROM ? 0 : Math.floor(Math.max(0, km - stampBikeKm_(st.grade, d)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
       const pEx = pass * R['종목 통과'] + sqP + rpP + bkP + mrP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const gOld = d < POINT.GROUP_FROM;                        // 2026-11-01부터 모둠 도장 10·완벽 +20
       const pG = g ? (gOld ? POINT.GROUP_OLD : R['모둠 도장']) + (g === 100 ? (gOld ? POINT.GROUP_PERFECT_OLD : R['완벽 모둠 도장']) : 0) : 0;
-      const pSk = (s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 7 === 0 ? R['연속 7일마다'] : 0) : 0) + mrSkP;
+      const pSk = (s ? (streak === 3 ? R['연속 3일'] : 0) + (streak % 5 === 0 ? R['연속 5일마다'] : 0) : 0) + mrSkP;
       const pPb = pbList.length * R['기록 경신'] + mrPbP;
       const pAc = accList.length * R['바른 자세'];
       const total = pEx + pSt + pG + pSk + pPb + pAc;
@@ -480,7 +480,7 @@ function pointsForStamp_(ss, st, sum) {
     const g = sum.group && sum.group.days[sum.today] ? sum.group.days[sum.today].stamp : 0;
     if (g) today += R['모둠 도장'] + (g === 100 ? R['완벽 모둠 도장'] : 0);
     if (t.stamp && sum.streak === 3) today += R['연속 3일'];
-    if (t.stamp && sum.streak && sum.streak % 7 === 0) today += R['연속 7일마다'];
+    if (t.stamp && sum.streak && sum.streak % 5 === 0) today += R['연속 5일마다'];
   }
   const n = st.gkey ? stampRoster_(ss).list.filter(m => m.gkey === st.gkey).length : 0;
   const gifts = pointGifts_(ss).filter(   // 선물목록은 작아서 매번 새로 읽음 (고치면 바로 반영)
