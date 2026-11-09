@@ -21,16 +21,15 @@ const FB_EX = {
   plank:       { name: '플랭크',         sheet: '플랭크',         time: 9, good: 8, total: 9, bad: [[10, '엉덩이 처짐'], [11, '엉덩이 솟음']], mode: 6, unit: '초' }
 };
 
-/* 기록 종목: value 대표 기록 열, time 측정시간 열, mode 방식 열, extra [열, 이름, 단위] 함께 보여 줄 값 */
+/* 기록 종목: value 대표 기록 열, time 측정시간 열, mode 방식 열, extra [열, 이름, 단위] 함께 보여 줄 값, scale 기록에 곱할 값 */
 const FB_REC = {
   jumprope:  { name: '줄넘기',   sheet: '줄넘기',   value: 7, time: 8, mode: 6, unit: '회', decimals: 0,
                extra: [[11, '최장 연속', '회'], [10, '끊김', '번']] },
   hanging:   { name: '행잉',     sheet: '행잉',     value: 9, time: 9, mode: 6, unit: '초', decimals: 1,
                extra: [[10, '흔들린 시간', '초']] },
-  treadmill: { name: '트레드밀', sheet: '트레드밀', value: 8, time: 6, unit: 'km', decimals: 2,
-               extra: [[9, '최고 속도', 'km/h']], speed: true },
-  rowing:    { name: '로잉머신', sheet: '로잉머신', value: 9, time: 7, mode: 6, unit: 'km', decimals: 3,
-               extra: [[10, '평균 SPM', '회/분']], speed: true }
+  // 트레드밀·로잉머신(2026-11-10~): 거리는 시간 × 시속으로 계산한 값이라 '운동 시간(분)'의 변화를 보여 줌. scale: 초 → 분
+  treadmill: { name: '트레드밀', sheet: '트레드밀', value: 6, time: 6, unit: '분', decimals: 1, scale: 1 / 60, extra: [] },
+  rowing:    { name: '로잉머신', sheet: '로잉머신', value: 7, time: 7, unit: '분', decimals: 1, scale: 1 / 60, extra: [] }
 };
 
 /** 선생님: 학생 명단 (교직원 포함, 아이디는 화면에서 다시 요청할 때만 씀) */
@@ -108,7 +107,7 @@ function fbRecord_(p) {
     sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(width, sh.getLastColumn())).getValues().forEach(r => {
       if (!(r[0] instanceof Date)) return;
       const rid = stampIdOf_(r[5]); if (!rid) return;
-      const v = num(r[cfg.value]); if (v <= 0) return;
+      const v = num(r[cfg.value]) * (cfg.scale || 1); if (v <= 0) return;
       const mode = cfg.mode != null ? String(r[cfg.mode] || '').trim() : '';
       const rs = roster.byId[rid];
       if (rs && rs.grade === st.grade && rs.cls === st.cls) {
