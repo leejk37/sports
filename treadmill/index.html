@@ -51,6 +51,14 @@
   #stopBtn{background:var(--red)}
   .clock{font-size:min(22vmin,150px);font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
   .clock small{font-size:.3em;font-weight:700;color:var(--soft);margin-left:6px}
+  .times{width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .times button{font:inherit;aspect-ratio:1;border-radius:18px;border:0;background:#fff;color:var(--blue);
+    font-size:min(9vmin,52px);font-weight:900;cursor:pointer;box-shadow:0 6px 0 rgba(0,0,0,.25);line-height:1}
+  .times button small{display:block;font-size:.4em;font-weight:800;margin-top:4px}
+  .times button.pass{background:var(--yellow)}
+  .times button:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+  .bar{width:100%;height:14px;border-radius:7px;background:rgba(255,255,255,.2);overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--yellow)}
   #countdown{font-size:min(40vmin,260px);font-weight:900;color:var(--yellow);line-height:1}
 
   /* 횟수 입력 */
@@ -91,8 +99,9 @@
 
     <!-- 시작 대기 -->
     <section class="screen" id="s-ready">
-      <p class="sub">트레드밀에 올라가 걷기 시작하면서 ‘시작’을 눌러요</p>
-      <button class="round" id="startBtn">시작</button>
+      <h2>몇 분 달릴까요?</h2>
+      <p class="sub">트레드밀에 올라가 시간을 누르면 바로 시작해요<br>통과는 <b id="passTxt">2분</b> 이상</p>
+      <div class="times" id="times"></div>
       <button class="btn line" id="rescan">다른 학생</button>
     </section>
 
@@ -104,9 +113,11 @@
 
     <!-- 측정 중 -->
     <section class="screen" id="s-run">
-      <div class="clock"><span id="clock">0:00</span></div>
-      <button class="round" id="stopBtn">종료</button>
-      <p class="sub">운동을 마치면 ‘종료’를 눌러요</p>
+      <p class="sub" id="goalTxt"></p>
+      <div class="clock"><span id="clock">0:00</span><small>남음</small></div>
+      <div class="bar"><i id="barFill"></i></div>
+      <p class="sub">‘삐–’ 소리가 나면 트레드밀을 멈춰요</p>
+      <button class="btn line" id="stopBtn">그만하기</button>
     </section>
 
     <!-- 트레드밀 화면의 기록 입력 -->
@@ -141,7 +152,9 @@ const CONFIG = {
   TOKEN:   SITE.TOKEN,
   TYPE:    'treadmill',
   DOMAIN:  SITE.DOMAIN,
-  READY_SEC: 3,          // 시작 버튼 후 카운트다운 (0이면 바로 시작)
+  READY_SEC: 0,          // 시간을 누른 뒤 3-2-1 (0이면 바로 시작, 2026-11-10)
+  TIMES: [1, 2, 3, 4, 5],// 고를 수 있는 시간(분) (2026-11-10)
+  PASS_SEC: 120,         // 통과 기준 2분 — 화면 안내용 (도장 판정은 GAS '통과기준' 탭)
   MIN_SEC: 10,           // 이보다 짧은 기록은 잘못 누른 것으로 보고 저장하지 않음
   MAX_SEC: 3600,
   // ---- 입력 확인 (2026-11-10, 시트에 10km·19km·속도 1.1처럼 잘못 적은 기록이 섞여 있어서) ----
@@ -152,7 +165,7 @@ const CONFIG = {
 
 const $ = id => document.getElementById(id);
 let email = '', clientId = '';
-let startAt = 0, rafId = 0, cdTimer = 0, seconds = 0, dist = '', speed = '';
+let startAt = 0, rafId = 0, cdTimer = 0, seconds = 0, dist = '', speed = '', goalSec = 0;
 const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 let audio, wakeLock, stream, scanTimer;
 
@@ -197,7 +210,8 @@ function stopCamera() { clearInterval(scanTimer); stream?.getTracks().forEach(t 
 
 /* ===== 측정 ===== */
 function toReady() { show('ready'); }
-function start() {
+function start(min) {
+  goalSec = min * 60;
   beep(660, 60);   // 첫 터치로 소리 켜기
   clientId = crypto.randomUUID?.() || String(Date.now()) + Math.random();
   navigator.wakeLock?.request('screen').then(l => wakeLock = l).catch(() => {});
@@ -213,20 +227,26 @@ function start() {
 function run() {
   beep(1000, 400);
   startAt = performance.now();
+  $('goalTxt').textContent = (goalSec / 60) + '분 달리기';
   show('run');
+  let lastBeep = -1;
   const draw = () => {
-    const s = (performance.now() - startAt) / 1000;
-    $('clock').textContent = mmss(s);
-    if (s >= CONFIG.MAX_SEC) return stop();
+    const s = (performance.now() - startAt) / 1000, left = Math.max(0, goalSec - s);
+    $('clock').textContent = mmss(Math.ceil(left));
+    $('barFill').style.width = Math.min(100, s / goalSec * 100) + '%';
+    const n = Math.ceil(left);
+    if (n <= 3 && n > 0 && n !== lastBeep) { lastBeep = n; beep(660, 120); }   // 마지막 3초
+    if (left <= 0) return stop(true);
     rafId = requestAnimationFrame(draw);
   };
   draw();
 }
-function stop() {
+function stop(done) {
   cancelAnimationFrame(rafId);
-  seconds = Math.round((performance.now() - startAt) / 1000);
-  beep(500, 400);
+  seconds = done === true ? goalSec : Math.round((performance.now() - startAt) / 1000);
+  beep(500, done === true ? 900 : 400);
   if (seconds < CONFIG.MIN_SEC) { flash('너무 짧아요. 다시 해요'); return toReady(); }
+  if (seconds < CONFIG.PASS_SEC) flash(`${mmss(CONFIG.PASS_SEC)}보다 짧아 통과는 안 돼요`);
   $('dist').value = ''; $('speed').value = ''; $('checkMsg').textContent = '';
   $('timeNote').textContent = `운동 시간 ${mmss(seconds)} · 이 시간 동안 간 거리를 적어요`;
   show('count');
@@ -308,8 +328,11 @@ if (FROM_HUB) {
 }
 
 /* ===== 버튼 ===== */
-$('startBtn').onclick = start;
-$('stopBtn').onclick = stop;
+$('times').innerHTML = CONFIG.TIMES.map(m =>
+  `<button data-min="${m}"${m * 60 === CONFIG.PASS_SEC ? ' class="pass"' : ''}>${m}<small>분</small></button>`).join('');
+$('times').onclick = e => { const b = e.target.closest('button'); if (b) start(+b.dataset.min); };
+$('passTxt').textContent = CONFIG.PASS_SEC % 60 ? mmss(CONFIG.PASS_SEC) : (CONFIG.PASS_SEC / 60) + '분';
+$('stopBtn').onclick = () => stop(false);
 $('countDone').onclick = finish;
 $('again').onclick = toReady;
 $('retrySave').onclick = save;
