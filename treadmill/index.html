@@ -55,6 +55,7 @@
   .times button{font:inherit;aspect-ratio:1;border-radius:18px;border:0;background:#fff;color:var(--blue);
     font-size:min(9vmin,52px);font-weight:900;cursor:pointer;box-shadow:0 6px 0 rgba(0,0,0,.25);line-height:1}
   .times button small{display:block;font-size:.4em;font-weight:800;margin-top:4px}
+  .times button .n small{display:inline;font-size:.45em;margin:0 0 0 2px}
   .times button em{display:block;font-style:normal;font-size:.36em;font-weight:800;margin-top:6px;opacity:.8}
   .times button.pass{background:var(--yellow)}
   .times button:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
@@ -101,7 +102,7 @@
     <!-- 시작 대기 -->
     <section class="screen" id="s-ready">
       <h2>몇 분 달릴까요?</h2>
-      <p class="sub">트레드밀에 올라가 시간을 누르면 바로 시작해요<br>통과는 <b id="passTxt">2분</b> 이상 · 1분 더할 때마다 +1점<br>목표 거리는 1분에 <b id="perMin">0.15</b>km</p>
+      <p class="sub">트레드밀에 올라가 시간을 누르면 바로 시작해요<br>통과는 <b id="passTxt">2분</b> 이상 · 1분 더할 때마다 +1점<br>목표 거리는 1분에 <b id="perMin">0.15</b>km · 평균 시속 <b id="minKmh">9</b>km/h 이상</p>
       <div class="times" id="times"></div>
       <button class="btn line" id="rescan">다른 학생</button>
     </section>
@@ -230,7 +231,7 @@ function start(min) {
 function run() {
   beep(1000, 400);
   startAt = performance.now();
-  $('goalTxt').textContent = `${goalSec / 60}분 달리기 · 목표 ${goalKm(goalSec)}km`;
+  $('goalTxt').textContent = `${goalSec / 60}분 달리기 · 목표 ${goalKm(goalSec)}km (시속 ${+(CONFIG.KM_PER_MIN * 60).toFixed(1)}km/h 이상)`;
   show('run');
   let lastBeep = -1;
   const draw = () => {
@@ -334,7 +335,8 @@ if (FROM_HUB) {
 
 /* ===== 버튼 ===== */
 $('times').innerHTML = CONFIG.TIMES.map(m =>
-  `<button data-min="${m}"${m * 60 === CONFIG.PASS_SEC ? ' class="pass"' : ''}>${m}<small>${m * 60 > CONFIG.PASS_SEC ? '분 +' + Math.floor((m * 60 - CONFIG.PASS_SEC) / 60) + '점' : '분'}</small><em>${goalKm(m * 60)}km</em></button>`).join('');
+  `<button data-min="${m}"${m * 60 === CONFIG.PASS_SEC ? ' class="pass"' : ''}><span class="n">${m}<small>분</small></span><small>${m * 60 > CONFIG.PASS_SEC ? '+' + Math.floor((m * 60 - CONFIG.PASS_SEC) / 60) + '점' : m * 60 === CONFIG.PASS_SEC ? '통과' : '&nbsp;'}</small><em>${goalKm(m * 60)}km</em></button>`).join('');
+$('minKmh').textContent = +(CONFIG.KM_PER_MIN * 60).toFixed(1);
 $('perMin').textContent = CONFIG.KM_PER_MIN.toFixed(2);
 $('times').onclick = e => { const b = e.target.closest('button'); if (b) start(+b.dataset.min); };
 $('passTxt').textContent = CONFIG.PASS_SEC % 60 ? mmss(CONFIG.PASS_SEC) : (CONFIG.PASS_SEC / 60) + '분';
