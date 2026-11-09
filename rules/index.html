@@ -229,10 +229,11 @@ let R = {
 };
 
 /* ===== 계산기 상태 ===== */
-const S = { grade: 'hi', day: 'weekday', group: 0, done: new Set(), n: { squat: 0, rope: 0, bike: 0, streak: 1, pb: 0, acc: 0 } };
+const S = { grade: 'hi', day: 'weekday', group: 0, done: new Set(), n: { squat: 0, rope: 0, cardio: 0, bike: 0, streak: 1, pb: 0, acc: 0 } };
 const NUMS = [
   { k: 'squat',  t: '🏋️ 스쿼트 정확한 횟수', unit: '회', step: 10, max: 500, help: () => `${R.squatPer}회마다 ${P(R.rules['스쿼트 20회'])}점 (그날 모두 더해서)` },
   { k: 'rope',   t: '🪢 줄넘기 뛴 횟수',    unit: '회', step: 10, max: 2000, help: () => `${R.ropePer}회마다 ${P(R.rules['줄넘기 100회'])}점 (그날 모두 더해서)` },
+  { k: 'cardio', t: '🏃 트레드밀·로잉머신 2분 넘게 탄 시간', unit: '분', step: 1, max: 10, help: () => `두 종목을 더해서, 2분을 넘은 1분마다 ${P(R.rules['트레드밀·로잉 추가 1분'] ?? 1)}점 (예: 트레드밀 5분 + 로잉 3분 → 3+1 = 4분)` },
   { k: 'bike',   t: '🚴 실내자전거',        unit: 'km', step: 1, max: 60,  help: () => `${bikeKm()}km 이상이면 완벽 도장 · 넘은 1km마다 ${P(R.rules['자전거 추가 1km'])}점` },
   { k: 'streak', t: '🔥 오늘이 연속 며칠째', unit: '일', step: 1, max: 100, help: () => '오늘 도장을 받으면 며칠째인지' },
   { k: 'pb',     t: '📈 내 최고 기록을 넘은 종목', unit: '개', step: 1, max: 13, help: () => `종목마다 ${P(R.rules['기록 경신'])}점 · 하루 ${R.rules['기록 경신 하루 최대']}개까지` },
@@ -295,6 +296,7 @@ function calc() {
   const sqP = Math.floor(S.n.squat / R.squatPer) * r['스쿼트 20회'];
   const rpP = Math.floor(S.n.rope / R.ropePer) * r['줄넘기 100회'];
   const bkP = Math.floor(Math.max(0, bike - bikeKm()) * r['자전거 추가 1km'] + 1e-9);
+  const cdP = Math.floor(S.n.cardio) * (r['트레드밀·로잉 추가 1분'] ?? 1);
   const stP = stamp ? r['하루 도장'] + (stamp === 100 ? r['완벽 도장'] : 0) : 0;
   const g = stamp ? Math.min(S.group, stamp) : 0;            // 내 도장이 없으면 모둠 도장도 없음
   const gP = g ? r['모둠 도장'] + (g === 100 ? r['완벽 모둠 도장'] : 0) : 0;
@@ -302,7 +304,7 @@ function calc() {
   const skP = stamp ? (st === 3 ? r['연속 3일'] : 0) + (st && st % 5 === 0 ? r['연속 5일마다'] : 0) : 0;
   const pbN = Math.min(S.n.pb, r['기록 경신 하루 최대']), pbP = pbN * r['기록 경신'];
   const acP = S.n.acc * r['바른 자세'];
-  const total = pass * r['종목 통과'] + sqP + rpP + bkP + stP + gP + skP + pbP + acP;
+  const total = pass * r['종목 통과'] + sqP + rpP + cdP + bkP + stP + gP + skP + pbP + acP;
 
   const left = need.filter(ex => !S.done.has(ex.key)).map(ex => ex.name);
   const why = stamp === 100 ? (S.day === 'holiday' ? '휴일에는 해야 할 종목을 모두 하면 바로 완벽 도장!' : `모든 종목 + 자전거 ${bikeKm()}km로 완벽 도장!`)
@@ -312,6 +314,7 @@ function calc() {
     line('종목 통과', `${pass}종목 × ${P(r['종목 통과'])}점 (스쿼트·줄넘기는 아래 횟수로)`, pass * r['종목 통과']),
     line('스쿼트 횟수', `${S.n.squat}회 → ${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, sqP),
     line('줄넘기 횟수', `${S.n.rope}회 → ${R.ropePer}회마다 ${P(r['줄넘기 100회'])}점`, rpP),
+    line('트레드밀·로잉머신', `2분 넘은 ${Math.floor(S.n.cardio)}분 × ${P(r['트레드밀·로잉 추가 1분'] ?? 1)}점`, cdP),
     line('자전거 추가', bike > bikeKm() ? `${bikeKm()}km 넘은 ${P(bike - bikeKm())}km × ${P(r['자전거 추가 1km'])}점 (소수점 버림)` : `${bikeKm()}km 넘게 타면 생겨요`, bkP),
     line(stamp === 100 ? '완벽 도장' : '하루 도장', stamp ? `하루 도장 ${P(r['하루 도장'])}${stamp === 100 ? ` + 완벽 ${P(r['완벽 도장'])}` : ''}점` : '해야 할 종목을 모두 통과하면', stP),
     line('모둠 도장', g ? `모둠 도장 ${P(r['모둠 도장'])}${g === 100 ? ` + 완벽 ${P(r['완벽 모둠 도장'])}` : ''}점` : (S.group && !stamp ? '내 도장이 있어야 모둠 도장도 받아요' : '모둠원 모두 도장을 받으면'), gP),
