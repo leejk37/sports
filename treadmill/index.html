@@ -100,7 +100,7 @@
     <!-- 시작 대기 -->
     <section class="screen" id="s-ready">
       <h2>몇 분 달릴까요?</h2>
-      <p class="sub">트레드밀에 올라가 시간을 누르면 바로 시작해요<br>통과는 <b id="passTxt">2분</b> 이상</p>
+      <p class="sub">트레드밀에 올라가 시간을 누르면 바로 시작해요<br>통과는 <b id="passTxt">2분</b> 이상 · 1분 더할 때마다 +1점</p>
       <div class="times" id="times"></div>
       <button class="btn line" id="rescan">다른 학생</button>
     </section>
@@ -329,7 +329,7 @@ if (FROM_HUB) {
 
 /* ===== 버튼 ===== */
 $('times').innerHTML = CONFIG.TIMES.map(m =>
-  `<button data-min="${m}"${m * 60 === CONFIG.PASS_SEC ? ' class="pass"' : ''}>${m}<small>분</small></button>`).join('');
+  `<button data-min="${m}"${m * 60 === CONFIG.PASS_SEC ? ' class="pass"' : ''}>${m}<small>${m * 60 > CONFIG.PASS_SEC ? '분 +' + Math.floor((m * 60 - CONFIG.PASS_SEC) / 60) + '점' : '분'}</small></button>`).join('');
 $('times').onclick = e => { const b = e.target.closest('button'); if (b) start(+b.dataset.min); };
 $('passTxt').textContent = CONFIG.PASS_SEC % 60 ? mmss(CONFIG.PASS_SEC) : (CONFIG.PASS_SEC / 60) + '분';
 $('stopBtn').onclick = () => stop(false);

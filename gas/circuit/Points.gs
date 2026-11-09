@@ -28,6 +28,7 @@ const POINT = {
   BIKE_FROM: '2026-11-01',     // '자전거 추가 1km' 포인트를 주기 시작하는 날
   ROPE_FROM: '2026-11-01',     // 줄넘기: 이날부터 '종목 통과' 대신 '줄넘기 100회' (그 전 날은 통과 1P 그대로)
   ROPE_PER: 100,               // 줄넘기: 그날 줄넘기 앱('줄넘기' 탭 H열) 횟수 합 이만큼마다 '줄넘기 100회' 포인트
+  CARDIO_FROM: '2026-11-10',   // 트레드밀·로잉머신: 이날부터 통과 시간(통과기준 탭, 2분)을 넘은 1분마다 '트레드밀·로잉 추가 1분' 포인트
   SQUAT_PER: 20,               // 스쿼트: 그날 정확한 횟수(H열) 합 이만큼마다 '스쿼트 20회' 포인트. 스쿼트는 '종목 통과' 포인트 없음 (2026-10-29)
   GROUP_FROM: '2026-11-01',    // 이날부터 모둠 도장·완벽 모둠 도장은 '포인트규칙' 탭 숫자(10·20), 그 전 날은 아래 옛 점수
   GROUP_OLD: 5, GROUP_PERFECT_OLD: 5,
@@ -41,6 +42,7 @@ const POINT_RULES = [
   ['스쿼트 20회', 1, '스쿼트 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
   ['줄넘기 100회', 1, '줄넘기 앱으로 뛴 횟수를 하루 합해 100회마다 (예: 1분 120회 + 30초 60회 = 1점, 종목P에 더함, 11월 1일부터)'],
   ['자전거 추가 1km', 0.5, '실내자전거 그날 통과 거리(7km, 11월 8일까지 5km, 1·2학년 1km)를 넘은 1km마다, 소수점 버림, 11월 1일부터 (예: 20km = 7점, 종목P에 더함, 도장과 관계없이)'],
+  ['트레드밀·로잉 추가 1분', 1, '트레드밀·로잉머신 각각 그날 가장 긴 기록이 통과 시간(2분)을 넘은 1분마다 (예: 5분 = 3점, 종목P에 더함, 11월 10일부터)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
   ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
   ['모둠 도장', 10, '모둠원 모두 도장 (모둠원 각자에게)'],
@@ -85,7 +87,7 @@ const POINT_HEAD = ['날짜', '학년', '반', '번호', '이름', '이메일', 
 
 /* ===== 규칙 읽기 ===== */
 function pointRules_(ss) {
-  const c = CacheService.getScriptCache(), hit = c.get('prule4');
+  const c = CacheService.getScriptCache(), hit = c.get('prule5');
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   const out = {}; POINT_RULES.forEach(r => out[r[0]] = r[1]);
   let sh = ss.getSheetByName(POINT.RULES);
@@ -104,7 +106,7 @@ function pointRules_(ss) {
     });
     POINT_RULES.filter(r => !seen.has(r[0])).forEach(r => { try { sh.appendRow(r); } catch (e) {} });   // 새로 생긴 규칙은 탭 아래에 추가
   }
-  try { c.put('prule4', JSON.stringify(out), 60); } catch (e) {}
+  try { c.put('prule5', JSON.stringify(out), 60); } catch (e) {}
   return out;
 }
 
@@ -236,7 +238,15 @@ function pointCompute_(ss, from, to) {
       const rpN = (rp[st.id] || {})[d] || 0, rpP = d < POINT.ROPE_FROM ? 0 : Math.floor(rpN / POINT.ROPE_PER) * R['줄넘기 100회'];
       const km = (ctx.bike[st.id] || {})[d] || 0;
       const bkP = d < POINT.BIKE_FROM ? 0 : Math.floor(Math.max(0, km - stampBikeKm_(st.grade, d)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
-      const pEx = pass * R['종목 통과'] + sqP + rpP + bkP + mrP;
+      // 트레드밀·로잉머신(11/10~): 그날 가장 긴 기록이 통과 시간을 넘은 1분마다 (3분 = 1점, 5분 = 3점)
+      const cdList = [];
+      let cdP = 0;
+      if (d >= POINT.CARDIO_FROM) ['treadmill', 'rowing'].forEach(k => {
+        const sec = ((best[st.id] || {})[d] || {})[k] || 0, min = ctx.crit[k] ? ctx.crit[k].min : 120;
+        const extra = sec >= min ? Math.floor((sec - min) / 60 + 1e-9) : 0;
+        if (extra) { cdP += extra * R['트레드밀·로잉 추가 1분']; cdList.push(`${exName[k]} +${extra}분`); }
+      });
+      const pEx = pass * R['종목 통과'] + sqP + rpP + bkP + mrP + cdP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const gOld = d < POINT.GROUP_FROM;                        // 2026-11-01부터 모둠 도장 10·완벽 +20
       const pG = g ? (gOld ? POINT.GROUP_OLD : R['모둠 도장']) + (g === 100 ? (gOld ? POINT.GROUP_PERFECT_OLD : R['완벽 모둠 도장']) : 0) : 0;
@@ -245,7 +255,7 @@ function pointCompute_(ss, from, to) {
       const pAc = accList.length * R['바른 자세'];
       const total = pEx + pSt + pG + pSk + pPb + pAc;
       if (!total) return;
-      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', rpP ? `줄넘기 ${rpN}회 ${rpP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '',
+      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', rpP ? `줄넘기 ${rpN}회 ${rpP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '', cdP ? `${cdList.join(' · ')} ${cdP}P` : '',
         mrSec ? `아침달리기 ${mrunFmt_(mrSec)}` + (mrPb ? ' 경신' : '') + (mrSkP ? ` 연속 ${mrStreak}일` : '') + ` ${mrP + mrPbP + mrSkP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
         pSk - mrSkP ? `연속 ${streak}일` : '', pbList.length ? '경신: ' + pbList.join(', ') : '', accList.length ? '자세: ' + accList.join(', ') : '']
         .filter(Boolean).join(' · ');
