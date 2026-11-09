@@ -51,9 +51,10 @@
   #stopBtn{background:var(--red)}
   .clock{font-size:min(22vmin,150px);font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
   .clock small{font-size:.3em;font-weight:700;color:var(--soft);margin-left:6px}
-  .times{width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .times{width:100%;display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+  #s-ready{width:min(860px,100%)}
   .times button{font:inherit;aspect-ratio:1;border-radius:18px;border:0;background:#fff;color:var(--blue);
-    font-size:min(9vmin,52px);font-weight:900;cursor:pointer;box-shadow:0 6px 0 rgba(0,0,0,.25);line-height:1}
+    font-size:min(7vmin,44px);font-weight:900;cursor:pointer;box-shadow:0 6px 0 rgba(0,0,0,.25);line-height:1}
   .times button small{display:block;font-size:.4em;font-weight:800;margin-top:4px}
   .times button .n small{display:inline;font-size:.45em;margin:0 0 0 2px}
   .times button em{display:block;font-style:normal;font-size:.36em;font-weight:800;margin-top:6px;opacity:.8}
@@ -102,7 +103,7 @@
     <!-- 시작 대기 -->
     <section class="screen" id="s-ready">
       <h2>몇 분 달릴까요?</h2>
-      <p class="sub">트레드밀에 올라가 시간을 누르면 바로 시작해요<br>통과는 <b id="passTxt">2분</b> 이상 · 1분 더할 때마다 +1점<br>목표 거리는 1분에 <b id="perMin">0.15</b>km · 평균 시속 <b id="minKmh">9</b>km/h 이상</p>
+      <p class="sub">트레드밀에 올라가 시간을 누르면 바로 시작해요<br>통과는 <b id="passTxt">2분</b> 이상 · 1분 더할 때마다 +1점<br>시속 <b id="minKmh">9</b>km/h 이상으로 달려요 · 끝나면 자동으로 저장돼요</p>
       <div class="times" id="times"></div>
       <button class="btn line" id="rescan">다른 학생</button>
     </section>
@@ -118,19 +119,8 @@
       <p class="sub" id="goalTxt"></p>
       <div class="clock"><span id="clock">0:00</span><small>남음</small></div>
       <div class="bar"><i id="barFill"></i></div>
-      <p class="sub">‘삐–’ 소리가 나면 트레드밀을 멈춰요</p>
+      <p class="sub">‘삐–’ 소리가 나면 트레드밀을 멈춰요 · 자동으로 저장돼요</p>
       <button class="btn line" id="stopBtn">그만하기</button>
-    </section>
-
-    <!-- 트레드밀 화면의 기록 입력 -->
-    <section class="screen" id="s-count">
-      <h2>트레드밀 화면의<br>기록을 적어요</h2>
-      <p class="sub" id="timeNote"></p>
-      <label class="field"><span>달린 거리</span><input id="dist" type="number" inputmode="decimal" step="0.01" min="0" max="20" placeholder="0.00"><em>km</em></label>
-      <label class="field"><span>최고 속도</span><input id="speed" type="number" inputmode="decimal" step="0.1" min="0" max="25" placeholder="모르면 비워요"><em>km/h</em></label>
-      <p class="sub">거리는 꼭 적어요 · 최고 속도는 모르면 비워요</p>
-      <p class="sub" id="checkMsg" style="color:var(--warn);font-weight:800"></p>
-      <button class="btn" id="countDone" style="text-align:center">저장하기</button>
     </section>
 
     <!-- 결과 -->
@@ -155,8 +145,8 @@ const CONFIG = {
   TYPE:    'treadmill',
   DOMAIN:  SITE.DOMAIN,
   READY_SEC: 0,          // 시간을 누른 뒤 3-2-1 (0이면 바로 시작, 2026-11-10)
-  TIMES: [1, 2, 3, 4, 5],// 고를 수 있는 시간(분) (2026-11-10)
-  KM_PER_MIN: 0.15,      // 1분 목표 거리(9km/h). 학생 기록 중앙값 0.17km/분·하위 25% 0.145km/분 (2026-11-10)
+  TIMES: [1, 2, 3, 4, 5, 6, 7],// 고를 수 있는 시간(분) (2026-11-10)
+  KMH: 9,                // 거리 = 시간 × 이 시속으로 계산해 자동 저장 (2026-11-10, 거리 입력 없앰. 학생 기록 중앙값 10.1km/h·하위 25% 8.7km/h)
   PASS_SEC: 120,         // 통과 기준 2분 — 화면 안내용 (도장 판정은 GAS '통과기준' 탭)
   MIN_SEC: 10,           // 이보다 짧은 기록은 잘못 누른 것으로 보고 저장하지 않음
   MAX_SEC: 3600,
@@ -169,7 +159,7 @@ const CONFIG = {
 const $ = id => document.getElementById(id);
 let email = '', clientId = '';
 let startAt = 0, rafId = 0, cdTimer = 0, seconds = 0, dist = '', speed = '', goalSec = 0;
-const goalKm = sec => (sec / 60 * CONFIG.KM_PER_MIN).toFixed(2);   // 시간에 맞는 목표 거리
+const goalKm = sec => (sec / 3600 * CONFIG.KMH).toFixed(2);   // 시간 × 시속 = 저장할 거리
 const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 let audio, wakeLock, stream, scanTimer;
 
@@ -231,7 +221,7 @@ function start(min) {
 function run() {
   beep(1000, 400);
   startAt = performance.now();
-  $('goalTxt').textContent = `${goalSec / 60}분 달리기 · 목표 ${goalKm(goalSec)}km (시속 ${+(CONFIG.KM_PER_MIN * 60).toFixed(1)}km/h 이상)`;
+  $('goalTxt').textContent = `${goalSec / 60}분 달리기 · ${goalKm(goalSec)}km (시속 ${CONFIG.KMH}km/h 이상)`;
   show('run');
   let lastBeep = -1;
   const draw = () => {
@@ -251,38 +241,13 @@ function stop(done) {
   beep(500, done === true ? 900 : 400);
   if (seconds < CONFIG.MIN_SEC) { flash('너무 짧아요. 다시 해요'); return toReady(); }
   if (seconds < CONFIG.PASS_SEC) flash(`${mmss(CONFIG.PASS_SEC)}보다 짧아 통과는 안 돼요`);
-  $('dist').value = ''; $('speed').value = ''; $('checkMsg').textContent = '';
-  $('timeNote').textContent = `운동 시간 ${mmss(seconds)} · 이 시간 동안 간 거리를 적어요`;
-  show('count');
-  $('dist').focus();
-}
-/* 입력 확인: 거리는 꼭, 시간에 비해 너무 먼 거리·너무 느린 최고 속도는 다시 적게 함 */
-function checkInput() {
-  const d = parseFloat($('dist').value), v = $('speed').value.trim() === '' ? '' : parseFloat($('speed').value);
-  if (!(d > 0)) return { msg: '달린 거리를 적어요 (트레드밀 화면의 km)' };
-  const avg = d / (seconds / 3600);
-  if (d > 20 || avg > CONFIG.MAX_KMH)
-    return { msg: `${mmss(seconds)} 동안 ${d}km는 너무 멀어요. 소수점을 확인해요 (예: 0.25)`, el: 'dist' };
-  if (v !== '') {
-    if (!(v >= CONFIG.MIN_TOP_KMH && v <= CONFIG.MAX_KMH))
-      return { msg: `최고 속도 ${v}km/h를 확인해요 (보통 3~20). 모르면 비워요`, el: 'speed' };
-    if (v < avg * 0.9)
-      return { msg: `최고 속도가 평균 속도(${avg.toFixed(1)}km/h)보다 느려요. 두 칸이 바뀌지 않았나요?`, el: 'speed' };
-  }
-  return { d: Math.round(d * 100) / 100, v };
-}
-function finish() {
-  const c = checkInput();
-  if (c.msg) { $('checkMsg').textContent = c.msg; beep(300, 200); $(c.el || 'dist').focus(); return; }
-  dist = c.d; speed = c.v;
+  // 거리 입력 없이 자동 저장: 거리 = 시간 × 시속 9km/h, 최고 속도는 빈칸 (2026-11-10)
+  dist = +goalKm(seconds); speed = '';
   show('result');
   $('resMain').textContent = mmss(seconds);
   $('resRows').innerHTML =
-    `<div class="row"><span>달린 거리</span><span>${dist === '' ? '–' : dist + ' km'}</span></div>` +
-    (() => { const g = +goalKm(seconds), ok = dist >= g;
-      return `<div class="row"><span>목표 거리 ${g.toFixed(2)}km</span><span style="color:${ok ? 'var(--good)' : 'var(--warn)'}">${ok ? '달성 👍' : (g - dist).toFixed(2) + 'km 모자라요'}</span></div>`; })() +
-    `<div class="row"><span>평균 속도</span><span>${(dist / (seconds / 3600)).toFixed(1)} km/h</span></div>` +
-    `<div class="row"><span>최고 속도</span><span>${speed === '' ? '–' : speed + ' km/h'}</span></div>`;
+    `<div class="row"><span>거리 (시속 ${CONFIG.KMH}km/h로 계산)</span><span>${dist.toFixed(2)} km</span></div>` +
+    `<div class="row"><span>통과 (${mmss(CONFIG.PASS_SEC)} 이상)</span><span>${seconds >= CONFIG.PASS_SEC ? '✓ 통과' + (seconds >= CONFIG.PASS_SEC + 60 ? ` · +${Math.floor((seconds - CONFIG.PASS_SEC) / 60)}점` : '') : '아직이에요'}</span></div>`;
   save();
 }
 
@@ -336,12 +301,10 @@ if (FROM_HUB) {
 /* ===== 버튼 ===== */
 $('times').innerHTML = CONFIG.TIMES.map(m =>
   `<button data-min="${m}"${m * 60 === CONFIG.PASS_SEC ? ' class="pass"' : ''}><span class="n">${m}<small>분</small></span><small>${m * 60 > CONFIG.PASS_SEC ? '+' + Math.floor((m * 60 - CONFIG.PASS_SEC) / 60) + '점' : m * 60 === CONFIG.PASS_SEC ? '통과' : '&nbsp;'}</small><em>${goalKm(m * 60)}km</em></button>`).join('');
-$('minKmh').textContent = +(CONFIG.KM_PER_MIN * 60).toFixed(1);
-$('perMin').textContent = CONFIG.KM_PER_MIN.toFixed(2);
+$('minKmh').textContent = CONFIG.KMH;
 $('times').onclick = e => { const b = e.target.closest('button'); if (b) start(+b.dataset.min); };
 $('passTxt').textContent = CONFIG.PASS_SEC % 60 ? mmss(CONFIG.PASS_SEC) : (CONFIG.PASS_SEC / 60) + '분';
 $('stopBtn').onclick = () => stop(false);
-$('countDone').onclick = finish;
 $('again').onclick = toReady;
 $('retrySave').onclick = save;
 $('rescan').onclick = $('next').onclick = $('cancel').onclick = backOrScan;
