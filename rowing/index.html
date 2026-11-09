@@ -108,7 +108,8 @@
         <input class="wide" id="km" type="number" inputmode="decimal" min="0" max="20" step="0.001" placeholder="0.000"><em>km</em></label>
       <label class="field"><span>평균 SPM</span>
         <input class="wide" id="spm" type="number" inputmode="numeric" min="0" max="60" step="1" placeholder="모르면 비워요"><em>회/분</em></label>
-      <p class="sub">SPM은 1분 동안 노를 당긴 횟수예요</p>
+      <p class="sub">거리는 m로 적어도 돼요 (250 → 0.250km) · SPM은 1분 동안 노를 당긴 횟수예요</p>
+      <p class="sub" id="checkMsg" style="color:var(--warn);font-weight:800"></p>
       <button class="btn center" id="saveBtn">저장하기</button>
     </section>
 
@@ -134,6 +135,10 @@ const CONFIG = {
   DOMAIN:  SITE.DOMAIN,
   MAX_SEC: 3600,         // 60분
   MAX_KM:  20,
+  // ---- 입력 확인 (2026-11-10, 시트에 1분에 4.190km·3초처럼 잘못 적은 기록이 섞여 있어서) ----
+  MIN_SEC: 10,           // 이보다 짧으면 시간을 잘못 적은 것
+  MAX_KMH: 30,           // 평균 속도가 이보다 빠르면 거리를 잘못 적은 것 (1분에 0.5km)
+  METER_FROM: 50,        // 거리에 이 이상 숫자를 적으면 m로 보고 km로 바꿈 (250 → 0.250)
   SAVE_TIMEOUT_MS: 30000
 };
 
@@ -196,18 +201,25 @@ function toInput() {
   $('lTime').textContent = t ? '정한 시간' : '걸린 시간';
   $('lDist').textContent = t ? '간 거리' : '정한 거리';
   ['mm', 'ss', 'km', 'spm'].forEach(id => $(id).value = '');
+  $('checkMsg').textContent = '';
   show('input');
   (t ? $('km') : $('mm')).focus();
 }
 function finish() {
   const mm = parseInt($('mm').value || '0', 10), ss = parseInt($('ss').value || '0', 10);
   const seconds = mm * 60 + ss;
-  const km = Math.round(parseFloat($('km').value) * 1000) / 1000;
+  let kmIn = parseFloat($('km').value);
+  if (kmIn >= CONFIG.METER_FROM) kmIn /= 1000;        // m로 적은 것 → km
+  const km = Math.round(kmIn * 1000) / 1000;
   const spmRaw = $('spm').value.trim(), spm = spmRaw === '' ? '' : parseInt(spmRaw, 10);
+  const bad = (msg, el) => { $('checkMsg').textContent = msg; beep(300, 200); $(el).focus(); };
 
-  if (!(mm >= 0 && ss >= 0 && ss <= 59) || seconds <= 0 || seconds > CONFIG.MAX_SEC) { flash('시간을 확인해 주세요 (초는 0~59)'); return; }
-  if (!(km > 0 && km <= CONFIG.MAX_KM)) { flash('거리를 km로 적어 주세요 (예: 1.250)'); return; }
-  if (spm !== '' && !(spm >= 0 && spm <= 60)) { flash('SPM은 0~60 사이로 적어요'); return; }
+  if (!(mm >= 0 && ss >= 0 && ss <= 59) || seconds > CONFIG.MAX_SEC) return bad('시간을 확인해 주세요 (초는 0~59)', 'mm');
+  if (seconds < CONFIG.MIN_SEC) return bad(`시간을 확인해요 (${CONFIG.MIN_SEC}초보다 짧아요)`, 'mm');
+  if (!(km > 0 && km <= CONFIG.MAX_KM)) return bad('거리를 적어요 (예: 0.250 또는 250m)', 'km');
+  if (km / (seconds / 3600) > CONFIG.MAX_KMH)
+    return bad(`${mmss(seconds)} 동안 ${km.toFixed(3)}km는 너무 멀어요. 소수점을 확인해요`, 'km');
+  if (spm !== '' && !(spm >= 0 && spm <= 60)) return bad('SPM은 0~60 사이로 적어요', 'spm');
 
   rec = { mode, seconds, distanceKm: km, spm };
   const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
@@ -215,6 +227,7 @@ function finish() {
     row('방식', mode === 'time' ? '시간 정해서 타기' : '거리 정해서 타기') +
     row('시간', mmss(seconds)) +
     row('거리', km.toFixed(3) + ' km') +
+    row('500m 기록', mmss(Math.round(seconds * 0.5 / km))) +
     row('평균 SPM', spm === '' ? '–' : spm + ' 회/분');
   show('result');
   save();

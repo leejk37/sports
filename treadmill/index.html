@@ -112,9 +112,11 @@
     <!-- 트레드밀 화면의 기록 입력 -->
     <section class="screen" id="s-count">
       <h2>트레드밀 화면의<br>기록을 적어요</h2>
+      <p class="sub" id="timeNote"></p>
       <label class="field"><span>달린 거리</span><input id="dist" type="number" inputmode="decimal" step="0.01" min="0" max="20" placeholder="0.00"><em>km</em></label>
-      <label class="field"><span>최고 속도</span><input id="speed" type="number" inputmode="decimal" step="0.1" min="0" max="25" placeholder="0.0"><em>km/h</em></label>
-      <p class="sub">모르는 칸은 비워 두어도 돼요</p>
+      <label class="field"><span>최고 속도</span><input id="speed" type="number" inputmode="decimal" step="0.1" min="0" max="25" placeholder="모르면 비워요"><em>km/h</em></label>
+      <p class="sub">거리는 꼭 적어요 · 최고 속도는 모르면 비워요</p>
+      <p class="sub" id="checkMsg" style="color:var(--warn);font-weight:800"></p>
       <button class="btn" id="countDone" style="text-align:center">저장하기</button>
     </section>
 
@@ -142,6 +144,9 @@ const CONFIG = {
   READY_SEC: 3,          // 시작 버튼 후 카운트다운 (0이면 바로 시작)
   MIN_SEC: 10,           // 이보다 짧은 기록은 잘못 누른 것으로 보고 저장하지 않음
   MAX_SEC: 3600,
+  // ---- 입력 확인 (2026-11-10, 시트에 10km·19km·속도 1.1처럼 잘못 적은 기록이 섞여 있어서) ----
+  MAX_KMH: 25,           // 평균 속도(거리 ÷ 시간)가 이보다 빠르면 거리를 잘못 적은 것
+  MIN_TOP_KMH: 2,        // 최고 속도가 이보다 느리면 소수점을 잘못 찍은 것 (1.11 → 11.1)
   SAVE_TIMEOUT_MS: 30000
 };
 
@@ -222,16 +227,35 @@ function stop() {
   seconds = Math.round((performance.now() - startAt) / 1000);
   beep(500, 400);
   if (seconds < CONFIG.MIN_SEC) { flash('너무 짧아요. 다시 해요'); return toReady(); }
-  $('dist').value = ''; $('speed').value = '';
+  $('dist').value = ''; $('speed').value = ''; $('checkMsg').textContent = '';
+  $('timeNote').textContent = `운동 시간 ${mmss(seconds)} · 이 시간 동안 간 거리를 적어요`;
   show('count');
+  $('dist').focus();
+}
+/* 입력 확인: 거리는 꼭, 시간에 비해 너무 먼 거리·너무 느린 최고 속도는 다시 적게 함 */
+function checkInput() {
+  const d = parseFloat($('dist').value), v = $('speed').value.trim() === '' ? '' : parseFloat($('speed').value);
+  if (!(d > 0)) return { msg: '달린 거리를 적어요 (트레드밀 화면의 km)' };
+  const avg = d / (seconds / 3600);
+  if (d > 20 || avg > CONFIG.MAX_KMH)
+    return { msg: `${mmss(seconds)} 동안 ${d}km는 너무 멀어요. 소수점을 확인해요 (예: 0.25)`, el: 'dist' };
+  if (v !== '') {
+    if (!(v >= CONFIG.MIN_TOP_KMH && v <= CONFIG.MAX_KMH))
+      return { msg: `최고 속도 ${v}km/h를 확인해요 (보통 3~20). 모르면 비워요`, el: 'speed' };
+    if (v < avg * 0.9)
+      return { msg: `최고 속도가 평균 속도(${avg.toFixed(1)}km/h)보다 느려요. 두 칸이 바뀌지 않았나요?`, el: 'speed' };
+  }
+  return { d: Math.round(d * 100) / 100, v };
 }
 function finish() {
-  const num = (v, max) => { const x = parseFloat(v); return isFinite(x) && x >= 0 && x <= max ? x : ''; };
-  dist = num($('dist').value, 20); speed = num($('speed').value, 25);
+  const c = checkInput();
+  if (c.msg) { $('checkMsg').textContent = c.msg; beep(300, 200); $(c.el || 'dist').focus(); return; }
+  dist = c.d; speed = c.v;
   show('result');
   $('resMain').textContent = mmss(seconds);
   $('resRows').innerHTML =
     `<div class="row"><span>달린 거리</span><span>${dist === '' ? '–' : dist + ' km'}</span></div>` +
+    `<div class="row"><span>평균 속도</span><span>${(dist / (seconds / 3600)).toFixed(1)} km/h</span></div>` +
     `<div class="row"><span>최고 속도</span><span>${speed === '' ? '–' : speed + ' km/h'}</span></div>`;
   save();
 }

@@ -153,6 +153,7 @@ const CONFIG = {
   SWING_MAX: 0.35,       // 엉덩이 가운데가 두 손 가운데에서 좌우로 어깨너비의 이만큼 넘게 벗어나면 '흔들림' → 그동안 시간 멈춤
   LOST_MS: 1500,         // 사람을 이만큼 못 찾으면 끝
   MAX_SEC: 180,          // 최대 측정 시간
+  MIN_SAVE_SEC: 3,       // 이보다 짧은 기록은 저장하지 않음 (2026-11-10: 0~2초 기록이 많아 — 발이 닿았거나 잘못 시작된 것)
   VIS_MIN: 0.5,          // 어깨·코 인식 신뢰도
   VIS_WRIST: 0.3,        // 손목 인식 신뢰도 (철봉 근처는 낮게 잡힘)
   SAVE_TIMEOUT_MS: 30000
@@ -431,6 +432,7 @@ function finish() {
   $('resMain').textContent = seconds.toFixed(1); $('resUnit').textContent = '초';
   $('resRows').innerHTML = '<div class="row"><span>방법</span><span>매달리기</span></div>' +
     `<div class="row"><span>흔들려서 멈춘 시간</span>${result.swing ? `<b>${result.swing.toFixed(1)}초</b>` : '<span>없음 👍</span>'}</div>`;
+  if (seconds < CONFIG.MIN_SAVE_SEC) { setSave(`${CONFIG.MIN_SAVE_SEC}초보다 짧아 저장하지 않았어요 · 한 번 더 해 봐요`, 'fail'); $('retrySave').hidden = true; return; }
   save();
 }
 
