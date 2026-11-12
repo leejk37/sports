@@ -39,6 +39,7 @@
   tbody tr:hover{background:rgba(255,255,255,.06)}
   td.bal{font-size:22px;font-weight:900;color:var(--yellow)}
   td.zero{color:var(--dim)}
+  td.mathc{color:#7dd3fc;font-weight:800}
   td.tm{font-weight:800} td.tm small{color:var(--green);font-weight:800;font-size:15px}
   td .gbtn{font-size:16px;font-weight:900;padding:5px 10px;border-radius:999px;border:0;background:var(--yellow);color:var(--blue-dd);cursor:pointer}
   @media (max-width:700px){ .hide-s{display:none} th,td{padding:9px 5px;font-size:17px} }
@@ -189,18 +190,19 @@ function render() {
     no: (a, b) => num(a.grade) - num(b.grade) || String(a.cls).localeCompare(String(b.cls)) || num(a.no) - num(b.no),
     group: (a, b) => (num(a.group) || 99) - (num(b.group) || 99) || num(a.no) - num(b.no),
     bal: (a, b) => b.bal - a.bal, earned: (a, b) => b.earned - a.earned, month: (a, b) => b.month - a.month,
+    math: (a, b) => (b.math || 0) - (a.math || 0), total: (a, b) => (b.total || 0) - (a.total || 0),
     badges: (a, b) => b.badges - a.badges, time: (a, b) => (b.time || 0) - (a.time || 0), stamp: (a, b) => b.stamp - a.stamp, streak: (a, b) => b.streak - a.streak
   }[sortBy] || (() => 0);
   list = list.slice().sort((a, b) => by(a, b) || num(a.no) - num(b.no));
 
-  const tot = list.reduce((t, s) => (t.e += s.earned, t.b += s.bal, t.s += s.spent, t.m += s.month, t.t += s.time || 0, t), { e: 0, b: 0, s: 0, m: 0, t: 0 });
+  const tot = list.reduce((t, s) => (t.e += s.earned, t.b += s.bal, t.s += s.spent, t.m += s.month, t.t += s.time || 0, t.x += s.math || 0, t), { e: 0, b: 0, s: 0, m: 0, t: 0, x: 0 });
   const groups = {};
   if (ck !== 'all') list.forEach(s => { if (s.group) groups[s.group] = (groups[s.group] || 0) + s.earned; });
   const gHtml = Object.keys(groups).sort((a, b) => num(a) - num(b)).map(g => `<span class="gchip">${esc(g)}모둠 <b>${fmt(groups[g])}P</b></span>`).join('');
   const th = (k, t, cls = '') => `<th class="${cls}${sortBy === k ? ' on' : ''}" data-k="${k}">${t}</th>`;
   const rows = list.map(s => `<tr data-id="${esc(s.id)}">
       <td>${ck === 'all' ? `${esc(s.grade)}-${esc(s.cls)} ` : ''}${esc(s.no)}</td><td><b>${esc(s.name)}</b></td><td class="hide-s">${s.group ? esc(s.group) + '모둠' : ''}</td>
-      <td class="bal${s.bal ? '' : ' zero'}">${fmt(s.bal)}</td><td>${fmt(s.earned)}</td><td class="hide-s">${fmt(s.month)}</td>
+      <td class="bal${s.bal ? '' : ' zero'}">${fmt(s.bal)}</td><td>${fmt(s.earned)}</td><td class="mathc">${fmt(s.math || 0)}</td><td>${fmt(s.total != null ? s.total : s.earned)}</td><td class="hide-s">${fmt(s.month)}</td>
       <td class="tm">${hm(s.time)}${s.timeToday ? ` <small>+${hm(s.timeToday)}</small>` : ''}</td><td>${s.badges}</td><td class="hide-s">${s.stamp}${s.perfect ? ` <small style="color:var(--yellow)">★${s.perfect}</small>` : ''}</td><td class="hide-s">${s.streak}</td>
       <td><button class="gbtn" data-give="${esc(s.id)}">선물</button></td></tr>`).join('');
   $('app').innerHTML = `
@@ -208,12 +210,13 @@ function render() {
       <div><b>${list.length}</b><span>학생</span></div>
       <div><b>${fmt(tot.b)}</b><span>남은 포인트 합</span></div>
       <div><b>${fmt(tot.e)}</b><span>모은 포인트 합</span></div>
+      <div><b>${fmt(tot.x)}</b><span>🧠 수학 포인트 합</span></div>
       <div><b>${fmt(tot.m)}</b><span>이달 포인트 합</span></div>
       <div><b>${fmt(tot.s)}</b><span>선물로 쓴 포인트</span></div>
       <div><b>${hm(tot.t)}</b><span>운동 시간 합</span></div>
     </div>
     ${gHtml ? `<div class="groups">${gHtml}</div>` : ''}
-    ${list.length ? `<table><thead><tr>${th('no', '번호')}${th('no', '이름')}${th('group', '모둠', 'hide-s')}${th('bal', '남은 P')}${th('earned', '모은 P')}${th('month', '이달', 'hide-s')}${th('time', '운동 시간')}${th('badges', '뱃지')}${th('stamp', '도장', 'hide-s')}${th('streak', '최고 연속', 'hide-s')}<th></th></tr></thead>
+    ${list.length ? `<table><thead><tr>${th('no', '번호')}${th('no', '이름')}${th('group', '모둠', 'hide-s')}${th('bal', '남은 P')}${th('earned', '모은 P')}${th('math', '🧠 수학 P')}${th('total', '합계')}${th('month', '이달', 'hide-s')}${th('time', '운동 시간')}${th('badges', '뱃지')}${th('stamp', '도장', 'hide-s')}${th('streak', '최고 연속', 'hide-s')}<th></th></tr></thead>
       <tbody>${rows}</tbody></table>` : '<div class="empty">학생이 없어요</div>'}`;
   document.querySelectorAll('th[data-k]').forEach(t => t.onclick = () => { sortBy = t.dataset.k; store.set('ptSort', sortBy); render(); });
   document.querySelectorAll('tbody tr').forEach(r => r.onclick = e => openStudent(r.dataset.id, !!e.target.dataset.give));
@@ -276,6 +279,12 @@ function drawPanel(toGift, msg) {
       <div><b>${fmt(d.month)}</b><span>이달</span></div>
     </div>
     <div class="psum">
+      <div class="big"><b>${fmt(d.total != null ? d.total : d.earned)}</b><span>체력+수학 합계</span></div>
+      <div><b>${fmt(d.earned)}</b><span>💪 체력</span></div>
+      <div><b>${fmt(d.math || 0)}</b><span>🧠 수학</span></div>
+      <div><b>${fmt(d.balance || 0)}</b><span>⚖️ 병진</span></div>
+    </div>
+    <div class="psum">
       <div class="big"><b>${hm(d.time)}</b><span>운동 시간 (10/19부터)</span></div>
       <div><b>${hm(d.timeMonth)}</b><span>이달</span></div>
       <div><b>${hm(d.timeToday)}</b><span>오늘</span></div>
@@ -291,7 +300,7 @@ function drawPanel(toGift, msg) {
     <div class="badges">${badges}</div>
     <div class="sec">최근 내역</div>
     <div class="hist">${hist}</div>
-    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 운동 시간은 바로 반영돼요 (각 기록의 측정시간 합, 실내자전거는 아직 빠짐)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
+    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 🧠 수학은 연산진단시스템 포인트(매일 아침 6시 반영). 선물은 체력 포인트로만 줘요 (수학 선물은 연산진단 ⭐ 포인트 화면에서). ⚖️ 병진 = 체력과 수학 중 작은 쪽<br>· 운동 시간은 바로 반영돼요 (각 기록의 측정시간 합, 실내자전거는 아직 빠짐)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
   $('close').onclick = closePanel;
   document.querySelectorAll('.g').forEach(b => b.onclick = () => { pick = Number(b.dataset.i); drawPanel(); });
   if ($('giveNo')) $('giveNo').onclick = () => { pick = null; drawPanel(); };
@@ -324,7 +333,7 @@ async function give(g, short) {
 
 /* ===== 학생용: 열쇠가 없으면 포인트 순위 (이름 가림, 남은 포인트·내역 없음) ===== */
 let pub = null, pubBy = store.get('pubSort') || 'earned', pubAll = false;
-const PUB_TABS = [['earned', '💎 모은 포인트', 'P'], ['month', '📅 이번 달', 'P'], ['badges', '🏅 뱃지', '개'], ['perfect', '⭐ 완벽 도장', '개'], ['streak', '🔥 최고 연속', '일']];
+const PUB_TABS = [['earned', '💎 모은 포인트', 'P'], ['math', '🧠 수학', 'P'], ['total', '🤝 체력+수학', 'P'], ['balance', '⚖️ 병진', 'P'], ['month', '📅 이번 달', 'P'], ['badges', '🏅 뱃지', '개'], ['perfect', '⭐ 완벽 도장', '개'], ['streak', '🔥 최고 연속', '일']];
 function renderPub() {
   if (!pub) return;
   const ck = $('cls').value, num = v => Number(v) || 0;
@@ -360,7 +369,7 @@ function renderPub() {
       <div class="box"><h3>${tab[1]} 순위</h3>${rows || '<div style="color:var(--dim);padding:20px 0">아직 기록이 없어요. 오늘 운동하고 첫 번째 주인공이 되어 보세요!</div>'}
         ${top.length > N ? `<button class="more" id="more">더 보기 (${top.length - N}명) ▾</button>` : ''}</div>
       <div>${side}
-        <div class="note">· 포인트는 매일 밤 1시에 확정돼요<br>· 순위는 모은 포인트예요. 선물로 바꿔도 줄지 않아요<br>· 내 남은 포인트와 내역은 허브 '내 도장'에서 볼 수 있어요<br>· 어떻게 포인트를 받는지는 메뉴의 '포인트 규칙'에서</div></div>
+        <div class="note">· 포인트는 매일 밤 1시에 확정돼요<br>· 🧠 수학은 연산진단 포인트(아침 6시 반영), ⚖️ 병진은 체력과 수학 중 작은 쪽이에요. 둘 다 해야 올라가요<br>· 순위는 모은 포인트예요. 선물로 바꿔도 줄지 않아요<br>· 내 남은 포인트와 내역은 허브 '내 도장'에서 볼 수 있어요<br>· 어떻게 포인트를 받는지는 메뉴의 '포인트 규칙'에서</div></div>
     </div>`;
   document.querySelectorAll('.ptabs button').forEach(b => b.onclick = () => { pubBy = b.dataset.k; store.set('pubSort', pubBy); pubAll = false; renderPub(); });
   if ($('more')) $('more').onclick = () => { pubAll = true; renderPub(); };

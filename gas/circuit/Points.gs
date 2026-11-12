@@ -564,6 +564,32 @@ function pointTimeGet_(ss, ids) {
   return stampShared_(ss, 'tm1', 120, ids, () => pointTimeAll_(ss));
 }
 
+/* ===== 수학 포인트 (2026-11-12, 체력과 지력의 병진) =====
+ *  연산진단시스템(평가데이터 시트의 GAS, 통합포인트.gs)이 매일 아침 6시쯤 이 시트의 '통합포인트현황' 탭을 통째로 다시 씀.
+ *  여기서는 그 탭의 '수학 누적'·'수학 남은'·'이달 수학'을 이메일로 읽기만 함 (5분 캐시). 지갑은 따로: 선물은 체력 포인트로만.
+ *  병진 = 체력(모은 포인트)과 수학(누적) 중 작은 값 → 둘 다 해야 올라감 */
+const POINT_MATH_SHEET = '통합포인트현황';
+function pointMathAll_(ss) {
+  const out = {}, sh = ss.getSheetByName(POINT_MATH_SHEET);
+  if (!sh || sh.getLastRow() < 2) return out;
+  const v = sh.getDataRange().getValues(), h = v[0].map(x => String(x).trim());
+  const iE = h.indexOf('이메일'), iA = h.indexOf('수학 누적'), iL = h.indexOf('수학 남은'), iM = h.indexOf('이달 수학');
+  if (iE < 0 || iA < 0) return out;
+  v.slice(1).forEach(r => {
+    const id = stampIdOf_(r[iE]); if (!id) return;
+    out[id] = { all: Number(r[iA]) || 0, left: iL < 0 ? 0 : Number(r[iL]) || 0, month: iM < 0 ? 0 : Number(r[iM]) || 0 };
+  });
+  return out;
+}
+function pointMathGet_(ss, ids) {
+  return stampShared_(ss, 'mt1', 300, ids, () => pointMathAll_(ss));
+}
+/** 학생 한 명의 체력·수학 합친 값 (earned = 체력 모은 포인트) */
+function pointMix_(earned, m) {
+  const math = m ? m.all : 0;
+  return { math, mathLeft: m ? m.left : 0, mathMonth: m ? m.month : 0, total: earned + math, balance: Math.min(earned, math) };
+}
+
 /* ===== 선생님 화면 (…/sports/points/) — 열쇠(스크립트 속성 DASH_KEY)가 맞을 때만 ===== */
 function pointKeyOk_(key) {
   const real = PropertiesService.getScriptProperties().getProperty('DASH_KEY');
@@ -582,28 +608,30 @@ function pointsTeacher_(p) {
     if (!st) return { ok: false, error: '명단에 없는 학생이에요' };
     const x = pointGet_(ss, [id])[id] || null;
     const tm = pointTimeGet_(ss, [id])[id] || { all: 0, month: 0, today: 0 };
-    return {
+    const mx = pointMix_(x ? x.earned : 0, pointMathGet_(ss, [id])[id]);
+    return Object.assign({
       ok: true, id, name: st.name, grade: st.grade, cls: st.cls, no: st.no, group: st.group,
       earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
       time: tm.all, timeMonth: tm.month, timeToday: tm.today,
       badges: pointBadgeList_(x), recent: x ? x.recent : [], trades: x ? x.trades : [],
       mates: pointMates_(ss, roster, staff, st)
-    };
+    }, mx);
   }
   try { pointGiftSheet_(ss); } catch (e) {}                    // 선물목록에 '모둠 선물' 제목 칸 챙기기
   const list = roster.list.filter(st => !staff.has(st.id));
   const all = pointGet_(ss, list.map(st => st.id));
   const tms = pointTimeGet_(ss, list.map(st => st.id));
+  const mts = pointMathGet_(ss, list.map(st => st.id));
   return {
     ok: true, updated: stampFmt_(new Date(), 'HH:mm'), gifts: pointGifts_(ss),   // 선물목록은 매번 새로
     students: list.map(st => {
       const x = all[st.id], tm = tms[st.id] || { all: 0, month: 0, today: 0 };
-      return {
+      return Object.assign({
         id: st.id, grade: st.grade, cls: st.cls, no: st.no, name: st.name, group: st.group,
         time: tm.all, timeMonth: tm.month, timeToday: tm.today,
         earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
         badges: x ? Object.keys(x.got).length : 0, stamp: x ? x.c.stamp : 0, perfect: x ? x.c.perfect : 0, streak: x ? x.c.streak : 0
-      };
+      }, pointMix_(x ? x.earned : 0, mts[st.id]));
     })
   };
 }
@@ -615,12 +643,14 @@ function pointsPublic_() {
   const staff = pointStaffIds_(ss);
   const list = roster.list.filter(st => !staff.has(st.id) && st.grade);
   const all = pointGet_(ss, list.map(st => st.id));
+  const mts = pointMathGet_(ss, list.map(st => st.id));
   return {
     ok: true, updated: stampFmt_(new Date(), 'HH:mm'),
     students: list.map(st => {
-      const x = all[st.id];
+      const x = all[st.id], mx = pointMix_(x ? x.earned : 0, mts[st.id]);
       return {
         grade: st.grade, cls: st.cls, group: st.group || '', name: rankMask_(st.name),
+        math: mx.math, mathMonth: mx.mathMonth, total: mx.total, balance: mx.balance,
         earned: x ? x.earned : 0, month: x ? x.month : 0, badges: x ? Object.keys(x.got).length : 0,
         stamp: x ? x.c.stamp : 0, perfect: x ? x.c.perfect : 0, streak: x ? x.c.streak : 0
       };
