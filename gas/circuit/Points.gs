@@ -7,7 +7,7 @@
  *   ② 선생님이 '선물교환' 탭에 학년·반·번호·선물만 적으면 → 이름·이메일·포인트를 채우고 남은 포인트에서 뺌
  *   ③ 화면(내 도장·우리 모둠)은 원장을 더하기만 함 → 느려지지 않음. 오늘 것은 '예정'으로 보여 주고 밤에 확정
  *
- *  포인트 = 누적(+만 더함, 줄지 않음 → 뱃지 기준) / 남은 포인트 = 누적 − 선물로 쓴 것
+ *  포인트 = 누적(+만 더함, 줄지 않음 → 뱃지 기준) / 남은 포인트 = (체력 누적 − 선물로 쓴 것) + 수학 남은  (2026-11-13 지갑 하나로)
  *  숫자는 '포인트규칙' 탭에서 고침(없으면 처음 부를 때 기본값으로 만듦). 고친 뒤 rebuildPoints() 한 번 실행하면 지난 것도 새 규칙으로 다시 계산
  *  시작일 2026-10-19 (스마트스포츠 시스템을 쓰기 시작한 무렵)
  *
@@ -498,7 +498,7 @@ function pointsForStamp_(ss, st, sum) {
     .map(g => g.group ? Object.assign({}, g, { members: n, share: Math.ceil(g.cost / n) }) : g)
     .sort((a, b) => (a.share || a.cost) - (b.share || b.cost));
   return {
-    earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0, today,
+    earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, pointMathGet_(ss, [st.id])[st.id]), month: x ? x.month : 0, today,
     badges: pointBadgeList_(x), recent: x ? x.recent.slice(0, 7) : [], trades: x ? x.trades : [], gifts,
     group: st.gkey && all['g_' + st.gkey] ? all['g_' + st.gkey] : null,
     rules: R
@@ -518,13 +518,14 @@ function pointsReport_(ss) {
   pointTrades_(ss, roster, true);                              // 선물교환 빈칸 채우기
   CacheService.getScriptCache().remove('pt1__at');             // 화면 캐시 새로
   const all = pointBuildAll_(ss);
+  const mts = pointMathAll_(ss);
   let sh = ss.getSheetByName(POINT.REPORT);
   if (!sh) sh = ss.insertSheet(POINT.REPORT);
   sh.clear();
-  const head = ['학년', '반', '번호', '이름', '모둠', '누적 포인트', '사용', '남은 포인트', '이달 포인트', '뱃지 수', '도장', '완벽 도장', '최고 연속'];
+  const head = ['학년', '반', '번호', '이름', '모둠', '누적 포인트', '사용', '남은 포인트(체력+수학)', '이달 포인트', '뱃지 수', '도장', '완벽 도장', '최고 연속'];
   const rows = roster.list.filter(st => all[st.id]).map(st => {
     const x = all[st.id];
-    return [st.grade, st.cls, st.no, st.name, st.group, x.earned, x.spent, x.bal, x.month, Object.keys(x.got).length, x.c.stamp, x.c.perfect, x.c.streak];
+    return [st.grade, st.cls, st.no, st.name, st.group, x.earned, x.spent, pointBal_(x, mts[st.id]), x.month, Object.keys(x.got).length, x.c.stamp, x.c.perfect, x.c.streak];
   });
   sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
   if (rows.length) sh.getRange(2, 1, rows.length, head.length).setValues(rows);
@@ -566,7 +567,9 @@ function pointTimeGet_(ss, ids) {
 
 /* ===== 수학 포인트 (2026-11-12, 체력과 지력의 병진) =====
  *  연산진단시스템(평가데이터 시트의 GAS, 통합포인트.gs)이 매일 아침 6시쯤 이 시트의 '통합포인트현황' 탭을 통째로 다시 씀.
- *  여기서는 그 탭의 '수학 누적'·'수학 남은'·'이달 수학'을 이메일로 읽기만 함 (5분 캐시). 지갑은 따로: 선물은 체력 포인트로만.
+ *  여기서는 그 탭의 '수학 누적'·'수학 남은'·'이달 수학'을 이메일로 읽기만 함 (5분 캐시).
+ *  지갑은 하나(2026-11-13 선생님 결정): 선물에 쓰는 남은 포인트 = 체력 남은(모은 − 선물교환) + 수학 남은. 선물은 이 화면에서만 줌
+ *  (연산진단 ⭐ 화면에서도 수학 선물을 주면 그쪽은 이 차감을 몰라 같은 포인트를 두 번 쓸 수 있음)
  *  병진 = 체력(모은 포인트)과 수학(누적) 중 작은 값 → 둘 다 해야 올라감 */
 const POINT_MATH_SHEET = '통합포인트현황';
 function pointMathAll_(ss) {
@@ -589,6 +592,8 @@ function pointMix_(earned, m) {
   const math = m ? m.all : 0;
   return { math, mathLeft: m ? m.left : 0, mathMonth: m ? m.month : 0, total: earned + math, balance: Math.min(earned, math) };
 }
+/** 선물에 쓸 수 있는 남은 포인트 = 체력 남은(모은 − 선물교환) + 수학 남은 (2026-11-13 지갑 하나로) */
+function pointBal_(x, m) { return (x ? x.bal : 0) + (m ? m.left : 0); }
 
 /* ===== 선생님 화면 (…/sports/points/) — 열쇠(스크립트 속성 DASH_KEY)가 맞을 때만 ===== */
 function pointKeyOk_(key) {
@@ -611,7 +616,7 @@ function pointsTeacher_(p) {
     const mx = pointMix_(x ? x.earned : 0, pointMathGet_(ss, [id])[id]);
     return Object.assign({
       ok: true, id, name: st.name, grade: st.grade, cls: st.cls, no: st.no, group: st.group,
-      earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
+      earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, pointMathGet_(ss, [id])[id]), month: x ? x.month : 0,
       time: tm.all, timeMonth: tm.month, timeToday: tm.today,
       badges: pointBadgeList_(x), recent: x ? x.recent : [], trades: x ? x.trades : [],
       mates: pointMates_(ss, roster, staff, st)
@@ -629,7 +634,7 @@ function pointsTeacher_(p) {
       return Object.assign({
         id: st.id, grade: st.grade, cls: st.cls, no: st.no, name: st.name, group: st.group,
         time: tm.all, timeMonth: tm.month, timeToday: tm.today,
-        earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: x ? x.bal : 0, month: x ? x.month : 0,
+        earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, mts[st.id]), month: x ? x.month : 0,
         badges: x ? Object.keys(x.got).length : 0, stamp: x ? x.c.stamp : 0, perfect: x ? x.c.perfect : 0, streak: x ? x.c.streak : 0
       }, pointMix_(x ? x.earned : 0, mts[st.id]));
     })
@@ -674,7 +679,7 @@ function pointsGive_(p) {
     cache.remove('pt1__at');                                   // 최신 남은 포인트로 확인
     if (gift.group) return pointsGiveGroup_(ss, roster, st, gift, String(p.force) === '1');
     const x = pointGet_(ss, [id])[id];
-    const bal = x ? x.bal : 0;
+    const bal = pointBal_(x, pointMathGet_(ss, [id])[id]);   // 체력 남은 + 수학 남은
     if (bal < gift.cost && String(p.force) !== '1') return { ok: false, short: true, bal, cost: gift.cost, error: `남은 포인트(${bal}P)가 모자라요` };
     const sh = pointTradeSheet_(ss);
     const row = sh.getLastRow() + 1;
@@ -691,7 +696,8 @@ function pointMates_(ss, roster, staff, st) {
   if (!st.gkey) return [];
   const mates = roster.list.filter(m => m.gkey === st.gkey && !staff.has(m.id)).sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
   const all = pointGet_(ss, mates.map(m => m.id));
-  return mates.map(m => ({ id: m.id, name: m.name, no: m.no, bal: all[m.id] ? all[m.id].bal : 0 }));
+  const mts = pointMathGet_(ss, mates.map(m => m.id));
+  return mates.map(m => ({ id: m.id, name: m.name, no: m.no, bal: pointBal_(all[m.id], mts[m.id]) }));
 }
 
 /** 모둠 선물: 값을 모둠원 수로 똑같이 나눠(나머지 1P씩은 앞 번호부터) 각자의 남은 포인트에서 뺌.
