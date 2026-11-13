@@ -155,7 +155,7 @@
 <main>
   <section class="card" id="points">
     <h2>💎 포인트 표</h2>
-    <p class="sub">운동한 만큼 포인트가 쌓여요. 모은 포인트로 선물을 바꿀 수 있어요.</p>
+    <p class="sub">운동한 만큼 포인트가 쌓여요. 체력 포인트와 수학 포인트를 합쳐 선물로 바꿀 수 있어요.</p>
     <div class="ptGrid" id="ptRows"></div>
   </section>
 
@@ -173,7 +173,7 @@
 
   <section class="card" id="gifts">
     <h2>🎁 선물</h2>
-    <p class="sub">선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>만 줄고, 모은 포인트와 뱃지는 그대로예요.</p>
+    <p class="sub">선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>(체력 + 수학)만 줄고, 체력·수학 포인트와 뱃지는 그대로예요.</p>
     <div class="gifts" id="giftList"></div>
   </section>
 
@@ -402,7 +402,7 @@ function drawGuide() {
       row('연속', `${P(r['아침달리기 연속 3일'] ?? 5)} · ${P(r['아침달리기 연속 4일'] ?? 7)} · ${P(r['아침달리기 연속 5일'] ?? 10)}점`, '연속 3·4·5일째. 주말·휴일은 건너뛰고, 5일째 다음 날은 다시 1일째부터')
     ]);
 
-  const what = { stamp: '도장', perfect: '완벽 도장', streak: '연속', group: '모둠 도장', pb: '기록 경신', acc: '바른 자세', earned: '모은 포인트' };
+  const what = { stamp: '도장', perfect: '완벽 도장', streak: '연속', group: '모둠 도장', pb: '기록 경신', acc: '바른 자세', earned: '체력 포인트' };
   $('badgeList').innerHTML = (R.badges || []).length ? R.badges.map(b => `<div class="bd"><div class="i">${b.icon}</div><b>${esc(b.name)}</b><small>${what[b.what] || ''} ${b.n}${b.what === 'streak' ? '일' : b.what === 'earned' ? '점' : b.what === 'pb' || b.what === 'acc' ? '번' : '개'}</small></div>`).join('')
     : '<div style="color:var(--dim)">뱃지 목록을 불러오는 중이에요</div>';
   $('giftList').innerHTML = (R.gifts || []).length ? R.gifts.slice().sort((a, b) => a.cost - b.cost).map(g => `<div class="gf"><b>${esc(g.name)}${g.group ? '<small>🤝 모둠 선물 · 모둠원이 나눠 내요</small>' : ''}</b><span>${P(g.cost)}점</span></div>`).join('')
@@ -412,7 +412,7 @@ function drawGuide() {
     '자전거 기록은 선생님이 모아서 넣기 때문에 며칠 늦게 들어올 수 있어요. 밤마다 최근 7일을 다시 계산하니 걱정하지 않아도 돼요',
     '\'내 도장\'의 <b>오늘 +○점 예정</b>은 지금까지 통과한 종목과 도장 포인트예요. 스쿼트·줄넘기 횟수·자전거·기록 경신·바른 자세 포인트는 밤에 더해져요',
     '측정 앱으로 기록해야 통과로 셀 수 있어요. 집에서도 허브에 로그인하고 운동하면 똑같이 쌓여요',
-    '선물을 바꾸면 남은 포인트만 줄어요. 모은 포인트와 뱃지는 그대로예요. 🤝 모둠 선물은 모둠원 모두 \'내 몫\'만큼 남은 포인트가 있어야 해요',
+    '선물을 바꾸면 남은 포인트(체력 + 수학)만 줄어요. 체력·수학 포인트와 뱃지는 그대로예요. 🤝 모둠 선물은 모둠원 모두 \'내 몫\'만큼 남은 포인트가 있어야 해요',
     '규칙의 숫자는 선생님이 바꿀 수 있어요. 이 화면은 언제나 지금 규칙을 보여 줘요'
   ].map(t => `<li>${t}</li>`).join('');
 }
