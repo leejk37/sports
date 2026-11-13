@@ -497,8 +497,10 @@ function pointsForStamp_(ss, st, sum) {
     g => !g.group || n)            // 모둠이 없으면 모둠 선물은 안 보임
     .map(g => g.group ? Object.assign({}, g, { members: n, share: Math.ceil(g.cost / n) }) : g)
     .sort((a, b) => (a.share || a.cost) - (b.share || b.cost));
+  const m = pointMathGet_(ss, [st.id])[st.id];                 // 수학 포인트 (통합포인트현황 탭)
   return {
-    earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, pointMathGet_(ss, [st.id])[st.id]), month: x ? x.month : 0, today,
+    earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, m), month: x ? x.month : 0, today,
+    math: m ? m.all : 0, mathMonth: m ? m.month : 0,            // 학생 '내 도장'에 🧠 수학 P (2026-11-13)
     badges: pointBadgeList_(x), recent: x ? x.recent.slice(0, 7) : [], trades: x ? x.trades : [], gifts,
     group: st.gkey && all['g_' + st.gkey] ? all['g_' + st.gkey] : null,
     rules: R
