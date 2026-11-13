@@ -524,10 +524,11 @@ function pointsReport_(ss) {
   let sh = ss.getSheetByName(POINT.REPORT);
   if (!sh) sh = ss.insertSheet(POINT.REPORT);
   sh.clear();
-  const head = ['학년', '반', '번호', '이름', '모둠', '누적 포인트', '사용', '남은 포인트(체력+수학)', '이달 포인트', '뱃지 수', '도장', '완벽 도장', '최고 연속'];
+  // H '남은 포인트'는 체력만 (연산진단 통합포인트.gs가 이 열을 '체력 남은'으로 읽음). 선물에 쓰는 합친 값은 맨 끝 N열 (2026-11-13)
+  const head = ['학년', '반', '번호', '이름', '모둠', '누적 포인트', '사용', '남은 포인트', '이달 포인트', '뱃지 수', '도장', '완벽 도장', '최고 연속', '선물용 남은(체력+수학)'];
   const rows = roster.list.filter(st => all[st.id]).map(st => {
     const x = all[st.id];
-    return [st.grade, st.cls, st.no, st.name, st.group, x.earned, x.spent, pointBal_(x, mts[st.id]), x.month, Object.keys(x.got).length, x.c.stamp, x.c.perfect, x.c.streak];
+    return [st.grade, st.cls, st.no, st.name, st.group, x.earned, x.spent, x.bal, x.month, Object.keys(x.got).length, x.c.stamp, x.c.perfect, x.c.streak, pointBal_(x, mts[st.id])];
   });
   sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
   if (rows.length) sh.getRange(2, 1, rows.length, head.length).setValues(rows);
@@ -568,7 +569,7 @@ function pointTimeGet_(ss, ids) {
 }
 
 /* ===== 수학 포인트 (2026-11-12, 체력과 지력의 병진) =====
- *  연산진단시스템(평가데이터 시트의 GAS, 통합포인트.gs)이 매일 아침 6시쯤 이 시트의 '통합포인트현황' 탭을 통째로 다시 씀.
+ *  연산진단시스템(평가데이터 시트의 GAS, 통합포인트.gs)이 10분마다(2026-11-13, 전에는 아침 6시) 이 시트의 '통합포인트현황' 탭을 통째로 다시 씀.
  *  여기서는 그 탭의 '수학 누적'·'수학 남은'·'이달 수학'을 이메일로 읽기만 함 (5분 캐시).
  *  지갑은 하나(2026-11-13 선생님 결정): 선물에 쓰는 남은 포인트 = 체력 남은(모은 − 선물교환) + 수학 남은. 선물은 이 화면에서만 줌
  *  (연산진단 ⭐ 화면에서도 수학 선물을 주면 그쪽은 이 차감을 몰라 같은 포인트를 두 번 쓸 수 있음)

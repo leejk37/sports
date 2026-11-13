@@ -303,7 +303,7 @@ function drawPanel(toGift, msg) {
     <div class="badges">${badges}</div>
     <div class="sec">최근 내역</div>
     <div class="hist">${hist}</div>
-    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 🧠 수학은 연산진단시스템 포인트(매일 아침 6시 반영). <b>남은 P = 체력 남은 + 수학 남은</b>, 선물은 합친 포인트로 이 화면에서만 줘요 (연산진단 ⭐ 화면에서 수학 선물을 따로 주면 같은 포인트를 두 번 쓰게 돼요). ⚖️ 병진 = 체력과 수학 중 작은 쪽<br>· 운동 시간은 시:분이에요 (5:04 = 5시간 4분, 괄호 안은 오늘 더한 시간). 바로 반영돼요 (각 기록의 측정시간 합, 실내자전거는 아직 빠짐)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
+    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 🧠 수학은 연산진단시스템 포인트(10분마다 반영). <b>남은 P = 체력 남은 + 수학 남은</b>, 선물은 합친 포인트로 이 화면에서만 줘요 (연산진단 ⭐ 화면에서 수학 선물을 따로 주면 같은 포인트를 두 번 쓰게 돼요). ⚖️ 병진 = 체력과 수학 중 작은 쪽<br>· 운동 시간은 시:분이에요 (5:04 = 5시간 4분, 괄호 안은 오늘 더한 시간). 바로 반영돼요 (각 기록의 측정시간 합, 실내자전거는 아직 빠짐)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
   $('close').onclick = closePanel;
   document.querySelectorAll('.g').forEach(b => b.onclick = () => { pick = Number(b.dataset.i); drawPanel(); });
   if ($('giveNo')) $('giveNo').onclick = () => { pick = null; drawPanel(); };
@@ -372,7 +372,7 @@ function renderPub() {
       <div class="box"><h3>${tab[1]} 순위</h3>${rows || '<div style="color:var(--dim);padding:20px 0">아직 기록이 없어요. 오늘 운동하고 첫 번째 주인공이 되어 보세요!</div>'}
         ${top.length > N ? `<button class="more" id="more">더 보기 (${top.length - N}명) ▾</button>` : ''}</div>
       <div>${side}
-        <div class="note">· 포인트는 매일 밤 1시에 확정돼요<br>· 🧠 수학은 연산진단 포인트(아침 6시 반영), ⚖️ 병진은 체력과 수학 중 작은 쪽이에요. 둘 다 해야 올라가요<br>· 체력·수학 포인트는 선물로 바꿔도 줄지 않아요<br>· 내 남은 포인트와 내역은 허브 '내 도장'에서 볼 수 있어요<br>· 어떻게 포인트를 받는지는 메뉴의 '포인트 규칙'에서</div></div>
+        <div class="note">· 포인트는 매일 밤 1시에 확정돼요<br>· 🧠 수학은 연산진단 포인트(10분마다 반영), ⚖️ 병진은 체력과 수학 중 작은 쪽이에요. 둘 다 해야 올라가요<br>· 체력·수학 포인트는 선물로 바꿔도 줄지 않아요<br>· 내 남은 포인트와 내역은 허브 '내 도장'에서 볼 수 있어요<br>· 어떻게 포인트를 받는지는 메뉴의 '포인트 규칙'에서</div></div>
     </div>`;
   document.querySelectorAll('.ptabs button').forEach(b => b.onclick = () => { pubBy = b.dataset.k; store.set('pubSort', pubBy); pubAll = false; renderPub(); });
   if ($('more')) $('more').onclick = () => { pubAll = true; renderPub(); };
