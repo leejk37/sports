@@ -417,13 +417,14 @@ function pointBuildAll_(ss) {
   const rows = sh && sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, POINT_HEAD.length).getValues() : [];
   const month = stampFmt_(new Date(), 'yyyy-MM');
   const per = {};
-  const blank = () => ({ earned: 0, spent: 0, month: 0, last: '', c: { stamp: 0, perfect: 0, group: 0, streak: 0, pb: 0, acc: 0, earned: 0 }, got: {}, recent: [], trades: [] });
+  const blank = () => ({ earned: 0, spent: 0, month: 0, last: '', days: {}, c: { stamp: 0, perfect: 0, group: 0, streak: 0, pb: 0, acc: 0, earned: 0 }, got: {}, recent: [], trades: [] });
   rows.forEach(r => {
     const id = stampIdOf_(r[5]); if (!id) return;
     const d = r[0] instanceof Date ? stampFmt_(r[0], 'yyyy-MM-dd') : String(r[0]).slice(0, 10);
     const x = per[id] = per[id] || blank();
     const p = Number(r[12]) || 0;
     x.earned += p; if (d.slice(0, 7) === month) x.month += p; x.last = d;
+    x.days[d] = (x.days[d] || 0) + p;                           // 날짜별 포인트 (내 도장 달력, 2026-11-15)
     const c = x.c;
     if (Number(r[13])) c.stamp++;
     if (Number(r[13]) === 100) c.perfect++;
@@ -503,10 +504,19 @@ function pointsForStamp_(ss, st, sum) {
     earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, m), month: x ? x.month : 0, today,
     math: m ? m.all : 0, mathMonth: m ? m.month : 0,            // 학생 '내 도장'에 🧠 수학 P (2026-11-13)
     groupBal,
+    days: pointDaysOf_(x, sum.month, sum.today, today),        // 달력 칸에 그날 포인트 (2026-11-15)
     badges: pointBadgeList_(x), recent: x ? x.recent.slice(0, 7) : [], trades: x ? x.trades : [], gifts,
     group: st.gkey && all['g_' + st.gkey] ? all['g_' + st.gkey] : null,
     rules: R
   };
+}
+
+/** 달력용: 그 달의 날짜별 포인트. 오늘(아직 원장에 없으면)은 '예정' 값 */
+function pointDaysOf_(x, month, today, todayP) {
+  const out = {};
+  Object.keys((x && x.days) || {}).forEach(d => { if (d.slice(0, 7) === month) out[d] = x.days[d]; });
+  if (todayP && today.slice(0, 7) === month && !out[today]) out[today] = todayP;
+  return out;
 }
 
 /** stampTeam_ 결과의 각 모둠에 포인트 합계를 붙임 */

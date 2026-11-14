@@ -75,6 +75,8 @@
   .cal .wd.sun{color:#ff9d8a}.cal .wd.sat{color:#9cc4ff}
   .d{aspect-ratio:1/1;border-radius:10px;background:rgba(255,255,255,.05);position:relative;display:grid;place-items:center}
   .d .num{position:absolute;top:4px;left:6px;font-size:12px;font-weight:800;color:var(--dim)}
+  .d .pt{position:absolute;top:4px;right:5px;font-size:clamp(9px,1.1vw,12px);font-weight:900;color:#9ff0b0;line-height:1}
+  .d .pt.plan{opacity:.65}
   .d.today{outline:3px solid var(--yellow);outline-offset:-3px}
   .d.future{background:transparent}
   .d .mk{width:62%;aspect-ratio:1/1;border-radius:50%;display:grid;place-items:center;font-size:clamp(9px,1.6vw,14px);font-weight:900;transform:rotate(-8deg)}
@@ -350,7 +352,9 @@ function render() {
     if (!x) { cells += `<div class="d future"><span class="num">${i}</span></div>`; continue; }
     const mk = x.stamp === 100 ? '<span class="mk s100">완벽</span>' : x.stamp === 90 ? '<span class="mk s90">90</span>'
       : x.done ? `<span class="bar"><i style="width:${Math.round(x.done / x.need * 100)}%"></i></span>` : '';
-    cells += `<button class="d${key === d.today ? ' today' : ''}${key === sel ? ' sel' : ''}" data-day="${key}" title="${key} · ${x.done}/${x.need}종목"><span class="num">${i}</span>${mk}</button>`;
+    const pt = d.points && d.points.days ? d.points.days[key] : 0;           // 그날 포인트 (오늘은 예정)
+    const ptS = pt ? `<span class="pt${key === d.today ? ' plan' : ''}">+${fmtP(Math.round(pt * 10) / 10)}</span>` : '';
+    cells += `<button class="d${key === d.today ? ' today' : ''}${key === sel ? ' sel' : ''}" data-day="${key}" title="${key} · ${x.done}/${x.need}종목${pt ? ` · ${fmtP(pt)}P` : ''}"><span class="num">${i}</span>${ptS}${mk}</button>`;
   }
   const rel = isToday ? '오늘' : sel === addDay(d.today, -1) ? '어제' : sel === addDay(d.today, -2) ? '그제' : '';
 
