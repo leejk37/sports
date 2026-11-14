@@ -264,7 +264,7 @@ function pointsHtml(d) {
           <div><b>${fmtP(p.earned)}</b><span>💪 체력</span></div>
           <div><b style="color:#7dd3fc">${fmtP(p.math || 0)}</b><span>🧠 수학</span></div>
           <div><b>${fmtP(p.earned + (p.math || 0))}</b><span>합계</span></div>
-          <div><b>${fmtP(Math.max(0, p.earned + (p.math || 0) - p.bal))}</b><span>사용</span></div>
+          <div><b style="color:#ff9d8a">${fmtP(Math.max(0, p.earned + (p.math || 0) - p.bal))}</b><span>사용</span></div>
         </div>
         ${gifts}
         ${hist ? `<div class="hist">${hist}</div>` : '<div class="hist" style="color:var(--soft)">아직 포인트가 없어요. 오늘 운동하면 밤에 포인트가 들어와요!</div>'}
