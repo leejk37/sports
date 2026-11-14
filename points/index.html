@@ -149,6 +149,23 @@ const fmt = n => Number(n || 0).toLocaleString('ko-KR');
 const hm = sec => { const m = Math.round((Number(sec) || 0) / 60); return m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간 ${m % 60}분`; };   // 5시간 4분
 const usedOf = s => Math.max(0, (s.total != null ? s.total : s.earned) - s.bal);   // 사용 = 합계(체력+수학) − 남은 (체력·수학 선물 모두)
 const addMin = sec => `(+${Math.round((Number(sec) || 0) / 60)}분)`;                                                     // 오늘 더한 시간
+/* 모둠 선물 나눠 내기 (2026-11-15): 똑같이 나누되, 내 몫보다 적게 가진 친구는 가진 만큼만, 모자란 만큼은 다른 모둠원이 똑같이.
+ * 모둠원 남은 합이 선물값 이상이면 줄 수 있음. GAS Points.gs pointGroupSplit_과 같은 계산 */
+function groupSplit(mates, cost) {
+  const out = mates.map(m => Object.assign({}, m, { share: 0 }));
+  const have = m => Math.max(0, Number(m.bal) || 0);
+  const equal = (list, rest) => { const n = list.length, base = Math.floor(rest / n), extra = rest - base * n; list.forEach((m, i) => m.share = base + (i < extra ? 1 : 0)); };
+  if (!out.length) return out;
+  if (out.reduce((t, m) => t + have(m), 0) < cost) { equal(out, cost); return out; }   // 합계도 모자라면(억지로 줄 때) 똑같이
+  let open = out, rest = cost;
+  for (;;) {
+    equal(open, rest);
+    const poor = open.filter(m => have(m) < m.share);
+    if (!poor.length) return out;
+    poor.forEach(m => { m.share = have(m); rest -= m.share; });                       // 모자란 친구는 가진 만큼
+    open = open.filter(m => poor.indexOf(m) < 0);                                      // 나머지는 다른 모둠원이 똑같이
+  }
+}
 const md = d => { const [, m, dd] = String(d).split('-'); return m ? `${+m}/${+dd}` : ''; };
 const store = {
   get: k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
@@ -255,11 +272,9 @@ function drawPanel(toGift, msg) {
   const s = cur.s, d = cur.d || s;
   const gifts = (data.gifts || []).slice().sort((a, b) => a.cost - b.cost);
   const mates = cur.d ? (cur.d.mates || []) : null;              // null = 아직 불러오는 중
-  const split = g => {                                            // 모둠 선물: 똑같이 나눔, 나머지 1P씩은 앞 번호부터 (서버와 같게)
-    const n = mates.length, base = Math.floor(g.cost / n), extra = g.cost - base * n;
-    return mates.map((m, i) => ({ ...m, share: base + (i < extra ? 1 : 0) }));
-  };
-  const lack = g => g.group ? (!mates || !mates.length || split(g).some(m => m.bal < m.share)) : g.cost > d.bal;
+  const split = g => groupSplit(mates, g.cost);                   // 모둠 선물: 서버 pointGroupSplit_과 같은 계산
+  const mateSum = () => (mates || []).reduce((t, m) => t + Math.max(0, m.bal), 0);
+  const lack = g => g.group ? (!mates || !mates.length || mateSum() < g.cost) : g.cost > d.bal;
   const gl = gifts.map((g, i) => `<button class="g${lack(g) ? ' no' : ''}${pick === i ? ' pick' : ''}" data-i="${i}">${g.group ? '<span class="gtag">모둠</span>' : ''}${esc(g.name)}<small>${fmt(g.cost)}P</small></button>`).join('');
   const g = pick != null ? gifts[pick] : null;
   let ask = '', short = false, canGive = true;
@@ -267,8 +282,8 @@ function drawPanel(toGift, msg) {
   else if (g && !mates) { ask = '모둠원을 불러오는 중…'; canGive = false; }
   else if (g && !mates.length) { ask = '모둠이 정해지지 않은 학생이에요 (학생명단 모둠 열)'; canGive = false; }
   else if (g) {
-    const sp = split(g); short = sp.some(m => m.bal < m.share);
-    ask = `<div style="width:100%">${esc(s.group)}모둠 ${sp.length}명이 ${esc(g.name)} (${fmt(g.cost)}P)을 나눠 낼까요?
+    const sp = split(g); short = mateSum() < g.cost;
+    ask = `<div style="width:100%">${esc(s.group)}모둠 ${sp.length}명이 ${esc(g.name)} (${fmt(g.cost)}P)을 나눠 낼까요? (모둠 남은 합 ${fmt(mateSum())}P)
       <div class="split">${sp.map(m => `<span class="${m.bal < m.share ? 'lack' : ''}">${esc(m.name)} −${fmt(m.share)} → ${fmt(m.bal - m.share)}P</span>`).join('')}</div></div>`;
   }
   const badges = cur.d ? cur.d.badges.map(b => `<div class="bd${b.got ? ' got' : ''}"><i>${b.icon}</i>${esc(b.name)}<small>${b.got ? md(b.got) : fmt(b.have) + '/' + fmt(b.n)}</small></div>`).join('') : '<div style="color:var(--dim)">불러오는 중…</div>';
@@ -301,7 +316,7 @@ function drawPanel(toGift, msg) {
     <div class="badges">${badges}</div>
     <div class="sec">최근 내역</div>
     <div class="hist">${hist}</div>
-    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 🧠 수학은 연산진단시스템 포인트(10분마다 반영). <b>남은 P = 체력 남은 + 수학 남은</b>, 선물은 합친 포인트로 이 화면에서만 줘요 (연산진단 ⭐ 화면에서 수학 선물을 따로 주면 같은 포인트를 두 번 쓰게 돼요). ⚖️ 병진 = 체력과 수학 중 작은 쪽<br>· 사용 = 합계 − 남은 (체력·수학 선물로 쓴 포인트 모두)<br>· 운동 시간 괄호 안은 오늘 더한 시간. 바로 반영돼요 (각 기록의 측정시간 합, 실내자전거는 아직 빠짐)<br>· <span class="gtag">모둠</span> 선물은 모둠원 모두의 남은 포인트에서 똑같이 나눠 빼요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 모둠원 수만큼 줄)</div>`;
+    <div class="note">· 포인트는 매일 밤 1시에 확정돼요 (오늘 운동한 것은 내일 보여요)<br>· 🧠 수학은 연산진단시스템 포인트(10분마다 반영). <b>남은 P = 체력 남은 + 수학 남은</b>, 선물은 합친 포인트로 이 화면에서만 줘요 (연산진단 ⭐ 화면에서 수학 선물을 따로 주면 같은 포인트를 두 번 쓰게 돼요). ⚖️ 병진 = 체력과 수학 중 작은 쪽<br>· 사용 = 합계 − 남은 (체력·수학 선물로 쓴 포인트 모두)<br>· 운동 시간 괄호 안은 오늘 더한 시간. 바로 반영돼요 (각 기록의 측정시간 합, 실내자전거는 아직 빠짐)<br>· <span class="gtag">모둠</span> 선물은 모둠원 남은 포인트 합이 넉넉하면 줄 수 있어요. 똑같이 나눠 빼되, 모자란 친구는 가진 만큼만 빼고 나머지는 다른 모둠원이 똑같이 더 내요 (선물목록 탭 D열에 O)<br>· 잘못 준 선물은 시트의 선물교환 탭에서 그 줄을 지우면 돌아가요 (모둠 선물은 낸 모둠원 수만큼 줄)</div>`;
   $('close').onclick = closePanel;
   document.querySelectorAll('.g').forEach(b => b.onclick = () => { pick = Number(b.dataset.i); drawPanel(); });
   if ($('giveNo')) $('giveNo').onclick = () => { pick = null; drawPanel(); };

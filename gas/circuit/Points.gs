@@ -498,9 +498,11 @@ function pointsForStamp_(ss, st, sum) {
     .map(g => g.group ? Object.assign({}, g, { members: n, share: Math.ceil(g.cost / n) }) : g)
     .sort((a, b) => (a.share || a.cost) - (b.share || b.cost));
   const m = pointMathGet_(ss, [st.id])[st.id];                 // 수학 포인트 (통합포인트현황 탭)
+  const groupBal = st.gkey ? pointMates_(ss, stampRoster_(ss), pointStaffIds_(ss), st).reduce((t, mt) => t + Math.max(0, mt.bal), 0) : 0;   // 모둠 선물은 모둠원 남은 합으로 (2026-11-15)
   return {
     earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, m), month: x ? x.month : 0, today,
     math: m ? m.all : 0, mathMonth: m ? m.month : 0,            // 학생 '내 도장'에 🧠 수학 P (2026-11-13)
+    groupBal,
     badges: pointBadgeList_(x), recent: x ? x.recent.slice(0, 7) : [], trades: x ? x.trades : [], gifts,
     group: st.gkey && all['g_' + st.gkey] ? all['g_' + st.gkey] : null,
     rules: R
@@ -703,26 +705,45 @@ function pointMates_(ss, roster, staff, st) {
   return mates.map(m => ({ id: m.id, name: m.name, no: m.no, bal: pointBal_(all[m.id], mts[m.id]) }));
 }
 
-/** 모둠 선물: 값을 모둠원 수로 똑같이 나눠(나머지 1P씩은 앞 번호부터) 각자의 남은 포인트에서 뺌.
- *  한 명이라도 모자라면 거절(force면 그래도). 선물교환 탭에 모둠원마다 한 줄, 선물 이름은 '피자 (모둠 4명)' */
+/** 모둠 선물 나눠 내기 (2026-11-15 선생님 결정: 개인은 모자라도 모둠원 남은 포인트 합이 넉넉하면 교환)
+ *  똑같이 나누되(나머지 1P씩은 앞 번호부터) 내 몫보다 적게 가진 친구는 가진 만큼만 내고, 모자란 만큼은 다른 모둠원이 똑같이 나눠 냄.
+ *  화면 points/index.html의 groupSplit과 같은 계산 */
+function pointGroupSplit_(mates, cost) {
+  const out = mates.map(m => Object.assign({}, m, { share: 0 }));
+  const have = m => Math.max(0, Number(m.bal) || 0);
+  const equal = (list, rest) => { const n = list.length, base = Math.floor(rest / n), extra = rest - base * n; list.forEach((m, i) => m.share = base + (i < extra ? 1 : 0)); };
+  if (!out.length) return out;
+  if (out.reduce((t, m) => t + have(m), 0) < cost) { equal(out, cost); return out; }   // 합계도 모자라면(억지로 줄 때) 똑같이
+  let open = out, rest = cost;
+  for (;;) {
+    equal(open, rest);
+    const poor = open.filter(m => have(m) < m.share);
+    if (!poor.length) return out;
+    poor.forEach(m => { m.share = have(m); rest -= m.share; });                       // 모자란 친구는 가진 만큼
+    open = open.filter(m => poor.indexOf(m) < 0);                                      // 나머지는 다른 모둠원이 똑같이
+  }
+}
+
+/** 모둠 선물: pointGroupSplit_으로 나눠 각자의 남은 포인트에서 뺌.
+ *  모둠원 남은 포인트 합이 모자라면 거절(force면 그래도 똑같이). 선물교환 탭에 모둠원마다 한 줄(낸 것이 0P인 친구는 빼고), 선물 이름은 '피자 (모둠 4명)' */
 function pointsGiveGroup_(ss, roster, st, gift, force) {
   if (!st.gkey) return { ok: false, error: '모둠이 정해지지 않은 학생이에요 (학생명단 모둠 열)' };
   const staff = pointStaffIds_(ss);
   const mates = pointMates_(ss, roster, staff, st);
   const n = mates.length;
-  const base = Math.floor(gift.cost / n), extra = gift.cost - base * n;
-  mates.forEach((m, i) => m.share = base + (i < extra ? 1 : 0));
-  const short = mates.filter(m => m.bal < m.share);
-  if (short.length && !force) return { ok: false, short: true, group: true, mates, error: short.map(m => `${m.name} ${m.bal}P`).join(', ') + ' — 포인트가 모자라요' };
+  const sum = mates.reduce((t, m) => t + Math.max(0, m.bal), 0);
+  if (sum < gift.cost && !force) return { ok: false, short: true, group: true, mates, error: `모둠 남은 포인트 합(${sum}P)이 모자라요` };
+  const split = pointGroupSplit_(mates, gift.cost);
+  const pay = split.filter(m => m.share > 0);
   const sh = pointTradeSheet_(ss);
   const today = stampFmt_(new Date(), 'yyyy-MM-dd'), label = `${gift.name} (모둠 ${n}명)`;
   const row = sh.getLastRow() + 1;
-  sh.getRange(row, 1, n, 1).setNumberFormat('@');
-  sh.getRange(row, 1, n, 8).setValues(mates.map(m => {
+  sh.getRange(row, 1, pay.length, 1).setNumberFormat('@');
+  sh.getRange(row, 1, pay.length, 8).setValues(pay.map(m => {
     const r = roster.byId[m.id];
     return [today, r.grade, r.cls, r.no, r.name, r.id + SQUAT_CONFIG.DOMAIN, label, m.share];
   }));
   SpreadsheetApp.flush();
   CacheService.getScriptCache().remove('pt1__at');
-  return { ok: true, group: true, gift: label, cost: gift.cost, mates: mates.map(m => ({ id: m.id, name: m.name, share: m.share, bal: m.bal - m.share })) };
+  return { ok: true, group: true, gift: label, cost: gift.cost, mates: split.map(m => ({ id: m.id, name: m.name, share: m.share, bal: m.bal - m.share })) };
 }

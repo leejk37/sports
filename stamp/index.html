@@ -136,6 +136,7 @@
   .gbox.group .gift.can{background:rgba(159,240,176,.2);color:#9ff0b0}
   .gbox .gtitle{font-size:16px;font-weight:900}
   .gbox .gtitle small{font-size:12px;font-weight:700;color:var(--soft);margin-left:6px}
+  .gbox .gtitle small b{color:#9ff0b0}
   .gbox .next{margin-top:6px}
   .gbox .gifts{margin-top:8px}
   .hist{margin-top:12px;font-size:14px;line-height:1.5}
@@ -231,18 +232,19 @@ const md = d => { const [, m, dd] = String(d).split('-'); return m ? `${+m}/${+d
 function pointsHtml(d) {
   const p = d.points; if (!p) return '';
   const my = g => g.share || g.cost;                    // 모둠 선물은 내 몫(나눠 낸 값)
-  // 개인 선물과 모둠 선물을 따로 (2026-11-15). 각각 '다음 선물'까지 남은 포인트와 선물 목록
+  // 개인 선물과 모둠 선물을 따로 (2026-11-15). 개인은 내 남은 포인트, 모둠은 모둠원 남은 포인트 합(groupBal)으로 판단
   const giftBox = (list, kind) => {
     if (!list.length) return '';
-    const next = list.find(g => my(g) > p.bal);
-    const can = list.filter(g => my(g) <= p.bal);
-    const prev = can.length ? my(can[can.length - 1]) : 0;
-    const title = kind === 'group' ? '🤝 모둠 선물 <small>모둠원이 똑같이 나눠 내요</small>' : '🎁 개인 선물';
-    const nextHtml = next ? `<div class="next">${esc(next.name)}까지 ${kind === 'group' ? '내 몫 ' : ''}<span style="color:var(--yellow)">${fmtP(my(next) - p.bal)}P</span> 남았어요
-        <div class="prog"><i style="width:${Math.max(0, Math.min(100, (p.bal - prev) / (my(next) - prev) * 100))}%"></i></div></div>`
-      : `<div class="next">${kind === 'group' ? '내 몫은 모두 모았어요! 모둠원 모두 모이면 선생님께 말해요' : '모든 선물로 바꿀 수 있어요! 선생님께 말해요'}</div>`;
-    const chips = list.map(g => `<span class="gift${my(g) <= p.bal ? ' can' : ''}">${kind === 'group'
-      ? `${esc(g.name)} ${fmtP(g.cost)}P · 내 몫 ${fmtP(g.share)}P` : `${esc(g.name)} ${fmtP(g.cost)}P`}</span>`).join('');
+    const grp = kind === 'group', have = grp ? (p.groupBal || 0) : p.bal;
+    const next = list.find(g => g.cost > have);
+    const can = list.filter(g => g.cost <= have);
+    const prev = can.length ? can[can.length - 1].cost : 0;
+    const title = grp ? `🤝 모둠 선물 <small>우리 모둠 남은 포인트 합 <b>${fmtP(have)}P</b> · 모둠원이 나눠 내요</small>` : '🎁 개인 선물';
+    const nextHtml = next ? `<div class="next">${esc(next.name)}까지 ${grp ? '우리 모둠 ' : ''}<span style="color:var(--yellow)">${fmtP(next.cost - have)}P</span> 남았어요
+        <div class="prog"><i style="width:${Math.max(0, Math.min(100, (have - prev) / (next.cost - prev) * 100))}%"></i></div></div>`
+      : `<div class="next">${grp ? '우리 모둠은 모든 모둠 선물로 바꿀 수 있어요! 모둠원과 의논해서 선생님께 말해요' : '모든 선물로 바꿀 수 있어요! 선생님께 말해요'}</div>`;
+    const chips = list.map(g => `<span class="gift${g.cost <= have ? ' can' : ''}">${grp
+      ? `${esc(g.name)} ${fmtP(g.cost)}P · 1명 약 ${fmtP(g.share)}P` : `${esc(g.name)} ${fmtP(g.cost)}P`}</span>`).join('');
     return `<div class="gbox ${kind}"><div class="gtitle">${title}</div>${nextHtml}<div class="gifts">${chips}</div></div>`;
   };
   const gifts = giftBox(p.gifts.filter(g => !g.share), 'one') + giftBox(p.gifts.filter(g => g.share), 'group');
@@ -282,7 +284,7 @@ function pointsHtml(d) {
       · '오늘 +○P 예정'은 지금까지 통과한 종목과 도장 포인트예요. 스쿼트·줄넘기 횟수·자전거 더 탄 거리·기록 경신·바른 자세 포인트는 밤에 더 들어와요<br>
       · 🧠 수학 포인트는 연산진단에서 받은 포인트예요. 10분쯤 뒤에 여기에 들어와요. 남은 포인트 = 체력 남은 + 수학 남은<br>
       · 선물은 선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>(체력 + 수학)만 줄고, 체력·수학 포인트와 뱃지는 그대로예요<br>
-      · 🤝 모둠 선물은 모둠원 모두가 똑같이 나눠 내요. 모두 '내 몫'만큼 남은 포인트가 있어야 바꿀 수 있어요
+      · 🤝 모둠 선물은 모둠원 남은 포인트를 합쳐서 바꿔요. 똑같이 나눠 내고, 포인트가 모자란 친구 몫은 다른 모둠원이 나눠 내요
     </div>
   </section>`;
 }
