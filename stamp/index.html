@@ -131,6 +131,13 @@
   .gifts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
   .gift{font-size:13px;font-weight:800;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft)}
   .gift.can{background:rgba(245,197,24,.22);color:var(--yellow)}
+  .gbox{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);border-left:4px solid var(--yellow)}
+  .gbox.group{border-left-color:#9ff0b0}
+  .gbox.group .gift.can{background:rgba(159,240,176,.2);color:#9ff0b0}
+  .gbox .gtitle{font-size:16px;font-weight:900}
+  .gbox .gtitle small{font-size:12px;font-weight:700;color:var(--soft);margin-left:6px}
+  .gbox .next{margin-top:6px}
+  .gbox .gifts{margin-top:8px}
   .hist{margin-top:12px;font-size:14px;line-height:1.5}
   .hist div{display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
   .hist .dd{flex:none;width:44px;color:var(--soft);font-weight:800}
@@ -224,13 +231,21 @@ const md = d => { const [, m, dd] = String(d).split('-'); return m ? `${+m}/${+d
 function pointsHtml(d) {
   const p = d.points; if (!p) return '';
   const my = g => g.share || g.cost;                    // 모둠 선물은 내 몫(나눠 낸 값)
-  const nextGift = p.gifts.find(g => my(g) > p.bal);
-  const can = p.gifts.filter(g => my(g) <= p.bal);
-  const prev = can.length ? my(can[can.length - 1]) : 0;
-  const nextHtml = nextGift ? `<div class="next">🎁 ${esc(nextGift.name)}${nextGift.share ? '(모둠)' : ''}까지 <span style="color:var(--yellow)">${fmtP(my(nextGift) - p.bal)}P</span> 남았어요
-      <div class="prog"><i style="width:${Math.max(0, Math.min(100, (p.bal - prev) / (my(nextGift) - prev) * 100))}%"></i></div></div>`
-    : p.gifts.length ? '<div class="next">🎁 모든 선물로 바꿀 수 있어요! 선생님께 말해요</div>' : '';
-  const gifts = p.gifts.map(g => `<span class="gift${my(g) <= p.bal ? ' can' : ''}">${g.share ? `🤝 ${esc(g.name)} ${fmtP(g.cost)}P · 내 몫 ${fmtP(g.share)}P` : `${esc(g.name)} ${fmtP(g.cost)}P`}</span>`).join('');
+  // 개인 선물과 모둠 선물을 따로 (2026-11-15). 각각 '다음 선물'까지 남은 포인트와 선물 목록
+  const giftBox = (list, kind) => {
+    if (!list.length) return '';
+    const next = list.find(g => my(g) > p.bal);
+    const can = list.filter(g => my(g) <= p.bal);
+    const prev = can.length ? my(can[can.length - 1]) : 0;
+    const title = kind === 'group' ? '🤝 모둠 선물 <small>모둠원이 똑같이 나눠 내요</small>' : '🎁 개인 선물';
+    const nextHtml = next ? `<div class="next">${esc(next.name)}까지 ${kind === 'group' ? '내 몫 ' : ''}<span style="color:var(--yellow)">${fmtP(my(next) - p.bal)}P</span> 남았어요
+        <div class="prog"><i style="width:${Math.max(0, Math.min(100, (p.bal - prev) / (my(next) - prev) * 100))}%"></i></div></div>`
+      : `<div class="next">${kind === 'group' ? '내 몫은 모두 모았어요! 모둠원 모두 모이면 선생님께 말해요' : '모든 선물로 바꿀 수 있어요! 선생님께 말해요'}</div>`;
+    const chips = list.map(g => `<span class="gift${my(g) <= p.bal ? ' can' : ''}">${kind === 'group'
+      ? `${esc(g.name)} ${fmtP(g.cost)}P · 내 몫 ${fmtP(g.share)}P` : `${esc(g.name)} ${fmtP(g.cost)}P`}</span>`).join('');
+    return `<div class="gbox ${kind}"><div class="gtitle">${title}</div>${nextHtml}<div class="gifts">${chips}</div></div>`;
+  };
+  const gifts = giftBox(p.gifts.filter(g => !g.share), 'one') + giftBox(p.gifts.filter(g => g.share), 'group');
   const got = p.badges.filter(b => b.got).length;
   const badges = p.badges.map(b => `<div class="bd${b.got ? ' got' : ''}" title="${esc(b.name)}"><i>${b.icon}</i><b>${esc(b.name)}</b>${b.got
       ? `<small>${md(b.got)} 받음</small>` : `<small>${fmtP(b.have)}/${fmtP(b.n)}</small><div class="bb"><u style="width:${b.have / b.n * 100}%"></u></div>`}</div>`).join('');
@@ -251,8 +266,7 @@ function pointsHtml(d) {
           <div><b>${fmtP(p.earned + (p.math || 0))}</b><span>합계</span></div>
           <div><b>${fmtP(Math.max(0, p.earned + (p.math || 0) - p.bal))}</b><span>사용</span></div>
         </div>
-        ${nextHtml}
-        ${gifts ? `<div class="gifts">${gifts}</div>` : ''}
+        ${gifts}
         ${hist ? `<div class="hist">${hist}</div>` : '<div class="hist" style="color:var(--soft)">아직 포인트가 없어요. 오늘 운동하면 밤에 포인트가 들어와요!</div>'}
       </div>
       <div>
