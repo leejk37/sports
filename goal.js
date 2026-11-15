@@ -1,5 +1,6 @@
 /* goal.js — 측정 앱의 '🎯 오늘 도장 목표' 칸 (2026-11-16, 통과 기준이 '그날 정확한 횟수 합'으로 바뀜)
- *  - 측정 방식 고르는 화면(data-target)에: "오늘 30회 중 12회 · 18회 남음" + [🎯 남은 18회 하기] 단추
+ *  - 측정 화면은 핵심만(2026-11-16 선생님): 고르는 화면에 '오늘 12 / 30회 · 18회 남음' 막대 + [🎯 남은 18회 하기], 결과 화면에 오늘 합계 한 줄. 통과 기준 설명은 도장·규칙 화면에서
+ *  - (예전) 측정 방식 고르는 화면(data-target)에: "오늘 30회 중 12회 · 18회 남음" + [🎯 남은 18회 하기] 단추
  *    단추는 앱의 첫 [data-reps] 단추를 남은 횟수로 잠깐 바꿔 눌러 줌(앱 코드는 그대로)
  *  - 결과 화면(data-result)에: 방금 한 횟수를 더해 "오늘 합계 34회 · 통과! 추가 +1P까지 26회"
  *  - 학생은 window.SPORT_EMAIL(앱이 QR·허브에서 학생을 정하면 넣음) 또는 주소의 ?email=
@@ -24,7 +25,7 @@
     .spGoal .r{font-size:17px;font-weight:700;line-height:1.45}
     .spGoal .r b{color:#9ff0b0}
     .spGoal .r2{font-size:14px;font-weight:600;opacity:.8;line-height:1.4;margin:1px 0 6px 26px}
-    .spGoal .today{display:flex;justify-content:space-between;gap:8px;margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.18);font-size:17px;font-weight:800}
+    .spGoal .today{display:flex;justify-content:space-between;gap:8px;font-size:18px;font-weight:800}
     .spGoal .today b{font-size:20px}
     .spGoal .bar{height:9px;border-radius:999px;background:rgba(255,255,255,.15);margin:7px 0 2px;overflow:hidden}
     .spGoal .bar i{display:block;height:100%;background:#9ff0b0;border-radius:999px;transition:width .4s}
@@ -79,30 +80,29 @@
     const t = document.getElementById(TARGET) && box(TARGET); if (!t) return;
     if (it && it.unit !== '회') {                       // 시간 기준(통과기준 탭에서 '초'로 바꾼 경우)
       t.className = 'spGoal' + (it.ok ? ' done' : '');
-      t.innerHTML = `<div class="r">✅ <b>통과</b>: 한 번에 ${it.min}초 이상</div>${it.ok ? '<div class="today">오늘 통과했어요 👍</div>' : ''}`;
+      if (!it.ok) { t.remove(); return; }
+      t.innerHTML = '<div class="today">✅ 오늘 통과</div>';
       return;
     }
     const min = it ? it.min : DEF[EX], name = (it && it.name) || NAME[EX] || '';
     if (!min) { t.remove(); return; }
-    const a = Math.floor(min / 2), b = min - a;
-    let html = `<div class="r">✅ <b>통과</b>: 정확한 ${name} <b>하루 합계 ${min}회</b></div>
-      <div class="r2">한 번에 ${min}회를 해도 되고, ${a}회 + ${b}회처럼 나눠 해도 모두 더해서 셉니다.</div>
-      <div class="r">➕ <b>추가 포인트</b>: 통과한 뒤 ${min}회를 더 할 때마다 <b>+1P</b></div>`;
+    let html = '';
     let want = 0, ok = false;
     if (it) {
       const n = Math.round((it.n + st.added) * 10) / 10;
       ok = n >= min;
       const left = Math.max(0, min - n), extra = ok ? Math.floor((n - min) / min + 1e-9) : 0, toNext = ok ? min * (extra + 2) - n : 0;
       want = Math.ceil(ok ? toNext : left);
-      html += `<div class="today"><span>오늘 <b>${n}회</b> / ${min}회</span><span>${ok ? `✅ 통과${extra ? ` · 추가 +${extra}P` : ''}` : `${Math.ceil(left)}회 남음`}</span></div>
+      html += `<div class="today"><span>오늘 <b>${n}</b> / ${min}회</span><span>${ok ? `✅ 통과${extra ? ` +${extra}P` : ''}` : `${Math.ceil(left)}회 남음`}</span></div>
         <div class="bar"><i style="width:${Math.min(100, n / min * 100)}%"></i></div>`;
     }
+    if (!it) { t.remove(); return; }                   // 학생을 모르면 칸 없이 (기준 설명은 도장·규칙 화면에서)
     t.className = 'spGoal' + (ok ? ' done' : '');
     t.innerHTML = html;
     const reps = document.querySelector(`#${TARGET} [data-reps]`);
     if (QUICK && reps && want > 0) {
       const btn = document.createElement('button'); btn.className = 'spGoalBtn'; btn.type = 'button';
-      btn.textContent = ok ? `➕ ${want}회 더 하기 (다음 +1P까지)` : `🎯 남은 ${want}회 하기`;
+      btn.textContent = ok ? `➕ ${want}회 더 (+1P)` : `🎯 남은 ${want}회 하기`;
       btn.onclick = () => { const was = reps.dataset.reps; reps.dataset.reps = String(want); reps.click(); reps.dataset.reps = was; };
       t.appendChild(btn);
     }
@@ -115,8 +115,7 @@
     const b = box(RESULT); if (!b) return;
     b.className = 'spGoal' + (ok ? ' done' : '');
     const pct = Math.min(100, n / min * 100);
-    b.innerHTML = `<b class="t">🎯 오늘 합계</b><div class="n">${ok && !wasOk ? '🎉 ' : ''}${n}회 <small>/ 기준 ${min}회</small></div><div class="bar"><i style="width:${pct}%"></i></div>
-      <div class="s">${ok ? `${wasOk ? '' : '오늘 통과! '}${extra ? `추가 +${extra}P · ` : ''}${Math.ceil(toNext)}회 더 하면 추가 +1P` : `<b>${Math.ceil(min - n)}회</b> 더 하면 통과`}<br>도장 화면에는 1~2분 뒤 반영돼요</div>`;
+    b.innerHTML = `<div class="today" style="margin:0;padding:0;border:0"><span>오늘 <b>${n}</b> / ${min}회</span><span>${ok ? `✅ 통과${extra ? ` +${extra}P` : ''}` : `${Math.ceil(min - n)}회 남음`}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
   }
 
   let wasTarget = false, wasResult = false;

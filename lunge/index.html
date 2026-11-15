@@ -77,16 +77,17 @@
   #saveState.fail{color:var(--warn)}
   @media (max-width:820px){#main{flex-direction:column}#stage{border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto}}
   @media (orientation:portrait){#main{flex-direction:column}#stage{flex:1 1 56%;border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto;flex:0 1 44%;max-height:44vh}}   /* 세로 태블릿 (2026-11-16) */
+
+  /* 제목·단추를 오른쪽 칸 맨 위로 → 카메라가 화면 높이를 모두 씀 (2026-11-16) */
+  #side > header{padding:0 0 10px;margin:-8px 0 2px;background:none;border-bottom:2px solid rgba(255,255,255,.18);flex-wrap:wrap;gap:6px}
+  #side > header h1{font-size:20px;flex:1 1 100%}
+  #side > header .hbtn{font-size:14px;padding:6px 10px}
 </style>
 <script src="../config.js"></script>
+<script src="../camfit.js"></script>
 </head>
 <body>
 <div id="app">
-  <header>
-    <h1>런지 측정</h1>
-    <button class="hbtn" id="flip">카메라 전환</button>
-    <button class="hbtn" id="cancel">처음으로</button>
-  </header>
 
   <div id="main">
     <div id="stage">
@@ -99,6 +100,11 @@
     </div>
 
     <aside id="side">
+      <header>
+        <h1>런지 측정</h1>
+        <button class="hbtn" id="flip">카메라 전환</button>
+        <button class="hbtn" id="cancel">처음으로</button>
+      </header>
       <div id="who"></div>
 
       <section class="screen" id="s-loading">
@@ -258,6 +264,7 @@ async function startCamera() {
   stream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: facing, width: { ideal: PORTRAIT() ? 720 : 1280 }, height: { ideal: PORTRAIT() ? 1280 : 720 } }, audio: false
   });
+  await window.spWiden?.(stream, PORTRAIT());   // camfit.js — 센서 원래 비율·줌 최소로 가장 넓게
   video.srcObject = stream;
   await video.play();
   canvas.width = video.videoWidth; canvas.height = video.videoHeight;
@@ -578,7 +585,6 @@ $('flip').onclick = async () => {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
   }
 </script>
-<script src="../cues.js" data-ex="lunge" data-target="s-ready" defer></script>
 <script src="../goal.js" data-ex="lunge" data-target="s-time" data-result="s-result" data-count="resGood" defer></script>
 </body>
 </html>
