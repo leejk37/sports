@@ -111,10 +111,11 @@ function pointRules_(ss) {
 }
 
 /* ===== 계산: 모든 학생 × 날짜 → 원장 줄 ===== */
-/** from~to(yyyy-MM-dd) 원장 줄을 계산해 돌려줌. 연속·기록 경신 판정을 위해 기록은 2026-09-01부터 모두 읽음 */
-function pointCompute_(ss, from, to) {
+/** from~to(yyyy-MM-dd) 원장 줄을 계산해 돌려줌. 연속·기록 경신 판정을 위해 기록은 2026-09-01부터 모두 읽음
+ *  only(Set): 이 아이디들만 계산 (내 도장 '오늘 예정'을 바로 셀 때 = 학생 + 모둠원, 2026-11-15) */
+function pointCompute_(ss, from, to, only) {
   const R = pointRules_(ss);
-  const roster = stampRosterRead_(ss);                       // 캐시 말고 시트에서 새로
+  const roster = only ? stampRoster_(ss) : stampRosterRead_(ss);   // 밤 계산은 캐시 말고 시트에서 새로
   const staff = pointStaffIds_(ss);
   const today = stampFmt_(new Date(), 'yyyy-MM-dd');
   const dayOf = v => v instanceof Date ? stampFmt_(v, 'yyyy-MM-dd') : String(v).trim().slice(0, 10);
@@ -131,7 +132,7 @@ function pointCompute_(ss, from, to) {
     const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
     const n = sh.getLastRow() - 1; if (n < 1) return;
     sh.getRange(2, 1, n, sh.getLastColumn()).getValues().forEach(r => {
-      const id = stampIdOf_(r[ex.email]); if (!id || !roster.byId[id] || staff.has(id)) return;
+      const id = stampIdOf_(r[ex.email]); if (!id || !roster.byId[id] || staff.has(id) || (only && !only.has(id))) return;
       const d = dayOf(r[0]); if (!d || d < '2026-09-01' || d > to) return;
       if (timeCol[ex.key] != null) {
         const b = ((best[id] = best[id] || {})[d] = (best[id][d] || {}));
@@ -159,7 +160,7 @@ function pointCompute_(ss, from, to) {
   // 1-2) 아침달리기: id → 날짜 → 그날 가장 빠른 기록(초)
   const mr = {};
   morningRunRows_().forEach(r => {                            // MorningRun.gs
-    if (!roster.byId[r.id] || staff.has(r.id) || r.d < POINT.MRUN_FROM || r.d > to) return;
+    if (!roster.byId[r.id] || staff.has(r.id) || (only && !only.has(r.id)) || r.d < POINT.MRUN_FROM || r.d > to) return;
     const m = mr[r.id] = mr[r.id] || {};
     m[r.d] = m[r.d] ? Math.min(m[r.d], r.sec) : r.sec;
   });
@@ -186,7 +187,7 @@ function pointCompute_(ss, from, to) {
   for (let t = new Date('2026-09-01T12:00:00+09:00'); ; t = new Date(t.getTime() + 864e5)) {
     const d = stampFmt_(t, 'yyyy-MM-dd'); if (d > to) break; days.push(d);
   }
-  const active = roster.list.filter(st => !staff.has(st.id) && (best[st.id] || ctx.bike[st.id] || mr[st.id]));
+  const active = roster.list.filter(st => !staff.has(st.id) && (!only || only.has(st.id)) && (best[st.id] || ctx.bike[st.id] || mr[st.id]));
   const stampOf = {};       // id → 날짜 → 0/90/100
   const passOf = {};        // id → 날짜 → 통과 종목 수(주말 제외 없이 모든 종목, 스쿼트는 20회 규칙으로 따로)
   active.forEach(st => {
@@ -201,6 +202,7 @@ function pointCompute_(ss, from, to) {
   const groupOf = {};       // gkey → 날짜 → 0/90/100
   const byG = {};
   roster.list.filter(st => st.gkey && !staff.has(st.id)).forEach(st => (byG[st.gkey] = byG[st.gkey] || []).push(st.id));
+  if (only) Object.keys(byG).forEach(g => { if (!byG[g].some(id => only.has(id))) delete byG[g]; });   // 필요한 모둠만
   Object.keys(byG).forEach(g => {
     groupOf[g] = {};
     days.forEach(d => groupOf[g][d] = stampGroupOf_(byG[g].map(id => (stampOf[id] || {})[d] || 0)));
@@ -484,8 +486,11 @@ function pointsForStamp_(ss, st, sum) {
   const all = pointGet_(ss, [st.id].concat(st.gkey ? ['g_' + st.gkey] : []));
   const x = all[st.id] || null, R = pointRules_(ss);
   const t = sum.todayStatus;
-  let today = 0;
-  if (!x || x.last < sum.today) {
+  let today = 0, todayMemo = '';
+  let live = null;
+  if (!x || x.last < sum.today) { try { live = pointTodayLive_(ss, st, sum.today); } catch (e) { console.warn('오늘 포인트: ' + e); } }
+  if (live) { today = live.p; todayMemo = live.t; }             // 스쿼트·줄넘기·자전거·경신·자세까지 밤 계산과 똑같이 (2026-11-15)
+  else if (!x || x.last < sum.today) {                          // 실패하면 예전처럼 통과·도장만
     today += t.items.filter(i => i.ok && i.key !== 'squat' && !(i.key === 'jumprope' && sum.today >= POINT.ROPE_FROM)).length * R['종목 통과'];   // 스쿼트·줄넘기는 횟수 규칙(밤에 계산)
     if (t.stamp) today += R['하루 도장'] + (t.stamp === 100 ? R['완벽 도장'] : 0);
     const g = sum.group && sum.group.days[sum.today] ? sum.group.days[sum.today].stamp : 0;
@@ -501,7 +506,7 @@ function pointsForStamp_(ss, st, sum) {
   const m = pointMathGet_(ss, [st.id])[st.id];                 // 수학 포인트 (통합포인트현황 탭)
   const groupBal = st.gkey ? pointMates_(ss, stampRoster_(ss), pointStaffIds_(ss), st).reduce((t, mt) => t + Math.max(0, mt.bal), 0) : 0;   // 모둠 선물은 모둠원 남은 합으로 (2026-11-15)
   return {
-    earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, m), month: x ? x.month : 0, today,
+    earned: x ? x.earned : 0, spent: x ? x.spent : 0, bal: pointBal_(x, m), month: x ? x.month : 0, today, todayMemo,
     math: m ? m.all : 0, mathMonth: m ? m.month : 0,            // 학생 '내 도장'에 🧠 수학 P (2026-11-13)
     groupBal,
     days: pointDaysOf_(x, sum.month, sum.today, today),        // 달력 칸에 그날 포인트 (2026-11-15)
@@ -509,6 +514,22 @@ function pointsForStamp_(ss, st, sum) {
     group: st.gkey && all['g_' + st.gkey] ? all['g_' + st.gkey] : null,
     rules: R
   };
+}
+
+/** 오늘 포인트를 지금 바로 (내 도장 '오늘 +○P 예정', 2026-11-15)
+ *  밤 계산(pointCompute_)을 이 학생과 모둠원(모둠 도장 판정용)만 오늘 하루로 돌림 → 스쿼트 20회·줄넘기 100회·자전거 더 탄 거리·
+ *  트레드밀·로잉 추가·아침달리기·기록 경신·바른 자세까지 밤에 확정될 값과 같음. 학생마다 2분 캐시 */
+function pointTodayLive_(ss, st, today) {
+  const cache = CacheService.getScriptCache(), ck = 'pd1_' + st.id + '_' + today;
+  const hit = cache.get(ck);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  const staff = pointStaffIds_(ss);
+  const ids = new Set([st.id]);
+  if (st.gkey) stampRoster_(ss).list.forEach(m => { if (m.gkey === st.gkey && !staff.has(m.id)) ids.add(m.id); });
+  const row = pointCompute_(ss, today, today, ids).find(r => stampIdOf_(r[5]) === st.id);
+  const out = row ? { p: Number(row[12]) || 0, t: String(row[18] || '') } : { p: 0, t: '' };
+  try { cache.put(ck, JSON.stringify(out), 120); } catch (e) {}
+  return out;
 }
 
 /** 달력용: 그 달의 날짜별 포인트. 오늘(아직 원장에 없으면)은 '예정' 값 */
