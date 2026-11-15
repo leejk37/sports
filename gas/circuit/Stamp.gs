@@ -254,6 +254,52 @@ function stampGroupFor_(ids, stamps, d, absent) {
   return stampGroupOf_(here);
 }
 
+/** action=absent&key=&grade=&cls=&no=&date=yyyy-MM-dd&reason=결석|체험학습|… (reason 비우면 취소)
+ *  선생님 열쇠(DASH_KEY)가 맞을 때만. '결석' 탭에 한 줄 쓰거나, 그 날짜를 지움(여러 날 줄이면 그날만 빼고 나눔) */
+function stampAbsentSet_(p) {
+  if (!pointKeyOk_(p.key)) return { ok: false, error: '선생님 열쇠가 맞지 않아요', needKey: true };   // Points.gs
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = stampRoster_(ss);
+  const s = v => String(v == null ? '' : v).trim();
+  const st = roster.list.find(x => s(x.grade) === s(p.grade) && s(x.cls) === s(p.cls) && s(x.no) === s(p.no));
+  if (!st) return { ok: false, error: '명단에서 학생을 찾지 못했어요' };
+  const date = s(p.date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: '날짜가 잘못됐어요' };
+  const reason = s(p.reason).slice(0, 20);
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: '잠시 뒤 다시 눌러 주세요' };
+  try {
+    stampAbsent_(ss, roster);                                          // 탭이 없으면 만듦
+    const sh = ss.getSheetByName(STAMP.ABSENT_SHEET);
+    const day = v => v instanceof Date ? stampFmt_(v, 'yyyy-MM-dd') : s(v).replace(/[./]/g, '-');
+    const add = n => stampFmt_(new Date(new Date(n + 'T12:00:00+09:00').getTime() + 864e5), 'yyyy-MM-dd');
+    const sub = n => stampFmt_(new Date(new Date(n + 'T12:00:00+09:00').getTime() - 864e5), 'yyyy-MM-dd');
+    const last = sh.getLastRow();
+    const rows = last > 1 ? sh.getRange(2, 1, last - 1, 7).getValues() : [];
+    const mine = r => s(r[2]) === s(st.grade) && s(r[3]) === s(st.cls) && s(r[4]) === s(st.no);
+    // 이 학생의 그날을 덮는 줄을 모두 정리(지우거나 나눔)
+    const keep = [], extra = [];
+    let changed = false;
+    rows.forEach(r => {
+      const d1 = day(r[0]); let d2 = day(r[1]); if (!/^\d{4}-\d{2}-\d{2}$/.test(d2) || d2 < d1) d2 = d1;
+      if (!mine(r) || date < d1 || date > d2) { keep.push(r); return; }
+      changed = true;
+      if (d1 < date) keep.push([d1, sub(date) === d1 ? '' : sub(date), r[2], r[3], r[4], r[5], r[6]]);
+      if (date < d2) extra.push([add(date), d2 === add(date) ? '' : d2, r[2], r[3], r[4], r[5], r[6]]);
+    });
+    if (reason) keep.push([date, '', st.grade, st.cls, st.no, st.name, reason]);
+    const all = keep.concat(extra);
+    if (changed || reason) {
+      if (last > 1) sh.getRange(2, 1, last - 1, 7).clearContent();
+      if (all.length) { sh.getRange(2, 1, all.length, 2).setNumberFormat('@'); sh.getRange(2, 1, all.length, 7).setValues(all); }
+    }
+    SpreadsheetApp.flush();
+    const c = CacheService.getScriptCache(), month = date.slice(0, 7);
+    c.removeAll(['sabs1', 'team4_' + st.grade + '_' + st.cls + '_' + month, 'pdc1_' + st.grade + '_' + st.cls + '_' + date]);
+    return { ok: true, name: st.name, date, reason };
+  } finally { lock.releaseLock(); }
+}
+
 /** '결석' 탭 → { 날짜: { 아이디: 사유 } }. A 날짜 · B 끝 날짜(선택, 체험학습 여러 날) · C 학년 · D 반 · E 번호 · F 이름 · G 사유
  *  학년·반·번호로 학생을 찾음. 탭이 없으면 제목만 만듦. 1분 캐시 */
 function stampAbsent_(ss, roster) {

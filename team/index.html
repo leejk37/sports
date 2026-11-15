@@ -47,6 +47,13 @@
   .m .pt{flex:none;width:52px;text-align:right;font-size:13px;font-weight:900;color:#9ff0b0} .m .pt.zero{color:var(--soft);opacity:.6}
   .gh .gpt{display:block;font-size:13px;font-weight:900;color:#9ff0b0;margin-top:2px}
   .m.absent{opacity:.55} .m.absent .st{background:rgba(255,255,255,.15);color:#fff}
+  /* 선생님 결석 표시 (2026-11-15): 열쇠가 있는 기기에서 모둠원 이름을 누르면 메뉴 */
+  body.teacher .m{cursor:pointer} body.teacher .m:hover{outline:2px dashed rgba(255,255,255,.35);outline-offset:-2px}
+  .absMenu{position:fixed;z-index:20;background:#0f2c57;border:2px solid var(--yellow);border-radius:14px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,.5);min-width:220px}
+  .absMenu b{display:block;font-size:15px;margin-bottom:8px}
+  .absMenu button{font:inherit;font-weight:800;font-size:14px;margin:3px 4px 0 0;padding:7px 12px;border-radius:999px;border:0;cursor:pointer;background:rgba(255,255,255,.12);color:#fff}
+  .absMenu button.on{background:var(--yellow);color:var(--blue-dd)} .absMenu button.x{background:#ff9d8a;color:#2b0d06}
+  .absMenu input{font:inherit;width:120px;margin-top:6px;padding:6px 8px;border-radius:8px;border:0}
   .m .st{flex:none;font-size:13px;font-weight:900;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);white-space:nowrap}
   .m .w{flex:none;width:34px;height:7px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
   .m .w i{display:block;height:100%;background:rgba(255,255,255,.55)}
@@ -70,11 +77,13 @@
 <header>
   <h1>우리 반 모둠 도장</h1>
   <div id="cls"></div>
+  <button class="hbtn" id="tKey" style="margin-left:auto">🔑 선생님</button>
   <a class="hbtn" href="../">허브로</a>
 </header>
+<div id="absMenu" class="absMenu" hidden></div>
 <div id="top"></div>
 <main id="app"></main>
-<div class="rules">· <b>모둠 도장</b>: 모둠원 <b>모두</b>가 그날 개인 도장을 받으면 찍혀요. 모두 완벽 도장이면 <b>완벽 모둠 도장</b>. 결석·체험학습으로 빠진 친구(시트 '결석' 탭)는 빼고 판정해요.<br>· 이름 옆 초록 숫자는 그날 받은 포인트예요 (오늘은 지금까지, 밤 1시에 확정). 모둠 이름 아래는 모둠원 합계<br>
+<div class="rules">· <b>모둠 도장</b>: 모둠원 <b>모두</b>가 그날 개인 도장을 받으면 찍혀요. 모두 완벽 도장이면 <b>완벽 모둠 도장</b>. 결석·체험학습으로 빠진 친구(시트 '결석' 탭)는 빼고 판정해요. 선생님은 '🔑 선생님'에 열쇠를 넣고 모둠원 이름을 눌러 결석을 표시해요.<br>· 이름 옆 초록 숫자는 그날 받은 포인트예요 (오늘은 지금까지, 밤 1시에 확정). 모둠 이름 아래는 모둠원 합계<br>
 · 날짜는 ‹ › 버튼·키보드 ←/→·화면 옆으로 밀기, 모둠 카드 아래 동그라미(이번 달)를 눌러도 바뀌어요. 모둠은 학생명단의 '모둠' 열에서 바꿉니다.</div>
 <div id="status"></div>
 
@@ -91,6 +100,20 @@ const P = new URLSearchParams(location.search);
 const Q = P.get('email') ? { email: P.get('email').trim().toLowerCase() } : { grade: P.get('grade') || '', cls: P.get('cls') || '' };
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 let data = null, month = '', sel = '', seq = 0;
+// 선생님 열쇠: 포인트 관리·현황판과 같은 'dashKey' (이 기기에 기억). 있으면 모둠원 이름을 눌러 결석 표시
+const store = { get: k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) {} } };
+if (P.has('key')) { store.set('dashKey', P.get('key')); }
+let KEY = store.get('dashKey');
+document.body.classList.toggle('teacher', !!KEY);
+document.getElementById('tKey').textContent = KEY ? '🔑 선생님 (결석 표시)' : '🔑 선생님';
+document.getElementById('tKey').onclick = () => {
+  const k = prompt(KEY ? '선생님 열쇠 (비우면 이 기기에서 지움)' : '선생님 열쇠를 넣으면 모둠원 이름을 눌러 결석을 표시할 수 있어요', KEY || '');
+  if (k === null) return;
+  KEY = k.trim(); store.set('dashKey', KEY);
+  document.body.classList.toggle('teacher', !!KEY);
+  document.getElementById('tKey').textContent = KEY ? '🔑 선생님 (결석 표시)' : '🔑 선생님';
+  if (data) render();
+};
 
 function jsonp(params, timeout = 40000) {
   return new Promise((resolve, reject) => {
@@ -145,7 +168,7 @@ function render() {
         const bar = v.s ? '' : `<span class="w"><i style="width:${v.n ? Math.round(v.d / v.n * 100) : 0}%"></i></span>`;
         const pt = x.p ? x.p[i] : null;                 // 그날 받은 포인트 (오늘은 지금까지, 밤 1시 확정)
         const ptS = pt != null ? `<span class="pt${pt ? '' : ' zero'}">${pt ? '+' + Number(pt).toLocaleString('ko-KR') : 0}P</span>` : '';
-        return `<div class="m${v.a ? ' absent' : v.s === 100 ? ' s100' : v.s === 90 ? ' s90' : ''}"><span class="nm">${esc(m.name)}<small>${esc(m.no)}번</small></span>${bar}<span class="st">${st}</span>${ptS}</div>`;
+        return `<div data-no="${esc(m.no)}" data-name="${esc(m.name)}" data-a="${esc(v.a || '')}" class="m${v.a ? ' absent' : v.s === 100 ? ' s100' : v.s === 90 ? ' s90' : ''}"><span class="nm">${esc(m.name)}<small>${esc(m.no)}번</small></span>${bar}<span class="st">${st}</span>${ptS}</div>`;
       }).join('');
       const strip = days.map(k => { const s = g.days[k].stamp; return `<span class="${s === 100 ? 's100' : s === 90 ? 's90' : ''}${k === sel ? ' sel' : ''}" data-day="${k}" title="${k}"></span>`; }).join('');
       return `<section class="g ${sealCls}">
@@ -160,7 +183,40 @@ function render() {
   $('dNext').onclick = () => goDay(addDay(sel, 1));
   if ($('toToday')) $('toToday').onclick = () => goDay(d.today);
   document.querySelectorAll('.strip span').forEach(s => s.onclick = () => goDay(s.dataset.day));
+  if (KEY) document.querySelectorAll('.m[data-no]').forEach(el => el.onclick = ev => absMenu(el, ev));
 }
+
+/* 선생님: 모둠원 이름 누르면 결석·체험학습 표시 / 취소 → GAS action=absent → 다시 불러오기 */
+function absMenu(el, ev) {
+  ev.stopPropagation();
+  const m = $('absMenu'), cur = el.dataset.a;
+  m.innerHTML = `<b>${esc(el.dataset.name)} · ${esc(dayName(sel))}</b>
+    ${['결석', '체험학습', '병결'].map(r => `<button data-r="${r}" class="${cur === r ? 'on' : ''}">${r}</button>`).join('')}
+    <div><input id="absEtc" placeholder="다른 사유" maxlength="20"><button data-r="__etc">적기</button></div>
+    ${cur ? '<button data-r="" class="x">취소 (출석으로)</button>' : ''}`;
+  m.hidden = false;
+  m.onclick = e => e.stopPropagation();          // 입력 칸을 눌러도 메뉴가 닫히지 않게
+  const r = el.getBoundingClientRect();
+  m.style.left = Math.min(innerWidth - 240, Math.max(8, r.left)) + 'px';
+  m.style.top = Math.min(innerHeight - 160, r.bottom + 6) + 'px';
+  m.querySelectorAll('button').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const reason = b.dataset.r === '__etc' ? $('absEtc').value.trim() : b.dataset.r;
+    if (b.dataset.r === '__etc' && !reason) return;
+    m.hidden = true;
+    $('status').textContent = '저장하는 중…';
+    try {
+      const res = await jsonp({ action: 'absent', key: KEY, grade: data.grade, cls: data.cls, no: el.dataset.no, date: sel, reason });
+      if (!res || !res.ok) {
+        if (res && res.needKey) { KEY = ''; store.set('dashKey', ''); document.body.classList.remove('teacher'); }
+        $('status').textContent = (res && res.error) || '저장하지 못했어요'; return;
+      }
+      $('status').textContent = `${res.name} ${reason ? reason + '(으)로 표시' : '결석 취소'} · 다시 불러오는 중…`;
+      load();
+    } catch (err) { $('status').textContent = '서버에 연결하지 못했어요'; }
+  });
+}
+document.addEventListener('click', () => { const m = $('absMenu'); if (m) m.hidden = true; });
 
 async function load() {
   const my = ++seq;

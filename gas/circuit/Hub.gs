@@ -50,6 +50,8 @@ function hubJsonp_(e) {
       out = pointsPublic_();                 // Points.gs — 학생용 포인트 순위(이름 가림, 아이디 없음), 로그인 없이
     } else if (p.action === 'rules') {
       out = pointRulesInfo_();               // Points.gs — 규칙 안내·포인트 계산기 화면(rules/), 로그인 없이
+    } else if (p.action === 'absent') {
+      out = stampAbsentSet_(p);              // Stamp.gs — 선생님이 우리 모둠 화면에서 결석 표시·취소 (key, grade, cls, no, date, reason)
     } else if (p.action === 'gift') {
       out = pointsGive_(p);                  // Points.gs — 선물 주기 (key, id, gift)
     } else {
