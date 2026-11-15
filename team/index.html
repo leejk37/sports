@@ -46,6 +46,7 @@
   .m .nm small{font-size:11px;color:var(--dim);margin-left:3px}
   .m .pt{flex:none;width:52px;text-align:right;font-size:13px;font-weight:900;color:#9ff0b0} .m .pt.zero{color:var(--soft);opacity:.6}
   .gh .gpt{display:block;font-size:13px;font-weight:900;color:#9ff0b0;margin-top:2px}
+  .m.absent{opacity:.55} .m.absent .st{background:rgba(255,255,255,.15);color:#fff}
   .m .st{flex:none;font-size:13px;font-weight:900;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);white-space:nowrap}
   .m .w{flex:none;width:34px;height:7px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
   .m .w i{display:block;height:100%;background:rgba(255,255,255,.55)}
@@ -73,7 +74,7 @@
 </header>
 <div id="top"></div>
 <main id="app"></main>
-<div class="rules">· <b>모둠 도장</b>: 모둠원 <b>모두</b>가 그날 개인 도장을 받으면 찍혀요. 모두 완벽 도장이면 <b>완벽 모둠 도장</b>.<br>· 이름 옆 초록 숫자는 그날 받은 포인트예요 (오늘은 지금까지, 밤 1시에 확정). 모둠 이름 아래는 모둠원 합계<br>
+<div class="rules">· <b>모둠 도장</b>: 모둠원 <b>모두</b>가 그날 개인 도장을 받으면 찍혀요. 모두 완벽 도장이면 <b>완벽 모둠 도장</b>. 결석·체험학습으로 빠진 친구(시트 '결석' 탭)는 빼고 판정해요.<br>· 이름 옆 초록 숫자는 그날 받은 포인트예요 (오늘은 지금까지, 밤 1시에 확정). 모둠 이름 아래는 모둠원 합계<br>
 · 날짜는 ‹ › 버튼·키보드 ←/→·화면 옆으로 밀기, 모둠 카드 아래 동그라미(이번 달)를 눌러도 바뀌어요. 모둠은 학생명단의 '모둠' 열에서 바꿉니다.</div>
 <div id="status"></div>
 
@@ -135,16 +136,16 @@ function render() {
     const days = Object.keys(d.groups[0].days);
     $('app').innerHTML = d.groups.map(g => {
       const x = g.days[sel] || { stamp: 0, m: g.members.map(() => ({ s: 0, d: 0, n: 0 })) };
-      const got = x.m.filter(v => v.s).length, all = x.m.length;
+      const here = x.m.filter(v => !v.a), got = here.filter(v => v.s).length, all = here.length;   // 결석 탭의 모둠원은 빼고 셈
       const sealCls = x.stamp === 100 ? 's100' : x.stamp === 90 ? 's90' : '';
       const seal = x.stamp === 100 ? '완벽<b>모둠</b>도장' : x.stamp === 90 ? '<b>모둠</b>도장' : `<b>${got}/${all}</b>명`;
       const mem = g.members.map((m, i) => {
         const v = x.m[i] || { s: 0, d: 0, n: 0 };
-        const st = v.s === 100 ? '완벽 ★' : v.s === 90 ? '도장 ✓' : `${v.d}/${v.n}`;
+        const st = v.a ? esc(v.a) : v.s === 100 ? '완벽 ★' : v.s === 90 ? '도장 ✓' : `${v.d}/${v.n}`;
         const bar = v.s ? '' : `<span class="w"><i style="width:${v.n ? Math.round(v.d / v.n * 100) : 0}%"></i></span>`;
         const pt = x.p ? x.p[i] : null;                 // 그날 받은 포인트 (오늘은 지금까지, 밤 1시 확정)
         const ptS = pt != null ? `<span class="pt${pt ? '' : ' zero'}">${pt ? '+' + Number(pt).toLocaleString('ko-KR') : 0}P</span>` : '';
-        return `<div class="m${v.s === 100 ? ' s100' : v.s === 90 ? ' s90' : ''}"><span class="nm">${esc(m.name)}<small>${esc(m.no)}번</small></span>${bar}<span class="st">${st}</span>${ptS}</div>`;
+        return `<div class="m${v.a ? ' absent' : v.s === 100 ? ' s100' : v.s === 90 ? ' s90' : ''}"><span class="nm">${esc(m.name)}<small>${esc(m.no)}번</small></span>${bar}<span class="st">${st}</span>${ptS}</div>`;
       }).join('');
       const strip = days.map(k => { const s = g.days[k].stamp; return `<span class="${s === 100 ? 's100' : s === 90 ? 's90' : ''}${k === sel ? ' sel' : ''}" data-day="${k}" title="${k}"></span>`; }).join('');
       return `<section class="g ${sealCls}">

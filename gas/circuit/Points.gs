@@ -184,7 +184,7 @@ function pointCompute_(ss, from, to, only) {
   });
 
   // 3) 도장 판정 (Stamp.gs 엔진 그대로) · 모둠 도장 · 연속
-  const ctx = { now: new Date(), today, hour: 23, crit: stampCriteria_(ss), holi: stampHolidays_(ss), best, bike: stampReadAllRide_(roster), grade: {} };
+  const ctx = { now: new Date(), today, hour: 23, crit: stampCriteria_(ss), holi: stampHolidays_(ss), absent: stampAbsent_(ss, roster), best, bike: stampReadAllRide_(roster), grade: {} };
   roster.list.forEach(st => ctx.grade[st.id] = st.grade);
   const days = [];
   for (let t = new Date('2026-09-01T12:00:00+09:00'); ; t = new Date(t.getTime() + 864e5)) {
@@ -210,7 +210,7 @@ function pointCompute_(ss, from, to, only) {
   if (only) Object.keys(byG).forEach(g => { if (!byG[g].some(id => only.has(id))) delete byG[g]; });   // 필요한 모둠만
   Object.keys(byG).forEach(g => {
     groupOf[g] = {};
-    days.forEach(d => groupOf[g][d] = stampGroupOf_(byG[g].map(id => (stampOf[id] || {})[d] || 0)));
+    days.forEach(d => groupOf[g][d] = stampGroupFor_(byG[g], byG[g].map(id => (stampOf[id] || {})[d] || 0), d, ctx.absent));   // 결석 탭의 모둠원은 빼고
   });
 
   // 4) 줄 만들기
@@ -233,7 +233,7 @@ function pointCompute_(ss, from, to, only) {
       const mrPbP = mrPb ? R['아침달리기 기록 경신'] : 0;
       const mrSkP = !mrSec ? 0 : mrStreak === 3 ? R['아침달리기 연속 3일'] : mrStreak === 4 ? R['아침달리기 연속 4일'] : mrStreak === 5 ? R['아침달리기 연속 5일'] : 0;
       const pass = passOf[st.id][d];
-      const g = st.gkey ? groupOf[st.gkey][d] : 0;
+      const g = st.gkey && !((ctx.absent || {})[d] || {})[st.id] ? groupOf[st.gkey][d] : 0;   // 결석한 날은 모둠 도장 포인트 없음
       const pbList = ((pbs[st.id] || {})[d] || []).slice(0, Math.max(0, pbMax));
       const accList = [];
       const a = (acc[st.id] || {})[d] || {};

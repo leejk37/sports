@@ -224,12 +224,12 @@ const WD = ['일', '월', '화', '수', '목', '금', '토'];
 function teamHtml(d, day, isToday) {
   const g = d.group; if (!g) return '';
   const x = g.days[day]; if (!x) return '';
-  const got = x.m.filter(s => s).length, all = x.m.length;
+  const ab = x.a || [], got = x.m.filter((s, i) => s && !ab[i]).length, all = x.m.filter((s, i) => !ab[i]).length;   // 결석한 모둠원은 빼고
   const seal = x.stamp === 100 ? '<span class="gseal s100">완벽 모둠 도장</span>' : x.stamp === 90 ? '<span class="gseal s90">모둠 도장</span>'
     : `<span class="gseal">${got}/${all}명</span>`;
   const mates = g.members.map((m, i) => {
     const s = x.m[i];
-    return `<span class="mate${s === 100 ? ' s100' : s === 90 ? ' s90' : ''}${m.me ? ' me' : ''}">${esc(m.name)}${s === 100 ? ' ★' : s === 90 ? ' ✓' : ''}</span>`;
+    return `<span class="mate${s === 100 ? ' s100' : s === 90 ? ' s90' : ''}${m.me ? ' me' : ''}"${ab[i] ? ' style="opacity:.5"' : ''}>${esc(m.name)}${ab[i] ? ' (결석)' : s === 100 ? ' ★' : s === 90 ? ' ✓' : ''}</span>`;
   }).join('');
   const msg = x.stamp ? '' : all - got === 1 && !x.m[g.members.findIndex(m => m.me)] ? (isToday ? ' · 나만 하면 모둠 도장!' : '') : (isToday ? ` · ${all - got}명 더 하면 모둠 도장` : '');
   const teamUrl = '../team/?' + new URLSearchParams({ email: EMAIL, from: 'hub' });

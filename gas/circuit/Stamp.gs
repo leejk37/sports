@@ -28,6 +28,7 @@
 const STAMP = {
   TZ: 'Asia/Seoul',
   CRITERIA_SHEET: '통과기준',
+  ABSENT_SHEET: '결석',        // 결석·체험학습 등으로 빠진 학생 → 그날 모둠 도장 판정에서 뺌 (2026-11-15)
   HOLIDAY_SHEET: '휴일',       // A 날짜 · B 이름. 주말이 아닌 휴일(공휴일·대체공휴일·재량휴업일)을 선생님이 적음
   DEFAULT_SEC: 30,
   BIKE_KM: 7,                 // 실내자전거 그날 이만큼 이상이면 통과 (2026-11-09부터 7km, 그전 5km = 10분)
@@ -80,7 +81,7 @@ function stampCtx_(ss, ids, roster) {
   const now = new Date();
   const ctx = {
     now, today: stampFmt_(now, 'yyyy-MM-dd'), hour: Number(stampFmt_(now, 'H')),
-    crit: stampCriteria_(ss), holi: stampHolidays_(ss), best: {}, bike: {}, grade: {}
+    crit: stampCriteria_(ss), holi: stampHolidays_(ss), absent: stampAbsent_(ss, roster), best: {}, bike: {}, grade: {}
   };
   const list = [...ids];
   list.forEach(id => { const st = roster.byId[id]; if (st) ctx.grade[id] = st.grade; });
@@ -246,6 +247,47 @@ function stampGroupOf_(stamps) {
   if (!stamps.length || stamps.some(s => !s)) return 0;
   return stamps.every(s => s === 100) ? 100 : 90;
 }
+/** 결석 탭에 그날 적힌 모둠원은 빼고 모둠 도장 판정. 모두 빠지면 모둠 도장 없음. ids·stamps는 같은 순서 */
+function stampGroupFor_(ids, stamps, d, absent) {
+  const off = (absent || {})[d] || {};
+  const here = stamps.filter((s, i) => !off[ids[i]]);
+  return stampGroupOf_(here);
+}
+
+/** '결석' 탭 → { 날짜: { 아이디: 사유 } }. A 날짜 · B 끝 날짜(선택, 체험학습 여러 날) · C 학년 · D 반 · E 번호 · F 이름 · G 사유
+ *  학년·반·번호로 학생을 찾음. 탭이 없으면 제목만 만듦. 1분 캐시 */
+function stampAbsent_(ss, roster) {
+  const c = CacheService.getScriptCache(), hit = c.get('sabs1');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  const out = {};
+  let sh = ss.getSheetByName(STAMP.ABSENT_SHEET);
+  if (!sh) {
+    try {
+      sh = ss.insertSheet(STAMP.ABSENT_SHEET);
+      sh.getRange('A:B').setNumberFormat('@');
+      sh.getRange(1, 1, 1, 7).setValues([['날짜', '끝 날짜(선택)', '학년', '반', '번호', '이름', '사유']]).setFontWeight('bold');
+      sh.getRange(1, 9).setValue('← 결석·체험학습 등으로 빠진 날. 날짜(2026-11-16 모양)·학년·반·번호만 적으면 돼요. 여러 날이면 끝 날짜도. 그날 모둠 도장은 이 학생을 빼고 판정');
+      sh.setFrozenRows(1);
+    } catch (e) {}
+  } else if (sh.getLastRow() > 1) {
+    roster = roster || stampRoster_(ss);
+    const s = v => String(v == null ? '' : v).trim();
+    const day = v => v instanceof Date ? stampFmt_(v, 'yyyy-MM-dd') : s(v).replace(/[./]/g, '-');
+    sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues().forEach(r => {
+      const d1 = day(r[0]); if (!/^\d{4}-\d{2}-\d{2}$/.test(d1)) return;
+      let d2 = day(r[1]); if (!/^\d{4}-\d{2}-\d{2}$/.test(d2) || d2 < d1) d2 = d1;
+      const st = roster.list.find(x => s(x.grade) === s(r[2]) && s(x.cls) === s(r[3]) && s(x.no) === s(r[4]))
+        || (s(r[5]) && roster.list.find(x => s(x.grade) === s(r[2]) && s(x.cls) === s(r[3]) && x.name === s(r[5])));
+      if (!st) return;
+      for (let t = new Date(d1 + 'T12:00:00+09:00'), n = 0; n < 60; t = new Date(t.getTime() + 864e5), n++) {
+        const d = stampFmt_(t, 'yyyy-MM-dd'); if (d > d2) break;
+        (out[d] = out[d] || {})[st.id] = s(r[6]) || '결석';
+      }
+    });
+  }
+  try { c.put('sabs1', JSON.stringify(out), 60); } catch (e) {}
+  return out;
+}
 
 const stampMonthOf_ = (monthRaw, today) =>
   /^\d{4}-\d{2}$/.test(String(monthRaw || '')) && String(monthRaw) <= today.slice(0, 7) ? String(monthRaw) : today.slice(0, 7);
@@ -276,9 +318,10 @@ function stampSummary_(emailRaw, monthRaw) {
     const gdays = {};
     stampMonthDays_(month, ctx.today).forEach(d => {
       const m = mates.map(x => x.id === id ? days[d].stamp : stampJudge_(ctx, x.id, d).stamp);
-      gdays[d] = { stamp: stampGroupOf_(m), m };
+      const off = ctx.absent[d] || {}, a = mates.map(x => off[x.id] ? 1 : 0);
+      gdays[d] = { stamp: stampGroupFor_(mates.map(x => x.id), m, d, ctx.absent), m, a: a.some(Boolean) ? a : undefined };
     });
-    const gOf = d => stampGroupOf_(mates.map(x => stampJudge_(ctx, x.id, d).stamp));
+    const gOf = d => stampGroupFor_(mates.map(x => x.id), mates.map(x => stampJudge_(ctx, x.id, d).stamp), d, ctx.absent);
     group = {
       no: st.group,
       members: mates.map(x => ({ name: x.name, no: x.no, me: x.id === id })),
@@ -335,14 +378,15 @@ function stampTeam_(p) {
     const J = (x, d) => cacheJ[x.id + d] || (cacheJ[x.id + d] = stampJudge_(ctx, x.id, d));
     const days = {};
     dayList.forEach(d => {
-      const m = mates.map(x => { const j = J(x, d); return { s: j.stamp, d: j.done, n: j.need }; });
-      days[d] = { stamp: stampGroupOf_(m.map(x => x.s)), m };
+      const off = ctx.absent[d] || {};
+      const m = mates.map(x => { const j = J(x, d); return off[x.id] ? { s: j.stamp, d: j.done, n: j.need, a: off[x.id] } : { s: j.stamp, d: j.done, n: j.need }; });
+      days[d] = { stamp: stampGroupFor_(mates.map(x => x.id), m.map(x => x.s), d, ctx.absent), m };
     });
     return {
       no: g, members: mates.map(x => ({ name: x.name, no: x.no })), days, _ids: mates.map(x => x.id),   // _ids: 포인트 붙인 뒤 지움(화면에 아이디 안 보냄)
       monthCount: Object.values(days).filter(x => x.stamp).length,
       monthPerfect: Object.values(days).filter(x => x.stamp === 100).length,
-      streak: stampStreak_(ctx.today, d => stampGroupOf_(mates.map(x => J(x, d).stamp)))
+      streak: stampStreak_(ctx.today, d => stampGroupFor_(mates.map(x => x.id), mates.map(x => J(x, d).stamp), d, ctx.absent))
     };
   });
   const out = {
