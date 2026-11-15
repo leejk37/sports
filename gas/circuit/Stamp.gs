@@ -6,6 +6,8 @@
  *       평일: 아래 STAMP_EX 13종목 전부 (2026-10-29 레그레이즈·버피테스트 추가)
  *       휴일(토·일 + '휴일' 탭의 공휴일·재량휴업일): 스포츠실 전용(트레드밀·로잉머신·행잉)은 빼고 10종목
  *       통과 = 그날 그 종목 기록 중 측정시간이 '통과기준' 탭의 최소시간(기본 30초) 이상인 기록이 하나라도 있음
+ *       ※ 2026-11-16부터 횟수 종목(카메라 8종목 + 줄넘기)은 '그날 정확한 횟수 합'이 기준 횟수 이상이면 통과
+ *          (통과기준 탭 '<종목>(횟수)' 줄). 기준만큼 더 할 때마다 '추가 횟수' 보너스 포인트(Points.gs). 플랭크·행잉·트레드밀·로잉은 시간 그대로
  *   - 100% 완벽 도장: 90% + 실내자전거 그날 7km 이상 (2026-11-09부터, 그전 5km). 1·2학년은 1km(마이후쉬)
  *       휴일에는 스포츠실·자전거를 쓸 수 없으므로 10종목을 모두 하면 바로 완벽 도장 (2026-10-24 결정: 꾸준히 운동하게)
  *       자전거는 인도어라이딩 시트에 모아서 입력하므로 오늘 도장에는 17시부터 반영
@@ -43,17 +45,19 @@ const STAMP = {
   ROSTER_SEC: 300
 };
 /* key는 허브 EXERCISES의 id와 같게 (도장 화면에서 '하러 가기'로 바로 연결) */
+/* count: 정확한 횟수 열(0부터), countFrom: 이날부터 횟수로 통과, countMin: 기본 기준 횟수(통과기준 탭 '<종목>(횟수)' 줄이 우선) — 2026-11-16 횟수 기준으로 (선생님 결정) */
+const STAMP_COUNT_FROM = '2026-11-16';
 const STAMP_EX = [
-  { key: 'squat',       name: '스쿼트',         sheet: '스쿼트',         time: 6 },
-  { key: 'lunge',       name: '런지',           sheet: '런지',           time: 6 },
-  { key: 'jumpingjack', name: '점핑잭',         sheet: '점핑잭',         time: 6 },
-  { key: 'curlup',      name: '윗몸말아올리기', sheet: '윗몸말아올리기', time: 6 },
-  { key: 'highknee',    name: '하이니',         sheet: '하이니',         time: 6 },
-  { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     time: 7 },
-  { key: 'plank',       name: '플랭크',         sheet: '플랭크',         time: 8 },   // 버틴 시간(초)
+  { key: 'squat',       name: '스쿼트',         sheet: '스쿼트',         time: 6, count: 7, countFrom: STAMP_COUNT_FROM, countMin: 10 },
+  { key: 'lunge',       name: '런지',           sheet: '런지',           time: 6, count: 7, countFrom: STAMP_COUNT_FROM, countMin: 10 },
+  { key: 'jumpingjack', name: '점핑잭',         sheet: '점핑잭',         time: 6, count: 7, countFrom: STAMP_COUNT_FROM, countMin: 30 },
+  { key: 'curlup',      name: '윗몸말아올리기', sheet: '윗몸말아올리기', time: 6, count: 7, countFrom: STAMP_COUNT_FROM, countMin: 10 },
+  { key: 'highknee',    name: '하이니',         sheet: '하이니',         time: 6, count: 7, countFrom: STAMP_COUNT_FROM, countMin: 30 },
+  { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     time: 7, count: 8, countFrom: STAMP_COUNT_FROM, countMin: 10 },
+  { key: 'plank',       name: '플랭크',         sheet: '플랭크',         time: 8 },   // 버틴 시간(초) — 시간 그대로
   { key: 'jumprope',    name: '줄넘기',         sheet: '줄넘기',         time: 8, count: 7, countFrom: '2026-11-02', countMin: 100 },   // 11/2부터 통과 = 그날 뛴 횟수 합(H) 100회 이상('통과기준' 탭 '줄넘기(횟수)' 줄)
-  { key: 'legraise',    name: '레그레이즈',     sheet: '레그레이즈',     time: 6, from: '2026-10-30' },
-  { key: 'burpee',      name: '버피테스트',     sheet: '버피테스트',     time: 6, from: '2026-10-30' },
+  { key: 'legraise',    name: '레그레이즈',     sheet: '레그레이즈',     time: 6, from: '2026-10-30', count: 7, countFrom: STAMP_COUNT_FROM, countMin: 10 },
+  { key: 'burpee',      name: '버피테스트',     sheet: '버피테스트',     time: 6, from: '2026-10-30', count: 7, countFrom: STAMP_COUNT_FROM, countMin: 5 },
   { key: 'hanging',     name: '행잉',           sheet: '행잉',           time: 9, room: true },
   { key: 'treadmill',   name: '트레드밀',       sheet: '트레드밀',       time: 6, room: true },
   { key: 'rowing',      name: '로잉머신',       sheet: '로잉머신',       time: 7, room: true },
@@ -195,7 +199,8 @@ function stampJudge_(ctx, id, d) {
   const items = need.map(ex => {
     if (stampByCount_(ex, d)) {                                       // 줄넘기: 그날 횟수 합
       const n = b[ex.key + '#n'] || 0, cmin = ctx.crit[ex.key].countMin;
-      return { key: ex.key, name: ex.name, sec: n, min: cmin, unit: '회', ok: n >= cmin, tried: ex.key in b };
+      const extra = cmin > 0 && n >= cmin ? Math.floor((n - cmin) / cmin + 1e-9) : 0;   // 기준만큼 더 한 번 수 → '추가 횟수' 보너스
+      return { key: ex.key, name: ex.name, sec: n, min: cmin, unit: '회', ok: n >= cmin, tried: ex.key in b, extra };
     }
     const s = b[ex.key] || 0, min = ctx.crit[ex.key].min;
     return { key: ex.key, name: ex.name, sec: Math.round(s * 10) / 10, min, ok: s >= min, tried: ex.key in b };
@@ -430,7 +435,7 @@ function stampCriteria_(ss) {
   STAMP_EX.filter(ex => ex.count != null).forEach(ex => {
     const r = rows.find(x => String(x[0]).trim() === ex.name + '(횟수)');
     if (r) { const m = Number(r[1]); if (String(r[1]).trim() !== '' && isFinite(m) && m >= 0) out[ex.key].countMin = m; }
-    else { try { sh.appendRow([ex.name + '(횟수)', ex.countMin, '← ' + ex.countFrom.slice(5).replace('-', '월 ') + '일부터 이 종목은 시간 대신 그날 뛴 횟수 합으로 통과']); } catch (e) {} }
+    else { try { sh.appendRow([ex.name + '(횟수)', ex.countMin, '← ' + ex.countFrom.slice(5).replace('-', '월 ') + '일부터 이 종목은 시간 대신 그날 정확한 횟수 합으로 통과. 이만큼 더 할 때마다 보너스']); } catch (e) {} }
   });
   rows.forEach(r => {
     const ex = STAMP_EX.find(x => x.name === String(r[0]).trim() && !x.mrun); if (!ex) return;   // 아침달리기는 탭과 관계없이 '기록 있음' + 휴일 제외

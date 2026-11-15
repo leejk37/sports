@@ -229,10 +229,9 @@ let R = {
 };
 
 /* ===== 계산기 상태 ===== */
-const S = { grade: 'hi', day: 'weekday', group: 0, done: new Set(), n: { squat: 0, rope: 0, cardio: 0, bike: 0, streak: 1, pb: 0, acc: 0 } };
+const S = { grade: 'hi', day: 'weekday', group: 0, done: new Set(), n: { extra: 0, cardio: 0, bike: 0, streak: 1, pb: 0, acc: 0 } };
 const NUMS = [
-  { k: 'squat',  t: '🏋️ 스쿼트 정확한 횟수', unit: '회', step: 10, max: 500, help: () => `${R.squatPer}회마다 ${P(R.rules['스쿼트 20회'])}점 (그날 모두 더해서)` },
-  { k: 'rope',   t: '🪢 줄넘기 뛴 횟수',    unit: '회', step: 10, max: 2000, help: () => `${R.ropePer}회마다 ${P(R.rules['줄넘기 100회'])}점 (그날 모두 더해서)` },
+  { k: 'extra',  t: '➕ 기준만큼 더 한 번 수', unit: '번', step: 1, max: 100, help: () => `횟수 종목에서 통과 기준만큼 더 할 때마다 ${P(R.rules['추가 횟수'] ?? 1)}점 (모든 종목 더해서. 예: 스쿼트 기준 10회인데 35회 → 2번)` },
   { k: 'cardio', t: '🏃 트레드밀·로잉머신 2분 넘게 탄 시간', unit: '분', step: 1, max: 10, help: () => `두 종목을 더해서, 2분을 넘은 1분마다 ${P(R.rules['트레드밀·로잉 추가 1분'] ?? 1)}점 (예: 트레드밀 5분 + 로잉 3분 → 3+1 = 4분)` },
   { k: 'bike',   t: '🚴 실내자전거',        unit: 'km', step: 1, max: 60,  help: () => `${bikeKm()}km 이상이면 완벽 도장 · 넘은 1km마다 ${P(R.rules['자전거 추가 1km'])}점` },
   { k: 'streak', t: '🔥 오늘이 연속 며칠째', unit: '일', step: 1, max: 100, help: () => '오늘 도장을 받으면 며칠째인지' },
@@ -257,7 +256,9 @@ $('allOff').onclick = () => { S.done.clear(); drawChips(); calc(); };
 function drawChips() {
   const mins = [...new Set(R.exercises.map(e => e.min))];
   const tm = [...new Set(R.exercises.filter(e => !e.unit).map(e => e.min))], cnt = R.exercises.find(e => e.unit === '회');
-  $('minTxt').textContent = (tm.length === 1 ? `각 종목 ${tm[0]}초 이상` : '종목마다 정한 시간 이상') + (cnt ? ` · ${cnt.name}는 그날 ${cnt.min}회 이상` : '');
+  const cnts = R.exercises.filter(e => e.unit === '회');
+  $('minTxt').textContent = cnts.length > 1 ? '종목마다 정한 횟수(플랭크·행잉·트레드밀·로잉머신은 시간) 이상'
+    : (tm.length === 1 ? `각 종목 ${tm[0]}초 이상` : '종목마다 정한 시간 이상') + (cnt ? ` · ${cnt.name}는 그날 ${cnt.min}회 이상` : '');
   $('exChips').innerHTML = R.exercises.filter(exOn).map(ex => {
     const free = S.day === 'holiday' && ex.weekendOff;
     return `<button class="chip${S.done.has(ex.key) ? ' on' : ''}${free ? ' off' : ''}" data-k="${ex.key}"><i>${S.done.has(ex.key) ? '✓' : ''}</i>${esc(ex.name)}${free ? '<small>휴일엔 안 해도 돼요</small>' : ''}</button>`;
@@ -292,9 +293,8 @@ function calc() {
   const bike = S.n.bike, bikeOk = bike >= bikeKm();
   const stamp = all ? (bikeOk || S.day === 'holiday' ? 100 : 90) : 0;
   // 종목 통과: 통과한 도장 종목(스쿼트·줄넘기 빼고, 둘은 횟수로) — 휴일에 한 스포츠실 종목도 셈
-  const pass = R.exercises.filter(ex => exOn(ex) && ex.key !== 'squat' && ex.key !== 'jumprope' && S.done.has(ex.key)).length;
-  const sqP = Math.floor(S.n.squat / R.squatPer) * r['스쿼트 20회'];
-  const rpP = Math.floor(S.n.rope / R.ropePer) * r['줄넘기 100회'];
+  const pass = R.exercises.filter(ex => exOn(ex) && S.done.has(ex.key)).length;   // 11/16~ 모든 종목 통과마다 (횟수 종목도)
+  const exP = Math.floor(S.n.extra) * (r['추가 횟수'] ?? 1);
   const bkP = Math.floor(Math.max(0, bike - bikeKm()) * r['자전거 추가 1km'] + 1e-9);
   const cdP = Math.floor(S.n.cardio) * (r['트레드밀·로잉 추가 1분'] ?? 1);
   const stP = stamp ? r['하루 도장'] + (stamp === 100 ? r['완벽 도장'] : 0) : 0;
@@ -304,16 +304,15 @@ function calc() {
   const skP = stamp ? (st === 3 ? r['연속 3일'] : 0) + (st && st % 5 === 0 ? r['연속 5일마다'] : 0) : 0;
   const pbN = Math.min(S.n.pb, r['기록 경신 하루 최대']), pbP = pbN * r['기록 경신'];
   const acP = S.n.acc * r['바른 자세'];
-  const total = pass * r['종목 통과'] + sqP + rpP + cdP + bkP + stP + gP + skP + pbP + acP;
+  const total = pass * r['종목 통과'] + exP + cdP + bkP + stP + gP + skP + pbP + acP;
 
   const left = need.filter(ex => !S.done.has(ex.key)).map(ex => ex.name);
   const why = stamp === 100 ? (S.day === 'holiday' ? '휴일에는 해야 할 종목을 모두 하면 바로 완벽 도장!' : `모든 종목 + 자전거 ${bikeKm()}km로 완벽 도장!`)
     : stamp ? `자전거 ${bikeKm()}km를 더 타면 완벽 도장이에요` : `${left.length}종목 남았어요`;
   const line = (t, em, p) => `<li class="${p ? '' : 'zero'}"><span>${t}${em ? `<em>${em}</em>` : ''}</span><b>${p ? '+' + P(p) : '0'}</b></li>`;
   const lines = [
-    line('종목 통과', `${pass}종목 × ${P(r['종목 통과'])}점 (스쿼트·줄넘기는 아래 횟수로)`, pass * r['종목 통과']),
-    line('스쿼트 횟수', `${S.n.squat}회 → ${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, sqP),
-    line('줄넘기 횟수', `${S.n.rope}회 → ${R.ropePer}회마다 ${P(r['줄넘기 100회'])}점`, rpP),
+    line('종목 통과', `${pass}종목 × ${P(r['종목 통과'])}점`, pass * r['종목 통과']),
+    line('추가 횟수', `기준만큼 더 한 ${Math.floor(S.n.extra)}번 × ${P(r['추가 횟수'] ?? 1)}점`, exP),
     line('트레드밀·로잉머신', `2분 넘은 ${Math.floor(S.n.cardio)}분 × ${P(r['트레드밀·로잉 추가 1분'] ?? 1)}점`, cdP),
     line('자전거 추가', bike > bikeKm() ? `${bikeKm()}km 넘은 ${P(bike - bikeKm())}km × ${P(r['자전거 추가 1km'])}점 (소수점 버림)` : `${bikeKm()}km 넘게 타면 생겨요`, bkP),
     line(stamp === 100 ? '완벽 도장' : '하루 도장', stamp ? `하루 도장 ${P(r['하루 도장'])}${stamp === 100 ? ` + 완벽 ${P(r['완벽 도장'])}` : ''}점` : '해야 할 종목을 모두 통과하면', stP),
@@ -355,7 +354,7 @@ function drawGuide() {
   const lo = R.bikeKmByGrade[1] != null ? R.bikeKmByGrade[1] : 1;
   $('stampSteps').innerHTML = `
     <div class="stp"><h3>✓ 하루 도장 <span class="badge">+${P(r['하루 도장'])}점</span></h3>
-      <p><b class="y">평일</b>: 아래 <b>${ex.length}종목</b>을 모두 통과해요. 통과는 그 종목을 정한 시간 이상 한 기록이 하나라도 있으면 돼요.${ex.some(e => e.unit === '회') ? ` <b>${ex.filter(e => e.unit === '회').map(e => esc(e.name)).join('·')}</b>는 그날 뛴 횟수를 모두 더해 정한 횟수 이상이면 통과예요.` : ''}</p>
+      <p><b class="y">평일</b>: 아래 <b>${ex.length}종목</b>을 모두 통과해요. ${ex.some(e => e.unit === '회') ? `<b>${ex.filter(e => e.unit === '회').map(e => esc(e.name)).join('·')}</b>는 그날 정확한 횟수를 모두 더해 정한 횟수 이상이면 통과, 나머지는 정한 시간 이상 한 기록이 하나라도 있으면 통과예요. 기준보다 더 하면 보너스 포인트!` : '통과는 그 종목을 정한 시간 이상 한 기록이 하나라도 있으면 돼요.'}</p>
       <div class="exl">${list(ex)}</div>
       ${later.length ? `<p style="margin-top:8px;font-size:14px">${later.map(e => esc(e.name)).join('·')}는 ${later[0].from.slice(5).replace('-', '월 ')}일부터 도장 종목이에요.</p>` : ''}</div>
     <div class="stp"><h3>⭐ 완벽 도장 <span class="badge">+${P(r['완벽 도장'])}점 더</span></h3>
@@ -376,9 +375,8 @@ function drawGuide() {
   const row = (n, p, h) => `<div class="pi"><div class="t"><b>${n}</b><span>${p}</span></div><p>${h}</p></div>`;
   $('ptRows').innerHTML =
     box('🏋️ 운동', '', [
-      row('종목 통과', `${P(r['종목 통과'])}점`, `통과한 종목마다 (하루 종목당 한 번). 스쿼트·줄넘기는 아래 횟수로`),
-      row('스쿼트', `${R.squatPer}회마다 ${P(r['스쿼트 20회'])}점`, `그날 <b>정확한 횟수</b>를 더해서. 예) 20회 × 3세트 = ${P(3 * r['스쿼트 20회'])}점`),
-      row('줄넘기', `${R.ropePer}회마다 ${P(r['줄넘기 100회'])}점`, `그날 뛴 횟수를 더해서. 예) 120회 + 60회 = 180회 → ${P(Math.floor(180 / R.ropePer) * r['줄넘기 100회'])}점`),
+      row('종목 통과', `${P(r['종목 통과'])}점`, `통과한 종목마다 (하루 종목당 한 번). 횟수 종목은 그날 <b>정확한 횟수</b>를 모두 더해 기준 이상이면 통과`),
+      row('추가 횟수', `기준만큼마다 ${P(r['추가 횟수'] ?? 1)}점`, `통과 기준만큼 더 할 때마다 보너스. 예) 스쿼트 기준 10회 → 35회 = 통과 ${P(r['종목 통과'])} + 추가 ${P(2 * (r['추가 횟수'] ?? 1))}점`),
       row('실내자전거', `1km마다 ${P(r['자전거 추가 1km'])}점`, `완벽 도장 거리(${R.bikeKm}km, 1·2학년 ${lo}km)를 넘은 만큼, 소수점 버림. 예) 20km = ${P(Math.floor((20 - R.bikeKm) * r['자전거 추가 1km'] + 1e-9))}점`),
       row('트레드밀·로잉머신', `1분마다 ${P(r['트레드밀·로잉 추가 1분'] ?? 1)}점`, `통과(2분)를 넘은 1분마다, 종목마다 그날 가장 긴 기록으로. 예) 5분 = ${P(3 * (r['트레드밀·로잉 추가 1분'] ?? 1))}점`)
     ]) +

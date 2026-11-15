@@ -293,7 +293,7 @@ function pointsHtml(d) {
       <div class="rcard">
         <div class="rtitle">📖 포인트 규칙 <a href="../rules/">규칙과 계산기 보기 ›</a></div>
         <div class="rules">
-          <div>· 종목 통과 ${p.rules['종목 통과']}P · 스쿼트 20회·줄넘기 100회마다 ${p.rules['스쿼트 20회']}P</div>
+          <div>· 종목 통과 ${p.rules['종목 통과']}P · 기준 횟수만큼 더 할 때마다 +${p.rules['추가 횟수'] ?? 1}P</div>
           <div>· 하루 도장 ${p.rules['하루 도장']}P (완벽 +${p.rules['완벽 도장']}) · 모둠 도장 ${p.rules['모둠 도장']}P (완벽 +${p.rules['완벽 모둠 도장']})</div>
           <div>· 연속 3일 ${p.rules['연속 3일']}P · 5일마다 ${p.rules['연속 5일마다']}P · 기록 경신 ${p.rules['기록 경신']}P · 바른 자세 ${p.rules['바른 자세']}P</div>
           <div>· '오늘 예정'은 지금까지 한 운동으로 계산해요 (2분마다 새로)</div>
@@ -337,7 +337,7 @@ function render() {
       : left === t.need ? '오늘 도장에 도전해 볼까요?' : `${left}종목만 더 하면 도장!`;
     if (t.weekend && !t.stamp && left !== t.need) title = `${left}종목만 더 하면 완벽 도장!`;
     sub = t.stamp === 90 && !t.bikeOpen ? `실내자전거 기록은 ${d.rule.bikeFromHour}시부터 반영돼요. ${d.rule.bikeKm}km 이상이면 완벽 도장!`
-      : t.stamp ? '' : '모든 종목을 기준 시간 이상 하면 도장을 받아요.';
+      : t.stamp ? '' : '모든 종목을 기준(횟수 또는 시간) 이상 하면 도장을 받아요. 기준보다 더 하면 보너스 포인트!';
   } else {
     title = t.stamp === 100 ? '완벽 도장을 받은 날 🎉' : t.stamp === 90 ? '도장을 받은 날!'
       : t.done ? `${t.need}종목 중 ${t.done}종목을 했어요` : '운동 기록이 없는 날';
@@ -349,7 +349,8 @@ function render() {
   const items = t.items.map(i => {
     const cls = (i.ok ? 'ok' : i.tried ? 'part' : '') + (isToday ? '' : ' past');
     const u = i.unit || '초';   // 줄넘기는 11/2부터 '회'(그날 횟수 합)
-    const s = i.ok ? `${fmtSec(i.sec)}${u} 통과` : i.tried ? `${fmtSec(i.sec)}${u} · ${fmtSec(i.min - i.sec)}${u} 모자람` : isToday ? `${i.min}${u} 이상` : '기록 없음';
+    const exP = i.extra ? ` · 추가 +${i.extra * ((d.points && d.points.rules && d.points.rules['추가 횟수']) ?? 1)}P` : '';   // 기준만큼 더 할 때마다 보너스 (11/16~)
+    const s = i.ok ? `${fmtSec(i.sec)}${u} 통과${exP}` : i.tried ? `${fmtSec(i.sec)}${u} · ${fmtSec(i.min - i.sec)}${u} 모자람` : isToday ? `${i.min}${u} 이상` : '기록 없음';
     const inner = `<span class="n">${esc(i.name)}</span><span class="s">${esc(s)}</span>`;
     return isToday ? `<a class="it ${cls}" href="${esc(goUrl(i.key))}">${inner}<span class="go">하러 가기 ›</span></a>`
       : `<div class="it ${cls}">${inner}</div>`;
