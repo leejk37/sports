@@ -435,7 +435,7 @@ function pointBuildAll_(ss) {
     c.pb += Number(r[16]) || 0; c.acc += Number(r[17]) || 0; c.earned = x.earned;
     POINT_BADGES.forEach(b => { if (!x.got[b.id] && c[b.what] >= b.n) x.got[b.id] = d; });   // 처음 넘은 날 = 받은 날
     x.recent.push({ d, p, t: String(r[18] || '') });
-    if (x.recent.length > 10) x.recent.shift();
+    if (x.recent.length > 30) x.recent.shift();                // 내 도장 날짜별 포인트(스크롤)용 30일
   });
   pointTrades_(ss, roster, false).forEach(t => {
     const x = per[t.id] = per[t.id] || blank();
@@ -510,7 +510,7 @@ function pointsForStamp_(ss, st, sum) {
     math: m ? m.all : 0, mathMonth: m ? m.month : 0,            // 학생 '내 도장'에 🧠 수학 P (2026-11-13)
     groupBal,
     days: pointDaysOf_(x, sum.month, sum.today, today),        // 달력 칸에 그날 포인트 (2026-11-15)
-    badges: pointBadgeList_(x), recent: x ? x.recent.slice(0, 7) : [], trades: x ? x.trades : [], gifts,
+    badges: pointBadgeList_(x), recent: x ? x.recent.slice(0, 30) : [], trades: x ? x.trades : [], gifts,
     group: st.gkey && all['g_' + st.gkey] ? all['g_' + st.gkey] : null,
     rules: R
   };

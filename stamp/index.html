@@ -88,11 +88,12 @@
   .legend span{display:inline-flex;align-items:center;gap:6px}
   .legend i{width:16px;height:16px;border-radius:50%;display:inline-block}
   /* 포인트 규칙 카드: 오른쪽 칸 뱃지 아래, 날짜별 포인트 옆 (2026-11-15) */
-  .rcard{margin-top:14px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);border-left:4px solid var(--yellow)}
+  .rcard{padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);border-left:4px solid var(--yellow)}
   .rcard .rtitle{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:16px;font-weight:900;margin-bottom:6px}
   .rcard .rtitle a{font-size:13px;color:var(--yellow);text-decoration:none;font-weight:800;padding:4px 10px;border-radius:999px;background:rgba(245,197,24,.15)}
   .rules{margin-top:14px;font-size:13px;line-height:1.6;color:var(--soft);border-top:1px solid var(--line);padding-top:10px}
   .rcard .rules{margin-top:0;border-top:0;padding-top:0}
+  @media (min-width:900px){ .rcard .rules > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} }   /* 규칙은 한 줄씩 */
 
   /* 날짜 넘기기 */
   .dayNav{display:flex;align-items:center;gap:8px}
@@ -146,7 +147,10 @@
   .gbox .gtitle small b{color:#9ff0b0}
   .gbox .next{margin-top:6px}
   .gbox .gifts{margin-top:8px}
-  .hist{margin-top:12px;font-size:14px;line-height:1.5}
+  /* 날짜별 포인트 카드: 규칙 카드와 같은 줄, 넘치면 스크롤 (2026-11-15) */
+  .hcard{padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);border-left:4px solid #9ff0b0;display:flex;flex-direction:column;min-height:0}
+  .hist{font-size:14px;line-height:1.5;overflow-y:auto;max-height:300px;padding-right:6px}
+  .hist::-webkit-scrollbar{width:8px} .hist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.3);border-radius:8px} .hist::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:8px}
   .hist div{display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
   .hist .dd{flex:none;width:44px;color:var(--soft);font-weight:800}
   .hist .pp{flex:none;width:44px;font-weight:900;color:#9ff0b0;text-align:right}
@@ -262,7 +266,7 @@ function pointsHtml(d) {
     ...(p.today ? [{ d: d.today, p: p.today, t: (p.todayMemo ? p.todayMemo + ' · ' : '') + '오늘 지금까지 (밤 1시에 확정)' }] : []),
     ...p.trades.map(t => ({ d: t.d, p: -t.p, t: '🎁 ' + t.gift })),
     ...p.recent
-  ].sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0).slice(0, 8)
+  ].sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0).slice(0, 30)
     .map(h => `<div><span class="dd">${md(h.d)}</span><span class="pp${h.p < 0 ? ' minus' : ''}">${h.p > 0 ? '+' : ''}${fmtP(h.p)}</span><span class="tt">${esc(h.t)}</span></div>`).join('');
   return `<section class="card pcard">
     <div class="phead"><h3>💎 내 포인트</h3>${p.today ? `<span class="chip">오늘 +${fmtP(p.today)}P 예정</span>` : ''}</div>
@@ -276,22 +280,26 @@ function pointsHtml(d) {
           <div><b style="color:#ff9d8a">${fmtP(Math.max(0, p.earned + (p.math || 0) - p.bal))}</b><span>사용</span></div>
         </div>
         ${gifts}
-        ${hist ? `<div class="hist">${hist}</div>` : '<div class="hist" style="color:var(--soft)">아직 포인트가 없어요. 오늘 운동하면 밤에 포인트가 들어와요!</div>'}
       </div>
       <div>
         <div class="label" style="margin-bottom:8px">뱃지 ${got}/${p.badges.length}</div>
         <div class="badges">${badges}</div>
-        <div class="rcard">
-          <div class="rtitle">📖 포인트 규칙 <a href="../rules/">규칙과 계산기 보기 ›</a></div>
-          <div class="rules">
-          · 종목 통과 ${p.rules['종목 통과']}P (스쿼트는 20회마다, 줄넘기는 100회마다 ${p.rules['스쿼트 20회'] != null ? p.rules['스쿼트 20회'] : 1}P) · 하루 도장 ${p.rules['하루 도장']}P (완벽 +${p.rules['완벽 도장']}) · 모둠 도장 ${p.rules['모둠 도장']}P (완벽 +${p.rules['완벽 모둠 도장']})<br>
-          · 연속 3일 ${p.rules['연속 3일']}P · 5일마다 ${p.rules['연속 5일마다']}P · 기록 경신 ${p.rules['기록 경신']}P · 바른 자세 ${p.rules['바른 자세']}P<br>
-          · 오늘 포인트는 <b>밤 1시</b>에 확정돼요 (늦게 입력한 자전거 기록도 그때 반영)<br>
-          · '오늘 +○P 예정'은 오늘 지금까지 한 운동으로 계산한 포인트예요 (스쿼트·줄넘기 횟수, 자전거 더 탄 거리, 기록 경신, 바른 자세까지 모두, 2분마다 새로)<br>
-          · 🧠 수학 포인트는 연산진단에서 받은 포인트예요. 10분쯤 뒤에 여기에 들어와요<br>
-          · 선물은 담임선생님께 말하면 바꿔 줘요. 바꾸면 <b>남은 포인트</b>(체력 + 수학)만 줄고, 체력·수학 포인트와 뱃지는 그대로예요<br>
-          · 🤝 모둠 선물은 모둠원 남은 포인트를 합쳐서 바꿔요. 똑같이 나눠 내고, 포인트가 모자란 친구 몫은 다른 모둠원이 나눠 내요
-          </div>
+      </div>
+      <div class="hcard">
+        <div class="rtitle">📅 날짜별 포인트</div>
+        ${hist ? `<div class="hist">${hist}</div>` : '<div class="hist" style="color:var(--soft)">아직 포인트가 없어요. 오늘 운동하면 바로 포인트가 보여요!</div>'}
+      </div>
+      <div class="rcard">
+        <div class="rtitle">📖 포인트 규칙 <a href="../rules/">규칙과 계산기 보기 ›</a></div>
+        <div class="rules">
+          <div>· 종목 통과 ${p.rules['종목 통과']}P · 스쿼트 20회·줄넘기 100회마다 ${p.rules['스쿼트 20회']}P</div>
+          <div>· 하루 도장 ${p.rules['하루 도장']}P (완벽 +${p.rules['완벽 도장']}) · 모둠 도장 ${p.rules['모둠 도장']}P (완벽 +${p.rules['완벽 모둠 도장']})</div>
+          <div>· 연속 3일 ${p.rules['연속 3일']}P · 5일마다 ${p.rules['연속 5일마다']}P · 기록 경신 ${p.rules['기록 경신']}P · 바른 자세 ${p.rules['바른 자세']}P</div>
+          <div>· '오늘 예정'은 지금까지 한 운동으로 계산해요 (2분마다 새로)</div>
+          <div>· 오늘 포인트는 <b>밤 1시</b>에 확정돼요 (늦게 넣은 자전거도 반영)</div>
+          <div>· 🧠 수학은 연산진단 포인트, 10분쯤 뒤에 들어와요</div>
+          <div>· 선물은 담임선생님께 말하면 바꿔 줘요 (<b>남은 포인트</b>만 줄어요)</div>
+          <div>· 🤝 모둠 선물은 모둠원 남은 포인트를 합쳐서 바꿔요</div>
         </div>
       </div>
     </div>
