@@ -339,7 +339,7 @@ function stampTeam_(p) {
       days[d] = { stamp: stampGroupOf_(m.map(x => x.s)), m };
     });
     return {
-      no: g, members: mates.map(x => ({ name: x.name, no: x.no })), days,
+      no: g, members: mates.map(x => ({ name: x.name, no: x.no })), days, _ids: mates.map(x => x.id),   // _ids: 포인트 붙인 뒤 지움(화면에 아이디 안 보냄)
       monthCount: Object.values(days).filter(x => x.stamp).length,
       monthPerfect: Object.values(days).filter(x => x.stamp === 100).length,
       streak: stampStreak_(ctx.today, d => stampGroupOf_(mates.map(x => J(x, d).stamp)))
@@ -350,7 +350,8 @@ function stampTeam_(p) {
     grade, cls, classLabel: `${grade}학년 ${cls}반`, groups,
     noGroup: roster.list.filter(x => String(x.grade) === grade && String(x.cls) === cls && !x.group).length
   };
-  try { pointsForTeam_(ss, out); } catch (e) { console.warn('포인트: ' + e); }   // Points.gs 모둠 포인트 합계
+  try { pointsForTeam_(ss, out); } catch (e) { console.warn('포인트: ' + e); }   // Points.gs 모둠 포인트 합계 · 날짜별 모둠원 포인트
+  out.groups.forEach(g => delete g._ids);
   try { cache.put(ck, JSON.stringify(out), STAMP.CACHE_SEC); } catch (e) {}
   return out;
 }

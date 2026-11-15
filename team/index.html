@@ -44,6 +44,8 @@
   .m{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.06)}
   .m .nm{flex:1;min-width:0;font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .m .nm small{font-size:11px;color:var(--dim);margin-left:3px}
+  .m .pt{flex:none;width:52px;text-align:right;font-size:13px;font-weight:900;color:#9ff0b0} .m .pt.zero{color:var(--soft);opacity:.6}
+  .gh .gpt{display:block;font-size:13px;font-weight:900;color:#9ff0b0;margin-top:2px}
   .m .st{flex:none;font-size:13px;font-weight:900;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--soft);white-space:nowrap}
   .m .w{flex:none;width:34px;height:7px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
   .m .w i{display:block;height:100%;background:rgba(255,255,255,.55)}
@@ -71,7 +73,7 @@
 </header>
 <div id="top"></div>
 <main id="app"></main>
-<div class="rules">· <b>모둠 도장</b>: 모둠원 <b>모두</b>가 그날 개인 도장을 받으면 찍혀요. 모두 완벽 도장이면 <b>완벽 모둠 도장</b>.<br>
+<div class="rules">· <b>모둠 도장</b>: 모둠원 <b>모두</b>가 그날 개인 도장을 받으면 찍혀요. 모두 완벽 도장이면 <b>완벽 모둠 도장</b>.<br>· 이름 옆 초록 숫자는 그날 받은 포인트예요 (오늘은 지금까지, 밤 1시에 확정). 모둠 이름 아래는 모둠원 합계<br>
 · 날짜는 ‹ › 버튼·키보드 ←/→·화면 옆으로 밀기, 모둠 카드 아래 동그라미(이번 달)를 눌러도 바뀌어요. 모둠은 학생명단의 '모둠' 열에서 바꿉니다.</div>
 <div id="status"></div>
 
@@ -140,11 +142,13 @@ function render() {
         const v = x.m[i] || { s: 0, d: 0, n: 0 };
         const st = v.s === 100 ? '완벽 ★' : v.s === 90 ? '도장 ✓' : `${v.d}/${v.n}`;
         const bar = v.s ? '' : `<span class="w"><i style="width:${v.n ? Math.round(v.d / v.n * 100) : 0}%"></i></span>`;
-        return `<div class="m${v.s === 100 ? ' s100' : v.s === 90 ? ' s90' : ''}"><span class="nm">${esc(m.name)}<small>${esc(m.no)}번</small></span>${bar}<span class="st">${st}</span></div>`;
+        const pt = x.p ? x.p[i] : null;                 // 그날 받은 포인트 (오늘은 지금까지, 밤 1시 확정)
+        const ptS = pt != null ? `<span class="pt${pt ? '' : ' zero'}">${pt ? '+' + Number(pt).toLocaleString('ko-KR') : 0}P</span>` : '';
+        return `<div class="m${v.s === 100 ? ' s100' : v.s === 90 ? ' s90' : ''}"><span class="nm">${esc(m.name)}<small>${esc(m.no)}번</small></span>${bar}<span class="st">${st}</span>${ptS}</div>`;
       }).join('');
       const strip = days.map(k => { const s = g.days[k].stamp; return `<span class="${s === 100 ? 's100' : s === 90 ? 's90' : ''}${k === sel ? ' sel' : ''}" data-day="${k}" title="${k}"></span>`; }).join('');
       return `<section class="g ${sealCls}">
-        <div class="gh"><h2>${esc(g.no)}모둠</h2><div class="seal ${sealCls}">${seal}</div></div>
+        <div class="gh"><h2>${esc(g.no)}모둠${x.pt ? `<small class="gpt">${isToday ? '오늘' : '이날'} +${Number(x.pt).toLocaleString('ko-KR')}P</small>` : ''}</h2><div class="seal ${sealCls}">${seal}</div></div>
         <div class="mem">${mem}</div>
         <div class="strip">${strip}</div>
         <div class="gf"><span>이달 모둠 도장 ${g.monthCount}개</span> · <span>완벽 ${g.monthPerfect}개</span> · <span>연속 ${g.streak}일</span>${g.points ? ` · <span style="color:var(--yellow)">💎 ${Number(g.points.earned).toLocaleString('ko-KR')}P</span>` : ''}</div>

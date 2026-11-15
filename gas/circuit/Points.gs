@@ -559,8 +559,33 @@ function pointDaysOf_(x, month, today, todayP) {
 /** stampTeam_ 결과의 각 모둠에 포인트 합계를 붙임 */
 function pointsForTeam_(ss, out) {
   const keys = out.groups.map(g => 'g_' + [out.grade, out.cls, g.no].join('|'));
-  const all = pointGet_(ss, keys);
+  const ids = [].concat(...out.groups.map(g => g._ids || []));
+  const all = pointGet_(ss, keys.concat(ids));
   out.groups.forEach((g, i) => { const p = all[keys[i]]; g.points = p ? { earned: p.earned, month: p.month } : { earned: 0, month: 0 }; });
+  // 날짜별 모둠원 포인트 (2026-11-15): 지난날은 원장, 오늘은 반 전체를 한 번에 바로 계산(2분 캐시)
+  const today = out.today;
+  let live = {};
+  if (today.slice(0, 7) === out.month && ids.length) {
+    try { live = pointTodayClass_(ss, out.grade, out.cls, ids, today); } catch (e) { console.warn('오늘 모둠 포인트: ' + e); }
+  }
+  out.groups.forEach(g => {
+    Object.keys(g.days).forEach(d => {
+      const p = (g._ids || []).map(id => d === today && !(all[id] && all[id].days && all[id].days[today])
+        ? (live[id] || 0) : Math.round((((all[id] || {}).days || {})[d] || 0) * 10) / 10);
+      g.days[d].p = p;
+      g.days[d].pt = Math.round(p.reduce((a, b) => a + b, 0) * 10) / 10;
+    });
+  });
+}
+/** 반 전체의 오늘 포인트(밤 계산과 같게) → { id: P }. 학생마다 부르지 않고 반을 한 번에, 2분 캐시 */
+function pointTodayClass_(ss, grade, cls, ids, today) {
+  const cache = CacheService.getScriptCache(), ck = 'pdc1_' + grade + '_' + cls + '_' + today;
+  const hit = cache.get(ck);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  const out = {};
+  pointCompute_(ss, today, today, new Set(ids)).forEach(r => out[stampIdOf_(r[5])] = Number(r[12]) || 0);
+  try { cache.put(ck, JSON.stringify(out), 120); } catch (e) {}
+  return out;
 }
 
 /* ===== 선생님용 포인트현황 탭 ===== */
