@@ -167,6 +167,7 @@
       <span id="who"></span><i class="hbr"></i>
       <button class="icon-btn" id="zoneBtn" type="button" title="운동 구역 정하기 (선생님)">구역</button>
       <button class="icon-btn" id="switchCam" type="button">카메라 전환</button>
+      <button class="icon-btn" id="toHub" type="button">처음으로</button>
     </header>
     <!-- 1. QR 확인 -->
     <section id="scanPanel" hidden>
@@ -193,7 +194,7 @@
       </div>
       <p class="sub" id="planText">정확한 스쿼트 10회</p>
       <button class="primary" id="startBtn" type="button">측정 시작</button>
-      <button class="secondary" id="changeStudent" type="button">다른 학생으로 바꾸기</button>
+      <button class="secondary" id="changeStudent" type="button" style="display:none">다른 학생으로 바꾸기</button>
     </section>
 
     <!-- 3. 측정 중 -->
@@ -284,6 +285,7 @@ function backOrScan() {
 if (FROM_HUB) {
   $("nextStudent").textContent = "허브로 돌아가기";
   $("changeStudent").textContent = "허브로 돌아가기";
+  $("toHub").textContent = "허브로";
 }
 
 /* ---------- 화면 전환 ---------- */
@@ -577,6 +579,7 @@ $("stopBtn").addEventListener("click", () => {
   finish();
 });
 $("changeStudent").addEventListener("click", backOrScan);
+$("toHub").addEventListener("click", backOrScan);   // 제목줄 단추 (2026-11-16)
 $("nextStudent").addEventListener("click", backOrScan);
 $("again").addEventListener("click", goReady);
 $("retrySave").addEventListener("click", () => send(lastPayload));
