@@ -129,8 +129,8 @@
       </section>
 
       <section class="screen" id="s-time">
-        <button class="btn big" id="freeMode">▶ 시작</button>
-        <p class="pickLabel">뛰다가 3초 멈추면 끝나요</p>
+        <button class="btn big" id="freeMode" style="display:none">▶ 시작</button>
+        <div class="pick" style="display:none"><button class="btn" data-reps="50">50회</button></div>
         <button class="btn line" id="rescan" style="display:none">다른 학생 스캔</button>
       </section>
 
@@ -737,6 +737,7 @@ $('flip').onclick = async () => {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
   }
 </script>
-<script src="../goal.js" data-ex="jumprope" data-target="s-time" data-result="s-result" data-count="resGood" defer></script>
+<script src="../goal.js" data-ex="jumprope" data-target="s-time" data-result="s-result" data-count="resGood" data-quick="off" defer></script>
+<script src="../sets.js" data-target="s-time" data-result="s-result" data-count="resGood" data-attr="reps" data-values="50,100,150,200" data-unit="회" data-sets="1,2,3" data-rest="10" defer></script>
 </body>
 </html>

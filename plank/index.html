@@ -121,11 +121,9 @@
       </section>
 
       <section class="screen" id="s-time">
-        <h2>어떻게 할까요?</h2>
         <p class="pickLabel">자세: 일반 (발끝으로 버티기)</p>
-        <p class="pickLabel">얼마나 버틸까요?</p>
-        <button class="btn" data-goal="0">최대한 오래</button>
-        <div class="pick">
+        <div class="pick" style="display:none">
+          <button class="btn" data-goal="0">최대한 오래</button>
           <button class="btn" data-goal="30">30초</button>
           <button class="btn" data-goal="60">1분</button>
         </div>
@@ -650,5 +648,6 @@ $('flip').onclick = async () => {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
   }
 </script>
+<script src="../sets.js" data-target="s-time" data-result="s-result" data-count="resHold" data-attr="goal" data-values="30,60,90" data-unit="초" data-sets="1,2,3" data-rest="10" defer></script>
 </body>
 </html>
