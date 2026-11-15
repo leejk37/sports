@@ -34,7 +34,7 @@
     .spGoal .bar i{display:block;height:100%;background:#9ff0b0;border-radius:999px;transition:width .4s}
     .spGoal.done .bar i{background:#f5c518}
     .spGoal .s{font-size:14px;font-weight:700;opacity:.85;line-height:1.4}
-    .spGoalBtn{display:block;width:100%;margin:8px 0 0;font:inherit;font-size:19px;font-weight:900;padding:12px;border:0;border-radius:12px;background:#9ff0b0;color:#12305a;cursor:pointer}`;
+    .spGoalBtn{display:block;width:100%;margin:10px 0 0;font:inherit;font-size:26px;font-weight:900;padding:18px;border:0;border-radius:12px;background:#9ff0b0;color:#12305a;cursor:pointer}`;
   document.head.appendChild(css);
 
   const st = { email: '', data: null, added: 0, seenResult: false, busy: false };
@@ -83,20 +83,24 @@
   function render() {
     const it = item();
     const t = document.getElementById(TARGET) && box(TARGET); if (!t) return;
-    if (it && it.unit !== '회') {                       // 시간 기준(통과기준 탭에서 '초'로 바꾼 경우)
+    const pick = document.querySelector(`#${TARGET} [data-reps]`)?.parentElement;
+    const showPick = on => { if (pick) pick.style.display = on ? '' : 'none'; };
+    if (it && it.unit !== '회') {                       // 시간 기준이면 앱의 횟수 단추를 다시 보여 줌
+      showPick(true);                       // 시간 기준(통과기준 탭에서 '초'로 바꾼 경우)
       t.className = 'spGoal' + (it.ok ? ' done' : '');
       if (!it.ok) { t.remove(); return; }
       t.innerHTML = '<div class="today">✅ 오늘 통과</div>';
       return;
     }
     const min = it ? it.min : DEF[EX], name = (it && it.name) || NAME[EX] || '';
-    if (!min) { t.remove(); return; }
+    if (!min) { t.remove(); showPick(true); return; }
+    if (QUICK) showPick(false);
     let html = `<div class="r1">✅ 통과 <b>하루 ${min}회</b> · ➕ 통과 뒤 <b>${min}회마다 +1P</b></div>`;
     let want = 0, ok = false;
     const reps = document.querySelector(`#${TARGET} [data-reps]`);
     if (!it) {                                          // 불러오는 동안 같은 자리·같은 높이로 (화면이 한꺼번에 바뀌게)
-      if (st.email) html += `<div class="today wait"><span>오늘 <b>·</b> / ${min}회</span><span></span></div><div class="bar"><i style="width:0"></i></div>${QUICK && reps ? '<button class="spGoalBtn" type="button" style="visibility:hidden">🎯 남은 0회 하기</button>' : ''}`;
-      t.className = 'spGoal'; t.innerHTML = html; return;
+      if (st.email) html += `<div class="today wait"><span>오늘 <b>·</b> / ${min}회</span><span></span></div><div class="bar"><i style="width:0"></i></div>`;
+      t.className = 'spGoal'; t.innerHTML = html; addStart(t, reps, min, false); return;
     }
     {
       const n = Math.round((it.n + st.added) * 10) / 10;
@@ -108,12 +112,15 @@
     }
     t.className = 'spGoal' + (ok ? ' done' : '');
     t.innerHTML = html;
-    if (QUICK && reps && want > 0) {
-      const btn = document.createElement('button'); btn.className = 'spGoalBtn'; btn.type = 'button';
-      btn.textContent = ok ? `➕ ${want}회 더 (+1P)` : `🎯 남은 ${want}회 하기`;
-      btn.onclick = () => { const was = reps.dataset.reps; reps.dataset.reps = String(want); reps.click(); reps.dataset.reps = was; };
-      t.appendChild(btn);
-    }
+    addStart(t, reps, want || min, ok);
+  }
+  /* [▶ 시작 · N회] 단추 하나: 앱의 (숨긴) 첫 횟수 단추를 N회로 잠깐 바꿔 누름. 통과 전 N = 남은 횟수, 통과 뒤 N = 다음 +1P까지 */
+  function addStart(t, reps, n, ok) {
+    if (!QUICK || !reps || !(n > 0)) return;
+    const btn = document.createElement('button'); btn.className = 'spGoalBtn'; btn.type = 'button';
+    btn.textContent = `▶ 시작 · ${n}회${ok ? ' (+1P)' : ''}`;
+    btn.onclick = () => { const was = reps.dataset.reps; reps.dataset.reps = String(n); reps.click(); reps.dataset.reps = was; };
+    t.appendChild(btn);
   }
 
   function renderResult(add) {
