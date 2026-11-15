@@ -141,7 +141,7 @@
   /* 제목·단추를 오른쪽 칸 맨 위로 (2026-11-16) */
   .panel > header{position:static;padding:0 0 10px;margin:0 0 6px;background:none;border-bottom:2px solid rgba(255,255,255,.18);flex-wrap:wrap;gap:6px}
   .panel > header h1{font-size:1.3rem;flex:0 1 auto}
-  .panel > header #who{margin-left:0;flex:1 1 auto;font-size:1.3rem;font-weight:800;color:#f5c518;opacity:1}
+  .panel > header #who{margin-left:0;flex:1 1 auto;font-size:.9rem;font-weight:400;color:#f5c518;opacity:1}   /* 단추(구역·카메라 전환)와 같은 글꼴·크기 */
   .panel > header .hbr{flex-basis:100%;height:0}
 </style>
 <script src="../config.js"></script>
@@ -174,8 +174,7 @@
 
     <!-- 2. 준비 -->
     <section id="readyPanel" hidden>
-      <p class="lead">옆으로 서서<br>온몸이 보이게 해요</p>
-      <p class="sub">무릎이 노란 막대의 초록 선 아래까지 내려가야 1회로 세요. 허리는 곧게!</p>
+      <p class="lead">옆으로 서서 온몸이 보이게 해요</p>
       <p class="segLabel">한 세트 횟수</p>
       <div class="seg" role="group" aria-label="한 세트 횟수" data-pick="reps">
         <button type="button" data-v="10" aria-pressed="true">10회</button>
@@ -191,7 +190,6 @@
         <button type="button" data-v="3" aria-pressed="false">3세트</button>
       </div>
       <p class="sub" id="planText">정확한 스쿼트 10회</p>
-      <p class="sub pointNote" id="pointText">⭐ 하루 합계 10회면 오늘 통과 · 10회 더 할 때마다 추가 +1P</p>
       <button class="primary" id="startBtn" type="button">측정 시작</button>
       <button class="secondary" id="changeStudent" type="button">다른 학생으로 바꾸기</button>
     </section>
@@ -537,8 +535,6 @@ document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click"
   $("planText").textContent = sets > 1
     ? `정확한 스쿼트 ${reps}회 × ${sets}세트 = ${reps * sets}회 · 세트 사이 ${CONFIG.REST_SEC}초 쉬고 저절로 다시 시작해요`
     : `정확한 스쿼트 ${reps}회`;
-  const ex = Math.max(0, Math.floor((reps * sets - 10) / 10));   // 11/16~ 하루 합계 10회 통과 + 10회 더할 때마다 추가 1P (기준은 통과기준 탭, 실제 값은 goal.js 칸)
-  $("pointText").textContent = `⭐ 하루 합계 10회면 오늘 통과 · 10회 더 할 때마다 추가 +1P` + (ex ? ` (이번에 다 하면 추가 +${ex}P)` : "");
 }));
 
 function startSet() {
