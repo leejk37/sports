@@ -169,6 +169,18 @@
     #names button{font-size:19px;padding:14px 8px}
     #closePicker{font-size:16px;padding:10px;margin-top:12px}
   }
+  /* ===== 카드 모두 보이게 (2026-11-16): 화면 크기에 맞춰 열 수·카드 크기를 계산(fitCards). 너무 작아지면 예전처럼 스크롤 ===== */
+  #right.fit{display:flex;flex-direction:column;overflow:hidden}
+  #main.fitMain{overflow:hidden}
+  #right.fit #grid{flex:1;min-height:0;grid-template-columns:repeat(var(--c),1fr);grid-template-rows:repeat(var(--r),1fr);gap:var(--g)}
+  #right.fit .card{min-height:0;overflow:hidden;padding:calc(18px*var(--k));gap:calc(8px*var(--k));border-radius:calc(18px*var(--k));box-shadow:0 calc(6px*var(--k)) 0 var(--blue-d)}
+  #right.fit .card svg{width:calc(72px*var(--k));height:calc(72px*var(--k));flex:none}
+  #right.fit .card b{font-size:max(13px,calc(24px*var(--k)))}
+  #right.fit .card span{font-size:max(10px,calc(15px*var(--k)))}
+  #right.fit .card .tag{position:absolute;top:calc(12px*var(--k));right:calc(12px*var(--k));font-size:max(9px,calc(13px*var(--k)));padding:calc(4px*var(--k)) calc(10px*var(--k))}
+  #right.fit.tiny .card .tag, #right.fit.tiny .card > span:not(.tag){display:none}
+  #right.fit.small > p{display:none}
+  @media (orientation:portrait){ #main.fitMain #cam{height:30vh;width:auto;max-width:100%;margin:0 auto} }   /* 세로 화면: QR 카메라를 줄여 카드 칸을 넓힘 */
 </style>
 <script src="config.js"></script>
 </head>
@@ -348,6 +360,7 @@ async function refresh() {
 }
 
 function renderStudents() {
+  setTimeout(() => typeof fitCards === 'function' && fitCards(), 0);   // 학생 칸이 늘면 카드 칸이 줄어듦(세로 화면)
   const box = $('students');
   $('cnt').textContent = students.length + '명';
   $('logoutAll').hidden = students.length === 0;
@@ -598,7 +611,37 @@ function tick() {
 }
 
 /* ===== 시작 ===== */
+/* ===== 카드 모두 보이게: 오른쪽 칸 크기에서 열 수 c를 1~N까지 바꿔 보며 카드가 가장 크게 되는 배치를 고름 (2026-11-16) =====
+ *  카드 가로:세로는 약 1.3:1, 기준 크기(가로 250px)일 때 k=1. 카드가 가로 120px보다 작아지면 맞추지 않고 스크롤 */
+function fitCards() {
+  const right = $('right'), grid = $('grid'), main = $('main');
+  const n = grid.children.length; if (!n) return;
+  right.classList.add('fit'); main.classList.add('fitMain'); right.classList.remove('small', 'tiny');
+  const tryFit = () => {
+    const cs = getComputedStyle(right);
+    const W = grid.clientWidth, H = right.clientHeight - grid.offsetTop + right.offsetTop - parseFloat(cs.paddingBottom) - 8;   // 그림자 몫 8px
+    let best = null;
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c), g = Math.max(6, Math.min(16, W / c * 0.06));
+      const cw = (W - (c - 1) * g) / c, ch = (H - (r - 1) * g) / r;
+      if (cw <= 0 || ch <= 0) continue;
+      const size = Math.min(cw, ch * 1.3);
+      if (!best || size > best.size) best = { c, r, g, size, cw, ch };
+    }
+    return best;
+  };
+  let b = tryFit();
+  if (b && b.ch < 150) { right.classList.add('small'); b = tryFit(); }       // 낮으면 안내 문장 숨김
+  if (!b || b.cw < 120 || b.ch < 70) { right.classList.remove('fit', 'small', 'tiny'); main.classList.remove('fitMain'); return; }   // 너무 작음 → 스크롤
+  const k = Math.max(0.42, Math.min(1.25, Math.min(b.cw / 250, b.ch / 190)));
+  right.classList.toggle('tiny', k < 0.55);
+  right.style.setProperty('--c', b.c); right.style.setProperty('--r', b.r);
+  right.style.setProperty('--g', b.g + 'px'); right.style.setProperty('--k', k.toFixed(3));
+}
+let fitTimer;
+addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitCards, 120); });
 applyModeText(); renderStudents(); renderMenu(); tick(); setInterval(tick, 10000);
+fitCards(); document.fonts && document.fonts.ready.then(fitCards); setTimeout(fitCards, 600);
 refresh();
 startCamera(); requestAnimationFrame(loop); keepAwake();
 // 하루 종일 켜 두는 태블릿: 4시간마다 새로고침해 메모리·발열 누적을 줄임(이름 고르는 중이면 미룸)
