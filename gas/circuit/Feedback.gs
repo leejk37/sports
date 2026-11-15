@@ -86,6 +86,53 @@ function fbStudent_(p) {
   };
 }
 
+/** action=fbClass&key=&ex=&grade=&cls=  → 선생님: 한 반 전체의 그 종목 기록을 학생 × 날짜로 묶어서 (2026-11-15)
+ *  카메라 종목: people[i].d[날짜] = [측정 수, 정확한 횟수 합, 전체(정확+오류) 합, 1회 최고, 오류1 합, 오류2 합…]
+ *  기록 종목:   people[i].d[날짜] = [[방식, 기록], …]  (방식이 다르면 견줄 수 없어 화면에서 고름)
+ *  기간(전체·30일·7일) 거르기와 합계는 화면에서 함 */
+function fbClass_(p) {
+  if (!pointKeyOk_(p.key)) return { ok: false, error: '선생님 열쇠가 맞지 않아요', needKey: true };
+  const rec = FB_REC[p.ex], cfg = rec || FB_EX[p.ex];
+  if (!cfg) return { ok: false, error: '피드백이 없는 종목이에요' };
+  const grade = String(p.grade || '').trim(), cls = String(p.cls || '').trim();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const roster = stampRoster_(ss);
+  const mates = roster.list.filter(st => String(st.grade) === grade && String(st.cls) === cls)
+    .sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
+  if (!mates.length) return { ok: false, error: '그 반 학생이 명단에 없어요' };
+  const byId = {}; mates.forEach((st, i) => byId[st.id] = i);
+  const people = mates.map(st => ({ no: st.no, name: st.name, d: {} }));
+  const num = v => { const x = Number(v); return isFinite(x) ? x : 0; };
+  const sh = ss.getSheetByName(cfg.sheet);
+  if (sh && sh.getLastRow() > 1) {
+    const cols = rec ? [rec.value, rec.time, rec.mode || 0] : [cfg.time, cfg.good, cfg.total || 0, ...cfg.bad.map(b => b[0])];
+    const width = Math.min(Math.max(...cols) + 1, sh.getLastColumn());
+    sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues().forEach(r => {
+      if (!(r[0] instanceof Date)) return;
+      const i = byId[stampIdOf_(r[5])]; if (i == null) return;
+      const day = Utilities.formatDate(r[0], STAMP.TZ, 'yyyy-MM-dd'), m = people[i].d;
+      if (rec) {
+        const v = num(r[rec.value]) * (rec.scale || 1); if (v <= 0) return;
+        (m[day] = m[day] || []).push([rec.mode != null ? String(r[rec.mode] || '').trim() : '', Math.round(v * 1000) / 1000]);
+        return;
+      }
+      const good = num(r[cfg.good]), bad = cfg.bad.map(b => num(r[b[0]]));
+      const all = cfg.total != null ? num(r[cfg.total]) : good + bad.reduce((s, x) => s + x, 0);
+      if (all <= 0) return;
+      const a = m[day] = m[day] || [0, 0, 0, 0].concat(bad.map(() => 0));
+      a[0]++; a[1] += good; a[2] += Math.max(all, good); a[3] = Math.max(a[3], good);
+      bad.forEach((x, k) => a[4 + k] += x);
+    });
+  }
+  // 소수점 정리 (플랭크 초)
+  if (!rec) people.forEach(pp => Object.values(pp.d).forEach(a => { for (let k = 1; k < a.length; k++) a[k] = Math.round(a[k] * 10) / 10; }));
+  return {
+    ok: true, kind: rec ? 'record' : 'pose', ex: p.ex, exName: cfg.name, unit: cfg.unit, time: !rec && cfg.total != null,
+    badNames: rec ? [] : cfg.bad.map(b => b[1]), hasMode: rec ? rec.mode != null : false, decimals: rec ? (rec.decimals || 0) : 1,
+    classLabel: `${grade}학년 ${cls}반`, people
+  };
+}
+
 /** 기록 종목: 한 학생의 기록(시간순) + 같은 반 학생별 평균 기록의 중앙값(방식별) */
 function fbRecord_(p) {
   const cfg = FB_REC[p.ex];

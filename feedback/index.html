@@ -11,7 +11,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   /* 종목별 개인 자세 피드백 (2026-11-01): 종목 → 학생 → 기록 요약 · 정확도 그래프 · 자세 오류 · 처방 · 기록 표
-   *  학생: 허브 '내 자세 피드백' 카드(?email=, 자기 기록만) · 선생님: 열쇠(DASH_KEY)로 반·학생 고르기 */
+   *  학생: 허브 '내 자세 피드백' 카드(?email=, 자기 기록만) · 선생님: 열쇠(DASH_KEY)로 반·학생 고르기
+   *  선생님 학생 칸 맨 위 '👥 반 전체'(2026-11-15): 종목별 반 평균·날짜별 반 정확도·반 자세 처방·학생별 표(정렬) — GAS action=fbClass */
   :root{
     --blue:#1f4e8c; --blue-d:#173d6e; --blue-dd:#12305a; --yellow:#f5c518; --green:#9ff0b0; --red:#ff9d8a; --sky:#8fd3ff;
     --soft:rgba(255,255,255,.75); --dim:rgba(255,255,255,.45); --line:rgba(255,255,255,.14);
@@ -181,8 +182,8 @@ function fillClasses() {
 }
 function fillStudents() {
   const list = roster.filter(s => ck(s) === $('cls').value).sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
-  $('stu').innerHTML = list.map(s => `<option value="${esc(s.id)}">${esc(s.no)}. ${esc(s.name)}</option>`).join('');
-  const was = store.get('fbStu'); if (list.some(s => s.id === was)) $('stu').value = was;
+  $('stu').innerHTML = '<option value="__class">👥 반 전체</option>' + list.map(s => `<option value="${esc(s.id)}">${esc(s.no)}. ${esc(s.name)}</option>`).join('');
+  const was = store.get('fbStu'); if (was === '__class' || list.some(s => s.id === was)) $('stu').value = was;
 }
 $('cls').onchange = () => { store.set('fbCls', $('cls').value); fillStudents(); store.set('fbStu', $('stu').value); load(); };
 $('stu').onchange = () => { store.set('fbStu', $('stu').value); load(); };
@@ -195,6 +196,16 @@ async function load() {
   const my = ++seq;
   $('status').textContent = '불러오는 중…';
   try {
+    if (!STUDENT && email === '__class') {                 // 선생님: 반 전체 (2026-11-15)
+      const [grade, cls] = $('cls').value.split('|');
+      const c = await jsonp({ action: 'fbClass', ex, grade, cls });
+      if (my !== seq) return;
+      if (c && c.error === '방 이름이 잘못됐어요') throw new Error('GAS에 새 Feedback.gs·Hub.gs가 아직 배포되지 않았어요');
+      if (!c || !c.ok) throw new Error((c && c.error) || '불러오지 못했어요');
+      data = c; render();
+      $('status').textContent = `${c.classLabel} · ${c.exName} · ${c.people.length}명`;
+      return;
+    }
     const d = await jsonp({ action: 'feedback', ex, email });
     if (my !== seq) return;
     if (d && d.error === '방 이름이 잘못됐어요') throw new Error('GAS에 Feedback.gs·새 Hub.gs가 아직 배포되지 않았어요');
@@ -229,6 +240,7 @@ function render() {
   charts.forEach(c => c.destroy()); charts = [];
   const d = data; if (!d) return;
   $('modeRow').hidden = true;
+  if (d.people) { renderClass(d); return; }
   if (d.kind === 'record') { renderRecord(d); return; }
   const cut = per === 'all' ? '' : new Date(Date.now() - new Date().getTimezoneOffset() * 6e4 - (Number(per) - 1) * 864e5).toISOString().slice(0, 10);
   const R = d.recs.filter(r => !cut || r.at.slice(0, 10) >= cut);
@@ -414,6 +426,137 @@ function renderRecord(d) {
     options: { maintainAspectRatio: false, layout: { padding: { top: 6 } }, interaction: { mode: 'index', intersect: false },
       scales: { y: { beginAtZero: true, grid, border }, x: { grid: { ...grid, offset: true }, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } } },
       plugins: { legend: { labels: { boxWidth: 14 } }, tooltip: { callbacks: { title: tipTitle, label: c => `${c.dataset.label} ${c.parsed.y ?? '-'}${ds2[c.datasetIndex].u}` } } } }
+  }));
+}
+/* ===== 선생님: 반 전체 (2026-11-15) — 종목별 반 평균 · 날짜별 반 정확도 · 학생별 표 ===== */
+let csort = { k: 'no', dir: 1 }, cmode = {};
+function renderClass(d) {
+  const cut = per === 'all' ? '' : new Date(Date.now() - new Date().getTimezoneOffset() * 6e4 - (Number(per) - 1) * 864e5).toISOString().slice(0, 10);
+  const inPer = day => !cut || day >= cut;
+  const N = d.people.length;
+  const fmt1 = v => v == null ? '-' : Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+  const head = (cols, rows) => {
+    const th = cols.map(c => `<th data-k="${c.k}" style="cursor:pointer${c.k === 'name' ? ';text-align:left' : ''}">${c.t}${csort.k === c.k ? (csort.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');
+    const v = (r, k) => r[k] == null ? (csort.dir > 0 ? Infinity : -Infinity) : r[k];
+    const sorted = rows.slice().sort((a, b) => csort.k === 'name' ? csort.dir * String(a.name).localeCompare(String(b.name)) : csort.dir * (v(a, csort.k) - v(b, csort.k)));
+    return { th, sorted };
+  };
+  const bindSort = () => document.querySelectorAll('#ctbl th[data-k]').forEach(t => t.onclick = () => {
+    csort = { k: t.dataset.k, dir: csort.k === t.dataset.k ? -csort.dir : (t.dataset.k === 'no' || t.dataset.k === 'name' ? 1 : -1) }; render();
+  });
+  if (window.Chart) {
+  Chart.defaults.color = 'rgba(255,255,255,.75)';
+  Chart.defaults.font.family = 'Pretendard, system-ui, sans-serif';
+  Chart.defaults.font.size = 13;
+  }
+  const grid = { color: 'rgba(255,255,255,.13)' }, border = { display: true, color: 'rgba(255,255,255,.6)', width: 1.5 };
+
+  if (d.kind === 'record') {                           // ===== 기록 종목 =====
+    const cnt = {};
+    d.people.forEach(p => Object.entries(p.d).forEach(([day, list]) => { if (inPer(day)) list.forEach(([m]) => cnt[m] = (cnt[m] || 0) + 1); }));
+    const ms = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
+    if (d.hasMode && ms.length > 1) {
+      if (!ms.includes(cmode[d.ex])) cmode[d.ex] = ms[0];
+      $('modeRow').hidden = false;
+      chips('modes', ms.map(m => [m, `${m || '방식 없음'} · ${cnt[m]}번`]), cmode[d.ex], k => { cmode[d.ex] = k; render(); });
+    } else cmode[d.ex] = ms[0] || '';
+    const M = cmode[d.ex], U = d.unit;
+    const byDay = {};
+    const rows = d.people.map(p => {
+      const vals = [], days = new Set();
+      Object.entries(p.d).forEach(([day, list]) => { if (!inPer(day)) return; list.forEach(([m, v]) => { if (m !== M) return; vals.push(v); days.add(day); (byDay[day] = byDay[day] || []).push(v); }); });
+      return { no: Number(p.no) || 0, name: p.name, n: vals.length || null, days: days.size || null,
+        best: vals.length ? Math.max(...vals) : null, avg: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null };
+    });
+    const act = rows.filter(r => r.n);
+    if (!act.length) { $('app').innerHTML = `<div class="card empty">${esc(d.classLabel)} · ${esc(d.exName)} 기록이 ${per === 'all' ? '아직 없어요' : '이 기간에 없어요'}</div>`; return; }
+    const avgs = act.map(r => r.avg).sort((a, b) => a - b);
+    const med = avgs.length % 2 ? avgs[(avgs.length - 1) / 2] : (avgs[avgs.length / 2 - 1] + avgs[avgs.length / 2]) / 2;
+    const all = [].concat(...Object.values(byDay));
+    const top = act.slice().sort((a, b) => b.best - a.best)[0];
+    const cols = [{ k: 'no', t: '번호' }, { k: 'name', t: '이름' }, { k: 'days', t: '한 날' }, { k: 'n', t: '측정' }, { k: 'avg', t: '평균 기록' }, { k: 'best', t: '최고 기록' }];
+    const { th, sorted } = head(cols, rows);
+    const dayKeys = Object.keys(byDay).sort();
+    $('app').innerHTML = `
+      <div class="sum">
+        <div><b>${act.length}<small>/${N}명</small></b><span>참여</span></div>
+        <div><b>${fmt1(all.reduce((a, b) => a + b, 0) / all.length)}<small>${U}</small></b><span>반 평균 (한 번 기록)</span><em class="flat">학생별 평균의 중앙값 ${fmt1(med)}${U}</em></div>
+        <div><b>${all.length}<small>번</small></b><span>측정 · ${dayKeys.length}일</span></div>
+        <div><b>${fmt1(top.best)}<small>${U}</small></b><span>반 최고 기록</span><em class="flat">${esc(top.name)}</em></div>
+      </div>
+      <div class="card"><h2>📈 날짜별 반 평균 <small>${M ? esc(M) + ' · ' : ''}선은 그날 한 학생들의 평균 기록, 막대는 한 학생 수</small></h2><div class="chart"><canvas id="c1"></canvas></div></div>
+      <div class="card"><h2>📋 학생별 <small>제목을 누르면 정렬</small></h2><div class="tbl"><table id="ctbl"><thead><tr>${th}</tr></thead><tbody>
+        ${sorted.map(r => `<tr${r.n ? '' : ' style="opacity:.45"'}><td>${r.no}</td><td style="text-align:left">${esc(r.name)}</td><td>${r.days ?? '-'}</td><td>${r.n ?? '-'}</td>
+          <td>${r.avg == null ? '-' : fmt1(r.avg) + U}</td><td class="acc${r.best != null && r.best === top.best ? ' hi' : ''}">${r.best == null ? '-' : fmt1(r.best) + U}</td></tr>`).join('')}</tbody></table></div></div>`;
+    bindSort();
+    if (!window.Chart) return;
+    charts.push(new Chart($('c1'), {
+      data: { labels: dayKeys.map(k => mdw(k)), datasets: [
+        { type: 'line', label: `반 평균(${U})`, data: dayKeys.map(k => Math.round(byDay[k].reduce((a, b) => a + b, 0) / byDay[k].length * 10) / 10), borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', tension: .25, yAxisID: 'y' },
+        { type: 'bar', label: '한 학생 수', data: dayKeys.map(k => new Set(d.people.filter(p => (p.d[k] || []).some(x => x[0] === M)).map(p => p.name)).size), backgroundColor: 'rgba(245,197,24,.35)', yAxisID: 'y2' }] },
+      options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        scales: { y: { beginAtZero: true, grid, border }, y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { precision: 0 } }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } } } }
+    }));
+    return;
+  }
+
+  // ===== 카메라 종목: 정확도 =====
+  const T = d.time, nb = d.badNames.length;
+  const byDay = {};                                    // 날짜 → [정확 합, 전체 합, 학생 수]
+  const badSum = d.badNames.map(() => 0);
+  const rows = d.people.map(p => {
+    let n = 0, g = 0, t = 0, best = 0; const days = new Set(); const b = d.badNames.map(() => 0);
+    Object.entries(p.d).forEach(([day, a]) => {
+      if (!inPer(day)) return;
+      n += a[0]; g += a[1]; t += a[2]; best = Math.max(best, a[3]); days.add(day);
+      for (let k = 0; k < nb; k++) { b[k] += a[4 + k]; badSum[k] += a[4 + k]; }
+      const x = byDay[day] = byDay[day] || [0, 0, 0]; x[0] += a[1]; x[1] += a[2]; x[2]++;
+    });
+    return { no: Number(p.no) || 0, name: p.name, n: n || null, days: days.size || null, g: n ? g : null, best: n ? best : null,
+      perDay: days.size ? g / days.size : null, acc: t > 0 ? Math.round(Math.min(g, t) / t * 100) : null, b, top: n ? d.badNames[b.indexOf(Math.max(...b))] : '' , anyBad: b.some(x => x > 0) };
+  });
+  const act = rows.filter(r => r.n);
+  if (!act.length) { $('app').innerHTML = `<div class="card empty">${esc(d.classLabel)} · ${esc(d.exName)} 기록이 ${per === 'all' ? '아직 없어요' : '이 기간에 없어요'}</div>`; return; }
+  const G = act.reduce((s, r) => s + r.g, 0), TT = Object.values(byDay).reduce((s, x) => s + x[1], 0);
+  const accAll = TT > 0 ? Math.round(Math.min(G, TT) / TT * 100) : null;
+  const accs = act.map(r => r.acc).filter(x => x != null).sort((a, b) => a - b);
+  const med = accs.length ? Math.round(accs.length % 2 ? accs[(accs.length - 1) / 2] : (accs[accs.length / 2 - 1] + accs[accs.length / 2]) / 2) : null;
+  const sDays = act.reduce((s, r) => s + r.days, 0), sessions = act.reduce((s, r) => s + r.n, 0);
+  const low = act.filter(r => r.acc != null && r.acc < 70);
+  const badTotal = badSum.reduce((a, b) => a + b, 0);
+  const order = d.badNames.map((n, i) => ({ n, v: badSum[i] })).sort((a, b) => b.v - a.v);
+  const rx = badTotal === 0 ? `<div class="rxi good"><b>👏 반 전체 자세 오류가 없어요</b></div>`
+    : order.map((o, i) => `<div class="rxi${i === 0 && o.v ? ' main' : ''}"><b>${i === 0 && o.v ? '👉 ' : ''}${esc(o.n)}<span>${o.v}번 · ${Math.round(o.v / badTotal * 100)}%</span></b>
+        <div class="bar"><i style="width:${o.v / Math.max(1, order[0].v) * 100}%"></i></div><p>${esc(TIP[o.n] || '')}</p>
+        <p style="margin-top:6px;font-size:14px">가장 많은 학생: ${esc(act.filter(r => r.b[d.badNames.indexOf(o.n)] > 0).sort((a, b) => b.b[d.badNames.indexOf(o.n)] - a.b[d.badNames.indexOf(o.n)]).slice(0, 5).map(r => r.name).join(', ') || '-')}</p></div>`).join('');
+  const cols = [{ k: 'no', t: '번호' }, { k: 'name', t: '이름' }, { k: 'days', t: '한 날' }, { k: 'n', t: '측정' },
+    { k: 'g', t: T ? '버틴 시간 합' : '정확한 횟수 합' }, { k: 'best', t: '1회 최고' }, { k: 'perDay', t: '하루 평균' }, { k: 'acc', t: T ? '유지율' : '정확도' }];
+  const { th, sorted } = head(cols, rows);
+  const dayKeys = Object.keys(byDay).sort();
+  const u = T ? '초' : d.unit;
+  $('app').innerHTML = `
+    <div class="sum">
+      <div><b>${act.length}<small>/${N}명</small></b><span>참여</span><em class="flat">측정 ${sessions}번 · ${dayKeys.length}일</em></div>
+      <div><b>${accAll ?? '-'}<small>%</small></b><span>반 ${T ? '유지율' : '정확도'} (모두 합쳐서)</span><em class="flat">학생별 중앙값 ${med ?? '-'}%</em></div>
+      <div><b>${fmt1(G / sDays)}<small>${u}</small></b><span>1인 하루 평균 ${T ? '버틴 시간' : '정확한 횟수'}</span><em class="flat">합계 ${fmt1(G)}${u}</em></div>
+      <div><b>${low.length}<small>명</small></b><span>${T ? '유지율' : '정확도'} 70% 미만</span><em class="${low.length ? 'down' : 'up'}">${low.length ? esc(low.slice(0, 4).map(r => r.name).join(', ')) + (low.length > 4 ? ' 외' : '') : '없어요'}</em></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h2>📈 날짜별 반 ${T ? '유지율' : '정확도'} <small>선은 그날 반 전체 ${T ? '유지율' : '정확도'}, 막대는 한 학생 수</small></h2><div class="chart"><canvas id="c1"></canvas></div></div>
+      <div class="card"><h2>🩺 반 자세 처방 <small>가장 많은 오류부터</small></h2><div class="rx">${rx}</div></div>
+    </div>
+    <div class="card"><h2>📋 학생별 <small>제목을 누르면 정렬 · 하루 평균 = 정확한 횟수 합 ÷ 한 날</small></h2><div class="tbl"><table id="ctbl"><thead><tr>${th}<th>많은 실수</th></tr></thead><tbody>
+      ${sorted.map(r => `<tr${r.n ? '' : ' style="opacity:.45"'}><td>${r.no}</td><td style="text-align:left">${esc(r.name)}</td><td>${r.days ?? '-'}</td><td>${r.n ?? '-'}</td>
+        <td>${r.g == null ? '-' : fmt1(r.g) + u}</td><td>${r.best == null ? '-' : fmt1(r.best) + u}</td><td>${r.perDay == null ? '-' : fmt1(r.perDay) + u}</td>
+        <td class="acc${r.acc == null ? '' : r.acc >= 90 ? ' hi' : r.acc < 70 ? ' lo' : ''}">${r.acc == null ? '-' : r.acc + '%'}</td><td>${r.anyBad ? esc(r.top) : r.n ? '없음' : '-'}</td></tr>`).join('')}</tbody></table></div></div>`;
+  bindSort();
+  if (!window.Chart) return;
+  charts.push(new Chart($('c1'), {
+    data: { labels: dayKeys.map(k => mdw(k)), datasets: [
+      { type: 'line', label: T ? '유지율(%)' : '정확도(%)', data: dayKeys.map(k => byDay[k][1] ? Math.round(Math.min(byDay[k][0], byDay[k][1]) / byDay[k][1] * 100) : null), borderColor: '#8fd3ff', backgroundColor: '#8fd3ff', tension: .25, cubicInterpolationMode: 'monotone', yAxisID: 'y' },
+      { type: 'bar', label: '한 학생 수', data: dayKeys.map(k => byDay[k][2]), backgroundColor: 'rgba(245,197,24,.35)', yAxisID: 'y2' }] },
+    options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      scales: { y: { min: 0, max: 100, grid, border, ticks: { stepSize: 20 } }, y2: { position: 'right', beginAtZero: true, suggestedMax: N, grid: { display: false }, ticks: { precision: 0 } }, x: { grid, border, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } } } }
   }));
 }
 start();

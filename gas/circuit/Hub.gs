@@ -46,6 +46,8 @@ function hubJsonp_(e) {
       out = fbStudent_(p);                   // Feedback.gs — 한 학생의 종목별 자세 기록 (ex, email, key)
     } else if (p.action === 'fbRoster') {
       out = fbRoster_(p);                    // Feedback.gs — 선생님용 학생 명단 (key)
+    } else if (p.action === 'fbClass') {
+      out = fbClass_(p);                     // Feedback.gs — 선생님: 반 전체의 종목 기록 (key, ex, grade, cls)
     } else if (p.action === 'pointsPub') {
       out = pointsPublic_();                 // Points.gs — 학생용 포인트 순위(이름 가림, 아이디 없음), 로그인 없이
     } else if (p.action === 'rules') {
