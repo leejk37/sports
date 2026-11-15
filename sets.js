@@ -9,9 +9,11 @@
   const TARGET = D.target || 's-time', RESULT = D.result || 's-result', COUNT = D.count || 'resGood';
   const ATTR = D.attr || 'reps', UNIT = D.unit || '회', REST = +(D.rest || 10);
   const VALUES = (D.values || '10,20,30').split(',').map(Number), SETS = (D.sets || '1,2,3').split(',').map(Number);
+  const [EXTRA_LABEL, EXTRA_ID] = (D.extra || '').split(':');          // 예: data-extra="최대한 많이:freeMode" → 그 단추를 누름(세트 없이 한 번)
+  if (EXTRA_ID) VALUES.push(0);
   const $ = id => document.getElementById(id);
   const visible = id => { const el = $(id); return !!(el && el.offsetParent !== null && !el.hidden); };
-  const label = v => UNIT === '초' && v >= 60 ? (v % 60 ? `${Math.floor(v / 60)}분 ${v % 60}초` : `${v / 60}분`) : v + UNIT;
+  const label = v => v === 0 && EXTRA_ID ? EXTRA_LABEL : UNIT === '초' && v >= 60 ? (v % 60 ? `${Math.floor(v / 60)}분 ${v % 60}초` : `${v / 60}분`) : v + UNIT;
   let key = 'spSets_' + location.pathname.split('/').filter(Boolean).slice(-1)[0];
   let pick = { v: VALUES[0], n: 1 };
   try { const m = JSON.parse(localStorage.getItem(key) || 'null'); if (m && VALUES.includes(m.v) && SETS.includes(m.n)) pick = m; } catch (e) {}
@@ -35,10 +37,12 @@
   document.head.appendChild(css);
 
   function trigger() {
+    if (pick.v === 0 && EXTRA_ID) { const x = $(EXTRA_ID); if (!x) return false; x.click(); return true; }
     const b = document.querySelector(`#${TARGET} [data-${ATTR}]`); if (!b) return false;
     const was = b.dataset[ATTR]; b.dataset[ATTR] = String(pick.v); b.click(); b.dataset[ATTR] = was; return true;
   }
   function plan() {
+    if (pick.v === 0 && EXTRA_ID) return '멈출 때까지 세요 · 3초 멈추면 끝나요';
     return pick.n > 1 ? `${label(pick.v)} × ${pick.n}세트${UNIT === '회' ? ` = ${pick.v * pick.n}회` : ''} · 세트 사이 ${REST}초 쉬고 저절로 다시 시작해요` : `${label(pick.v)} 한 번`;
   }
   function seg(list, cur, fmt, on) {
@@ -54,10 +58,13 @@
     const save = () => { p.textContent = plan(); try { localStorage.setItem(key, JSON.stringify(pick)); } catch (e) {} };
     box.innerHTML = `<p class="lab">한 세트 ${UNIT === '초' ? '시간' : '횟수'}</p>`;
     box.appendChild(seg(VALUES, pick.v, label, v => { pick.v = v; save(); }));
-    if (SETS.length > 1) { const l = document.createElement('p'); l.className = 'lab'; l.textContent = '세트'; box.appendChild(l); box.appendChild(seg(SETS, pick.n, v => v + '세트', v => { pick.n = v; save(); })); }
-    box.appendChild(p); save();
+    let setRow = null;
+    if (SETS.length > 1) { setRow = document.createElement('div'); setRow.innerHTML = '<p class="lab">세트</p>'; setRow.appendChild(seg(SETS, pick.n, v => v + '세트', v => { pick.n = v; save(); })); box.appendChild(setRow); }
+    const extraOn = () => { if (setRow) setRow.style.display = pick.v === 0 && EXTRA_ID ? 'none' : ''; };
+    box.firstElementChild.nextElementSibling.addEventListener('click', () => setTimeout(extraOn));
+    box.appendChild(p); save(); extraOn();
     const go = document.createElement('button'); go.type = 'button'; go.className = 'go'; go.textContent = '▶ 시작';
-    go.onclick = () => { Object.assign(run, { on: true, set: 1, total: 0, sums: [], seen: false }); tag(); trigger(); };
+    go.onclick = () => { if (pick.v === 0) pick.n = 1; Object.assign(run, { on: true, set: 1, total: 0, sums: [], seen: false }); tag(); trigger(); };
     box.appendChild(go);
     const rescan = $('rescan');
     if (rescan && rescan.parentNode === host) host.insertBefore(box, rescan); else host.appendChild(box);
