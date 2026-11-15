@@ -29,6 +29,7 @@
     .spGoal .r1{font-size:16px;font-weight:700;line-height:1.4}
     .spGoal .r1 b{color:#9ff0b0}
     .spGoal .today b{font-size:20px}
+    .spGoal .today.wait{opacity:.55}
     .spGoal .bar{height:9px;border-radius:999px;background:rgba(255,255,255,.15);margin:7px 0 2px;overflow:hidden}
     .spGoal .bar i{display:block;height:100%;background:#9ff0b0;border-radius:999px;transition:width .4s}
     .spGoal.done .bar i{background:#f5c518}
@@ -68,8 +69,8 @@
     let b = host.querySelector('.spGoal');
     if (!b) {
       b = document.createElement('div'); b.className = 'spGoal';
-      const cnt = hostId === RESULT && COUNT && document.getElementById(COUNT);   // 결과 화면: 큰 숫자 바로 아래
-      const after = (cnt && (cnt.closest('.count') || cnt)) || host.querySelector('h2') || host.querySelector('p');
+      const cnt = hostId === RESULT && COUNT && document.getElementById(COUNT);   // 결과 화면: 큰 숫자 바로 아래, 고르는 화면: 맨 위
+      const after = cnt && (cnt.closest('.count') || cnt);
       if (after && after.parentNode === host) after.after(b); else host.prepend(b);
     }
     return b;
@@ -92,7 +93,12 @@
     if (!min) { t.remove(); return; }
     let html = `<div class="r1">✅ 통과 <b>하루 ${min}회</b> · ➕ 통과 뒤 <b>${min}회마다 +1P</b></div>`;
     let want = 0, ok = false;
-    if (it) {
+    const reps = document.querySelector(`#${TARGET} [data-reps]`);
+    if (!it) {                                          // 불러오는 동안 같은 자리·같은 높이로 (화면이 한꺼번에 바뀌게)
+      if (st.email) html += `<div class="today wait"><span>오늘 <b>·</b> / ${min}회</span><span></span></div><div class="bar"><i style="width:0"></i></div>${QUICK && reps ? '<button class="spGoalBtn" type="button" style="visibility:hidden">🎯 남은 0회 하기</button>' : ''}`;
+      t.className = 'spGoal'; t.innerHTML = html; return;
+    }
+    {
       const n = Math.round((it.n + st.added) * 10) / 10;
       ok = n >= min;
       const left = Math.max(0, min - n), extra = ok ? Math.floor((n - min) / min + 1e-9) : 0, toNext = ok ? min * (extra + 2) - n : 0;
@@ -102,7 +108,6 @@
     }
     t.className = 'spGoal' + (ok ? ' done' : '');
     t.innerHTML = html;
-    const reps = document.querySelector(`#${TARGET} [data-reps]`);
     if (QUICK && reps && want > 0) {
       const btn = document.createElement('button'); btn.className = 'spGoalBtn'; btn.type = 'button';
       btn.textContent = ok ? `➕ ${want}회 더 (+1P)` : `🎯 남은 ${want}회 하기`;
@@ -124,8 +129,8 @@
   let wasTarget = false, wasResult = false;
   setInterval(() => {
     const e = who();
-    if (e !== st.email) { st.email = e; st.data = null; st.added = 0; }
-    if (visible(TARGET) && !document.querySelector(`#${TARGET} .spGoal`)) render();
+    if (e !== st.email) { st.email = e; st.data = null; st.added = 0; render(); if (e) fetchGoal(); }   // 학생이 정해지면 화면이 나오기 전에 미리 그려 두고 불러옴
+    if (!document.querySelector(`#${TARGET} .spGoal`)) render();
     if (!st.email) return;
     const vt = visible(TARGET), vr = RESULT && visible(RESULT);
     if (vt && !wasTarget) fetchGoal();                  // 고르는 화면에 올 때마다 새로
@@ -137,5 +142,5 @@
       else if (!item() && !st.busy) fetchGoal();
     }
     wasTarget = vt; wasResult = vr;
-  }, 700);
+  }, 150);
 })();
