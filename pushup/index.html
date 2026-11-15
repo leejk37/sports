@@ -113,15 +113,15 @@
       <section class="screen" id="s-time">
         <h2>어떻게 할까요?</h2>
         <p class="pickLabel">자세: 무릎 대고</p>
-        <p class="pickLabel">시간 동안 몇 번?</p>
-        <div class="pick">
-          <button class="btn" data-sec="30">30초</button>
-          <button class="btn" data-sec="60">1분</button>
-        </div>
-        <p class="pickLabel">몇 번을 얼마나 빨리?</p>
+        <p class="pickLabel">🎯 몇 번? — 오늘 도장은 하루 동안 한 횟수를 모두 더해요</p>
         <div class="pick">
           <button class="btn" data-reps="10">10회</button>
           <button class="btn" data-reps="20">20회</button>
+        </div>
+        <p class="pickLabel">⏱ 시간 동안 몇 번? (기록 도전, 횟수는 오늘 합계에 더해져요)</p>
+        <div class="pick">
+          <button class="btn" data-sec="30">30초</button>
+          <button class="btn" data-sec="60">1분</button>
         </div>
         <button class="btn line" id="rescan">다른 학생 스캔</button>
       </section>
@@ -369,7 +369,7 @@ function scanQr() {
   if (!code) return;
   const id = code.data.trim();
   if (!/^[\w.\-]+(@[\w.\-]+)?$/.test(id)) { flash('이름표 QR이 아니에요'); return; }
-  email = (id.includes('@') ? id : id + CONFIG.DOMAIN).toLowerCase();
+  email = (id.includes('@') ? id : id + CONFIG.DOMAIN).toLowerCase(); window.SPORT_EMAIL = email;
   $('who').textContent = email;
   beep(1200, 80);
   show('time');
@@ -521,14 +521,14 @@ const FROM_HUB = PARAMS.get('from') === 'hub';
 function startFromParams() {
   const em = (PARAMS.get('email') || '').trim().toLowerCase();
   if (!/^[\w.\-]+@[\w.\-]+$/.test(em)) return false;
-  email = em;
+  email = em; window.SPORT_EMAIL = email;
   $('who').textContent = (PARAMS.get('name') || em.split('@')[0]) + ' 학생';
   show('time');
   return true;
 }
 function backOrScan() {
   if (FROM_HUB) { location.href = '../'; return; }   // 허브로 돌아가기
-  email = ''; $('who').textContent = ''; show('scan');
+  email = ''; window.SPORT_EMAIL = ''; $('who').textContent = ''; show('scan');
 }
 if (FROM_HUB) {
   $('next').textContent = '허브로 돌아가기';
@@ -585,5 +585,6 @@ const MODEL = (() => {   // ?model=lite 를 한 번 붙여 열면 이 기기에 
   }
 </script>
 <script src="../cues.js" data-ex="pushup" data-target="s-ready" defer></script>
+<script src="../goal.js" data-ex="pushup" data-target="s-time" data-result="s-result" data-count="resGood" defer></script>
 </body>
 </html>

@@ -1,0 +1,128 @@
+/* goal.js — 측정 앱의 '🎯 오늘 도장 목표' 칸 (2026-11-16, 통과 기준이 '그날 정확한 횟수 합'으로 바뀜)
+ *  - 측정 방식 고르는 화면(data-target)에: "오늘 30회 중 12회 · 18회 남음" + [🎯 남은 18회 하기] 단추
+ *    단추는 앱의 첫 [data-reps] 단추를 남은 횟수로 잠깐 바꿔 눌러 줌(앱 코드는 그대로)
+ *  - 결과 화면(data-result)에: 방금 한 횟수를 더해 "오늘 합계 34회 · 통과! 추가 +1P까지 26회"
+ *  - 학생은 window.SPORT_EMAIL(앱이 QR·허브에서 학생을 정하면 넣음) 또는 주소의 ?email=
+ *  - GAS: 허브 JSONP action=goal (Stamp.gs stampGoal_) — 오늘 종목별 기준·지금까지 한 양. 서버 기록은 1~2분 늦을 수 있어
+ *    이 화면에서 본 결과는 화면이 직접 더해 둠
+ *  - 쓰는 법: <script src="../goal.js" data-ex="highknee" data-target="s-time" data-result="s-result" data-count="resGood" defer></script>
+ *    data-quick="off"면 단추 없이 칸만(스쿼트처럼 세트를 고르는 앱) */
+(function () {
+  const me = document.currentScript;
+  const EX = me && me.dataset.ex, TARGET = me && me.dataset.target, RESULT = me && me.dataset.result, COUNT = me && me.dataset.count;
+  const QUICK = !(me && me.dataset.quick === 'off');
+  if (!EX || !TARGET || !window.SITE || !SITE.GAS_URL) return;
+
+  const css = document.createElement('style');
+  css.textContent = `
+    .spGoal{background:rgba(159,240,176,.12);border:2px solid rgba(159,240,176,.55);border-radius:14px;padding:11px 14px;margin:4px 0 8px;text-align:left;color:#fff;font-family:Pretendard,system-ui,sans-serif}
+    .spGoal.done{background:rgba(245,197,24,.14);border-color:rgba(245,197,24,.6)}
+    .spGoal b.t{display:block;font-size:15px;font-weight:900;color:#9ff0b0;margin-bottom:4px}
+    .spGoal.done b.t{color:#f5c518}
+    .spGoal .n{font-size:20px;font-weight:900;line-height:1.3}
+    .spGoal .n small{font-size:15px;font-weight:700;opacity:.8}
+    .spGoal .bar{height:9px;border-radius:999px;background:rgba(255,255,255,.15);margin:7px 0 2px;overflow:hidden}
+    .spGoal .bar i{display:block;height:100%;background:#9ff0b0;border-radius:999px;transition:width .4s}
+    .spGoal.done .bar i{background:#f5c518}
+    .spGoal .s{font-size:14px;font-weight:700;opacity:.85;line-height:1.4}
+    .spGoalBtn{display:block;width:100%;margin:8px 0 0;font:inherit;font-size:19px;font-weight:900;padding:12px;border:0;border-radius:12px;background:#9ff0b0;color:#12305a;cursor:pointer}`;
+  document.head.appendChild(css);
+
+  const st = { email: '', data: null, added: 0, seenResult: false, busy: false };
+  const who = () => (window.SPORT_EMAIL || new URLSearchParams(location.search).get('email') || '').trim().toLowerCase();
+  const visible = id => { const el = document.getElementById(id); return !!(el && el.offsetParent !== null && !el.hidden); };
+  const item = () => st.data && st.data.items && st.data.items[EX];
+
+  function fetchGoal() {
+    if (st.busy || !st.email) return;
+    st.busy = true;
+    const cb = 'goalcb_' + Date.now() + '_' + Math.floor(Math.random() * 1e4), s = document.createElement('script');
+    const done = () => { st.busy = false; delete window[cb]; s.remove(); };
+    window[cb] = d => {
+      done();
+      if (!d || !d.ok) return;
+      const prev = item(), shown = prev ? prev.n + st.added : 0;
+      st.data = d;
+      const it = item();
+      if (it) { st.added = Math.max(0, shown - it.n); }   // 서버가 아직 방금 기록을 모르면 화면에서 더한 만큼 유지
+      render();
+    };
+    s.onerror = done;
+    setTimeout(() => { if (window[cb]) done(); }, 25000);
+    s.src = SITE.GAS_URL + '?' + new URLSearchParams({ action: 'goal', email: st.email, token: SITE.TOKEN, callback: cb });
+    document.head.appendChild(s);
+  }
+
+  function box(hostId) {
+    const host = document.getElementById(hostId); if (!host) return null;
+    let b = host.querySelector('.spGoal');
+    if (!b) {
+      b = document.createElement('div'); b.className = 'spGoal';
+      const cnt = hostId === RESULT && COUNT && document.getElementById(COUNT);   // 결과 화면: 큰 숫자 바로 아래
+      const after = (cnt && (cnt.closest('.count') || cnt)) || host.querySelector('h2') || host.querySelector('p');
+      if (after && after.parentNode === host) after.after(b); else host.prepend(b);
+    }
+    return b;
+  }
+
+  function render() {
+    const it = item();
+    [TARGET, RESULT].forEach(id => { const h = id && document.getElementById(id); const b = h && h.querySelector('.spGoal'); if (b && !it) b.remove(); });
+    if (!it) return;
+    const n = Math.round((it.n + st.added) * 10) / 10;
+    const count = it.unit === '회';
+    if (!count) {                                       // 시간 기준(통과기준 탭에서 '초'로 바꾼 경우)
+      const b = box(TARGET); if (!b) return;
+      b.className = 'spGoal' + (it.ok ? ' done' : '');
+      b.innerHTML = `<b class="t">🎯 오늘 도장</b><div class="n">${it.ok ? '✅ 오늘 통과했어요' : `한 번에 ${it.min}초 이상이면 통과`}</div>`;
+      return;
+    }
+    const min = it.min, ok = n >= min, left = Math.max(0, min - n);
+    const extra = ok ? Math.floor((n - min) / min + 1e-9) : 0, toNext = ok ? min * (extra + 2) - n : 0;
+    const pct = Math.min(100, n / min * 100);
+    const html = (title, line, sub) => `<b class="t">${title}</b><div class="n">${line}</div><div class="bar"><i style="width:${pct}%"></i></div><div class="s">${sub}</div>`;
+    const t = document.getElementById(TARGET) && box(TARGET);
+    if (t) {
+      t.className = 'spGoal' + (ok ? ' done' : '');
+      t.innerHTML = ok
+        ? html('🎯 오늘 도장', `✅ 통과! 오늘 ${n}회 <small>/ 기준 ${min}회</small>`, `${extra ? `추가 +${extra}P 받았어요 · ` : ''}${toNext}회 더 하면 추가 +1P`)
+        : html('🎯 오늘 도장', `${n}회 했어요 <small>/ 기준 ${min}회</small>`, `<b>${left}회</b> 더 하면 오늘 ${it.name} 통과! (여러 번 나눠 해도 돼요)`);
+      let btn = t.querySelector('.spGoalBtn');
+      const reps = document.querySelector(`#${TARGET} [data-reps]`);
+      const want = Math.ceil(ok ? toNext : left);
+      if (QUICK && reps && want > 0) {
+        if (!btn) { btn = document.createElement('button'); btn.className = 'spGoalBtn'; btn.type = 'button'; t.appendChild(btn); }
+        btn.textContent = ok ? `➕ ${want}회 더 하기 (추가 +1P)` : `🎯 남은 ${want}회 하기`;
+        btn.onclick = () => { const was = reps.dataset.reps; reps.dataset.reps = String(want); reps.click(); reps.dataset.reps = was; };
+      } else if (btn) btn.remove();
+    }
+  }
+
+  function renderResult(add) {
+    const it = item(); if (!it || it.unit !== '회' || !RESULT) return;
+    const before = it.n + st.added - add, n = Math.round((before + add) * 10) / 10, min = it.min;
+    const ok = n >= min, wasOk = before >= min, extra = ok ? Math.floor((n - min) / min + 1e-9) : 0, toNext = ok ? min * (extra + 1) + min - n : min - n;
+    const b = box(RESULT); if (!b) return;
+    b.className = 'spGoal' + (ok ? ' done' : '');
+    const pct = Math.min(100, n / min * 100);
+    b.innerHTML = `<b class="t">🎯 오늘 합계</b><div class="n">${ok && !wasOk ? '🎉 ' : ''}${n}회 <small>/ 기준 ${min}회</small></div><div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="s">${ok ? `${wasOk ? '' : '오늘 통과! '}${extra ? `추가 +${extra}P · ` : ''}${Math.ceil(toNext)}회 더 하면 추가 +1P` : `<b>${Math.ceil(min - n)}회</b> 더 하면 통과`}<br>도장 화면에는 1~2분 뒤 반영돼요</div>`;
+  }
+
+  let wasTarget = false, wasResult = false;
+  setInterval(() => {
+    const e = who();
+    if (e !== st.email) { st.email = e; st.data = null; st.added = 0; render(); }
+    if (!st.email) return;
+    const vt = visible(TARGET), vr = RESULT && visible(RESULT);
+    if (vt && !wasTarget) fetchGoal();                  // 고르는 화면에 올 때마다 새로
+    if (vr && !wasResult) st.seenResult = false;
+    if (vr && !st.seenResult) {                         // 결과 화면: 방금 횟수 더하기 (한 번만)
+      const el = COUNT && document.getElementById(COUNT);
+      const v = el ? Number(String(el.textContent).replace(/[^\d.]/g, '')) : NaN;
+      if (isFinite(v) && item()) { st.seenResult = true; if (v > 0) { st.added += v; } renderResult(v); render(); }
+      else if (!item() && !st.busy) fetchGoal();
+    }
+    wasTarget = vt; wasResult = vr;
+  }, 700);
+})();

@@ -184,7 +184,7 @@
         <button type="button" data-v="3" aria-pressed="false">3세트</button>
       </div>
       <p class="sub" id="planText">정확한 스쿼트 10회</p>
-      <p class="sub pointNote" id="pointText">⭐ 정확한 스쿼트 20회마다 1점 (하루 합계)</p>
+      <p class="sub pointNote" id="pointText">⭐ 하루 합계 10회면 오늘 통과 · 10회 더 할 때마다 추가 +1P</p>
       <button class="primary" id="startBtn" type="button">측정 시작</button>
       <button class="secondary" id="changeStudent" type="button">다른 학생으로 바꾸기</button>
     </section>
@@ -265,7 +265,7 @@ const FROM_HUB = PARAMS.get("from") === "hub";
 function startFromParams() {
   const em = (PARAMS.get("email") || "").trim().toLowerCase();
   if (!em.endsWith(CONFIG.EMAIL_DOMAIN)) return false;
-  student = em;
+  student = em; window.SPORT_EMAIL = em;
   studentName = PARAMS.get("name") || "";
   goReady();
   return true;
@@ -288,7 +288,7 @@ function setHint(text, warn = false) {
   $("hint").textContent = text; $("hint").classList.toggle("warn", warn);
 }
 function goScan() {
-  student = null; studentName = ""; $("who").textContent = ""; mode = "scan";
+  student = null; window.SPORT_EMAIL = ""; studentName = ""; $("who").textContent = ""; mode = "scan";
   show("scanPanel"); setHint("QR 이름표를 화면 가운데에 비춰 주세요");
 }
 function goReady() {
@@ -357,7 +357,7 @@ function scanQR() {
   } else if (/^[a-z0-9._-]+$/.test(raw)) {
     email = raw + CONFIG.EMAIL_DOMAIN;             // 아이디만 있으면 도메인 붙이기
   }
-  if (email.endsWith(CONFIG.EMAIL_DOMAIN)) { student = email; studentName = ""; beep(880); goReady(); }
+  if (email.endsWith(CONFIG.EMAIL_DOMAIN)) { student = email; window.SPORT_EMAIL = email; studentName = ""; beep(880); goReady(); }
   else setHint("인식된 내용: " + raw.slice(0, 40), true);
 }
 
@@ -526,8 +526,8 @@ document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click"
   $("planText").textContent = sets > 1
     ? `정확한 스쿼트 ${reps}회 × ${sets}세트 = ${reps * sets}회 · 세트 사이 ${CONFIG.REST_SEC}초 쉬고 저절로 다시 시작해요`
     : `정확한 스쿼트 ${reps}회`;
-  const pt = Math.floor(reps * sets / 20);
-  $("pointText").textContent = `⭐ 정확한 스쿼트 20회마다 1점 · 다 하면 ${pt}점` + (pt ? "" : " (하루 합계 20회부터)");
+  const ex = Math.max(0, Math.floor((reps * sets - 10) / 10));   // 11/16~ 하루 합계 10회 통과 + 10회 더할 때마다 추가 1P (기준은 통과기준 탭, 실제 값은 goal.js 칸)
+  $("pointText").textContent = `⭐ 하루 합계 10회면 오늘 통과 · 10회 더 할 때마다 추가 +1P` + (ex ? ` (이번에 다 하면 추가 +${ex}P)` : "");
 }));
 
 function startSet() {
@@ -645,5 +645,6 @@ async function send(payload) {
   }
 </script>
 <script src="../cues.js" data-ex="squat" data-target="readyPanel" defer></script>
+<script src="../goal.js" data-ex="squat" data-target="readyPanel" data-result="resultPanel" data-count="goodFinal" data-quick="off" defer></script>
 </body>
 </html>
