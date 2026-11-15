@@ -21,8 +21,8 @@
  *    action=team&email=… (또는 grade=&cls=)&month= → stampTeam_()     반 전체 모둠
  *  화면: …/sports/stamp/ (허브 '내 도장'), …/sports/team/ (허브 '우리 모둠')
  *
- *  통과기준 탭(없으면 처음 부를 때 자동으로 만듦) — 선생님이 숫자만 고치면 1분 안에 반영
- *    A 종목 | B 최소시간(초) | C 주말 제외(O)
+ *  통과기준 탭(없으면 처음 부를 때 자동으로 만듦) — 선생님이 숫자·단위만 고치면 1분 안에 반영
+ *    A 종목 | B 기준 | C 단위(회·초) | D 주말 제외(O) | E 설명  (2026-11-15부터. 예전 모양은 자동으로 바꿈)
  *  열 위치는 CLAUDE.md '시트 데이터 구조' 표를 따름 (0부터 셈)
  *************************************************************/
 const STAMP = {
@@ -68,7 +68,7 @@ const STAMP_EX = [
 /* from: 이날부터 도장 종목 (그 전 날짜의 도장은 그대로 둠) */
 const stampExOn_ = (ex, d) => !ex.from || d >= ex.from;
 /* count: 이날부터 시간 대신 '그날 횟수 합'으로 통과 판정 (줄넘기) */
-const stampByCount_ = (ex, d) => ex.count != null && d >= ex.countFrom;
+const stampByCount_ = (ex, d, crit) => ex.count != null && d >= ex.countFrom && !(crit && crit[ex.key] && crit[ex.key].unit === '초');   // 통과기준 탭 단위가 '초'면 시간으로
 
 /* ===== 공통 엔진: 여러 학생을 한 번에 판정 (시트는 종목당 한 번만 읽음) ===== */
 const stampFmt_ = (d, p) => Utilities.formatDate(d, STAMP.TZ, p);
@@ -197,7 +197,7 @@ function stampJudge_(ctx, id, d) {
     return { key: ex.key, name: ex.name, sec: s, ok: s > 0 };
   }).filter(x => x.ok || !weekend);
   const items = need.map(ex => {
-    if (stampByCount_(ex, d)) {                                       // 줄넘기: 그날 횟수 합
+    if (stampByCount_(ex, d, ctx.crit)) {                             // 횟수 종목: 그날 횟수 합
       const n = b[ex.key + '#n'] || 0, cmin = ctx.crit[ex.key].countMin;
       const extra = cmin > 0 && n >= cmin ? Math.floor((n - cmin) / cmin + 1e-9) : 0;   // 기준만큼 더 한 번 수 → '추가 횟수' 보너스
       return { key: ex.key, name: ex.name, sec: n, min: cmin, unit: '회', ok: n >= cmin, tried: ex.key in b, extra };
@@ -415,34 +415,64 @@ function stampHolidays_(ss) {
   return out;
 }
 
-/** 통과기준 탭 → { key: { min, weekendOff } }. 탭이 없으면 기본값으로 만들어 둠 */
+/** 통과기준 탭 → { key: { min(초), countMin(회), unit('초'|'회'), weekendOff } }  (2026-11-15 새 모양)
+ *  A 종목 | B 기준 | C 단위(회·초) | D 주말 제외(O) | E 설명   — 종목마다 한 줄, 단위로 시간/횟수를 정함
+ *   - 단위 '회'는 정확한 횟수 열이 있는 종목만(STAMP_EX count): 그날 횟수 합 ≥ 기준이면 통과 (countFrom 날부터. 그 전 날은 예전처럼 30초)
+ *   - 단위 '초'는 그날 한 번에 이 시간 이상 한 기록이 있으면 통과 (플랭크·행잉·트레드밀·로잉머신은 늘 '초')
+ *  예전 모양(A 종목 | B 최소시간(초) | C 주말 제외 + '줄넘기(횟수)' 같은 줄)이면 처음 부를 때 새 모양으로 바꿔 씀 */
+const STAMP_CRIT_HEAD = ['종목', '기준', '단위(회·초)', '주말 제외(O)', '설명'];
+function stampCritDefault_(ex) {
+  const cnt = ex.count != null;
+  return { min: STAMP.DEFAULT_SEC, countMin: ex.countMin, unit: cnt ? '회' : '초', weekendOff: !!(ex.room || ex.schoolDay) };
+}
+function stampCritRow_(ex, c) {
+  const cnt = c.unit === '회' && ex.count != null;
+  const note = cnt ? `그날 정확한 횟수를 모두 더해 이 횟수 이상이면 통과 (${ex.countFrom.slice(5).replace('-', '월 ')}일부터). 이만큼 더 할 때마다 추가 포인트`
+    : '그날 한 번에 이 시간(초) 이상 한 기록이 있으면 통과';
+  return [ex.name, cnt ? c.countMin : c.min, cnt ? '회' : '초', c.weekendOff ? 'O' : '', note];
+}
 function stampCriteria_(ss) {
   const out = {};
-  STAMP_EX.forEach(ex => out[ex.key] = { min: ex.mrun ? 1 : STAMP.DEFAULT_SEC, weekendOff: !!(ex.room || ex.schoolDay), countMin: ex.countMin });
+  const list = STAMP_EX.filter(ex => !ex.mrun);                         // 아침달리기(보너스)는 탭에 없음
+  STAMP_EX.forEach(ex => out[ex.key] = ex.mrun ? { min: 1, unit: '초', weekendOff: true } : stampCritDefault_(ex));
+  const yes = v => /^(o|ㅇ|y|예|true)$/i.test(String(v).trim());
+  const num = v => { const m = Number(v); return String(v).trim() !== '' && isFinite(m) && m >= 0 ? m : null; };
   let sh = ss.getSheetByName(STAMP.CRITERIA_SHEET);
-  if (!sh) {
+  const write = () => {
     try {
-      sh = ss.insertSheet(STAMP.CRITERIA_SHEET);
-      sh.appendRow(['종목', '최소시간(초)', '주말 제외(O)']);
-      STAMP_EX.filter(ex => !ex.mrun).forEach(ex => sh.appendRow([ex.name, STAMP.DEFAULT_SEC, ex.room ? 'O' : '']));
-      sh.setFrozenRows(1);
-      sh.getRange(1, 1, 1, 3).setFontWeight('bold');
-    } catch (e) {}
+      if (!sh) sh = ss.insertSheet(STAMP.CRITERIA_SHEET);
+      sh.clear();
+      const rows = [STAMP_CRIT_HEAD].concat(list.map(ex => stampCritRow_(ex, out[ex.key])));
+      sh.getRange(1, 1, rows.length, STAMP_CRIT_HEAD.length).setValues(rows);
+      sh.getRange(1, 1, 1, STAMP_CRIT_HEAD.length).setFontWeight('bold');
+      sh.setFrozenRows(1); sh.setColumnWidth(1, 130); sh.setColumnWidth(5, 520);
+      sh.getRange(2, 3, list.length, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['회', '초'], true).build());
+    } catch (e) { console.warn('통과기준 탭 쓰기: ' + e); }
+  };
+  if (!sh) { write(); return out; }
+  const v = sh.getDataRange().getValues(), head = v[0].map(x => String(x).trim()), rows = v.slice(1);
+  if (head[1] !== '기준') {                                             // 예전 모양 → 값을 옮겨 새 모양으로
+    rows.forEach(r => {
+      const name = String(r[0]).trim();
+      const exC = list.find(x => x.count != null && name === x.name + '(횟수)');
+      if (exC) { const m = num(r[1]); if (m != null) out[exC.key].countMin = m; return; }
+      const ex = list.find(x => x.name === name); if (!ex) return;
+      const m = num(r[1]); if (m != null) out[ex.key].min = m;
+      out[ex.key].weekendOff = yes(r[2]);
+    });
+    write();
     return out;
   }
-  const rows = sh.getDataRange().getValues().slice(1);
-  // 횟수로 판정하는 종목은 '줄넘기(횟수)' 줄에 최소 횟수 (없으면 기본값으로 한 줄 더함)
-  STAMP_EX.filter(ex => ex.count != null).forEach(ex => {
-    const r = rows.find(x => String(x[0]).trim() === ex.name + '(횟수)');
-    if (r) { const m = Number(r[1]); if (String(r[1]).trim() !== '' && isFinite(m) && m >= 0) out[ex.key].countMin = m; }
-    else { try { sh.appendRow([ex.name + '(횟수)', ex.countMin, '← ' + ex.countFrom.slice(5).replace('-', '월 ') + '일부터 이 종목은 시간 대신 그날 정확한 횟수 합으로 통과. 이만큼 더 할 때마다 보너스']); } catch (e) {} }
-  });
   rows.forEach(r => {
-    const ex = STAMP_EX.find(x => x.name === String(r[0]).trim() && !x.mrun); if (!ex) return;   // 아침달리기는 탭과 관계없이 '기록 있음' + 휴일 제외
-    const m = Number(r[1]);
-    if (String(r[1]).trim() !== '' && isFinite(m) && m >= 0) out[ex.key].min = m;
-    out[ex.key].weekendOff = /^(o|ㅇ|y|예|true)$/i.test(String(r[2]).trim());
+    const ex = list.find(x => x.name === String(r[0]).trim()); if (!ex) return;
+    const unit = String(r[2]).trim() === '회' && ex.count != null ? '회' : '초';   // 횟수 열이 없는 종목은 늘 '초'
+    const m = num(r[1]);
+    out[ex.key].unit = unit;
+    if (m != null) { if (unit === '회') out[ex.key].countMin = m; else out[ex.key].min = m; }
+    out[ex.key].weekendOff = yes(r[3]);
   });
+  const missing = list.filter(ex => !rows.some(r => String(r[0]).trim() === ex.name));
+  if (missing.length) { try { missing.forEach(ex => sh.appendRow(stampCritRow_(ex, out[ex.key]))); } catch (e) {} }   // 새 종목은 아래에 한 줄
   return out;
 }
 

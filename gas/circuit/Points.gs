@@ -200,7 +200,7 @@ function pointCompute_(ss, from, to, only) {
       s[d] = stampJudge_(ctx, st.id, d).stamp;
       const b = (best[st.id] || {})[d] || {};
       p[d] = d >= POINT.COUNT_FROM                           // 11/16~: 모든 종목 통과(횟수 종목은 그날 횟수 합 ≥ 기준)
-        ? STAMP_EX.filter(ex => !ex.bonus && stampExOn_(ex, d) && (stampByCount_(ex, d) ? (b[ex.key + '#n'] || 0) >= ctx.crit[ex.key].countMin : (b[ex.key] || 0) >= ctx.crit[ex.key].min)).length
+        ? STAMP_EX.filter(ex => !ex.bonus && stampExOn_(ex, d) && (stampByCount_(ex, d, ctx.crit) ? (b[ex.key + '#n'] || 0) >= ctx.crit[ex.key].countMin : (b[ex.key] || 0) >= ctx.crit[ex.key].min)).length
         : STAMP_EX.filter(ex => ex.key !== 'squat' && !ex.bonus && !(ex.key === 'jumprope' && d >= POINT.ROPE_FROM) && stampExOn_(ex, d) && (b[ex.key] || 0) >= ctx.crit[ex.key].min).length;
     });
   });
@@ -247,7 +247,7 @@ function pointCompute_(ss, from, to, only) {
       // 11/16~ 추가 횟수: 횟수 종목마다 기준만큼 더 한 번 수 × '추가 횟수'
       const exList = [];
       let exP = 0;
-      if (newCount) STAMP_EX.filter(ex => !ex.bonus && stampByCount_(ex, d) && stampExOn_(ex, d)).forEach(ex => {
+      if (newCount) STAMP_EX.filter(ex => !ex.bonus && stampByCount_(ex, d, ctx.crit) && stampExOn_(ex, d)).forEach(ex => {
         const n = (((best[st.id] || {})[d] || {})[ex.key + '#n']) || 0, cmin = ctx.crit[ex.key].countMin;
         const extra = cmin > 0 && n >= cmin ? Math.floor((n - cmin) / cmin + 1e-9) : 0;
         if (extra) { exP += extra * R['추가 횟수']; exList.push(`${ex.name} ${n}회 +${extra}`); }
@@ -479,7 +479,7 @@ function pointRulesInfo_() {
   return {
     ok: true, today,
     rules: pointRules_(ss),
-    exercises: STAMP_EX.filter(ex => !ex.bonus).map(ex => stampByCount_(ex, today)
+    exercises: STAMP_EX.filter(ex => !ex.bonus).map(ex => stampByCount_(ex, today, crit)
       ? { key: ex.key, name: ex.name, min: crit[ex.key].countMin, unit: '회', weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }
       : { key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }),
     bikeKm: STAMP.BIKE_KM, bikeKmByGrade: STAMP.BIKE_KM_BY_GRADE, bikeFromHour: STAMP.BIKE_FROM_HOUR,
