@@ -21,6 +21,11 @@
     .spGoal.done b.t{color:#f5c518}
     .spGoal .n{font-size:20px;font-weight:900;line-height:1.3}
     .spGoal .n small{font-size:15px;font-weight:700;opacity:.8}
+    .spGoal .r{font-size:17px;font-weight:700;line-height:1.45}
+    .spGoal .r b{color:#9ff0b0}
+    .spGoal .r2{font-size:14px;font-weight:600;opacity:.8;line-height:1.4;margin:1px 0 6px 26px}
+    .spGoal .today{display:flex;justify-content:space-between;gap:8px;margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.18);font-size:17px;font-weight:800}
+    .spGoal .today b{font-size:20px}
     .spGoal .bar{height:9px;border-radius:999px;background:rgba(255,255,255,.15);margin:7px 0 2px;overflow:hidden}
     .spGoal .bar i{display:block;height:100%;background:#9ff0b0;border-radius:999px;transition:width .4s}
     .spGoal.done .bar i{background:#f5c518}
@@ -65,36 +70,41 @@
     return b;
   }
 
+  /* 서버를 못 읽었을 때 쓰는 기본 기준 (통과기준 탭과 같게) */
+  const DEF = { squat: 10, lunge: 10, jumpingjack: 30, curlup: 10, highknee: 30, pushup: 10, legraise: 10, burpee: 5, jumprope: 100 };
+  const NAME = { squat: '스쿼트', lunge: '런지', jumpingjack: '점핑잭', curlup: '윗몸말아올리기', highknee: '하이니', pushup: '팔굽혀펴기', legraise: '레그레이즈', burpee: '버피테스트', jumprope: '줄넘기' };
+
   function render() {
     const it = item();
-    [TARGET, RESULT].forEach(id => { const h = id && document.getElementById(id); const b = h && h.querySelector('.spGoal'); if (b && !it) b.remove(); });
-    if (!it) return;
-    const n = Math.round((it.n + st.added) * 10) / 10;
-    const count = it.unit === '회';
-    if (!count) {                                       // 시간 기준(통과기준 탭에서 '초'로 바꾼 경우)
-      const b = box(TARGET); if (!b) return;
-      b.className = 'spGoal' + (it.ok ? ' done' : '');
-      b.innerHTML = `<b class="t">🎯 오늘 도장</b><div class="n">${it.ok ? '✅ 오늘 통과했어요' : `한 번에 ${it.min}초 이상이면 통과`}</div>`;
+    const t = document.getElementById(TARGET) && box(TARGET); if (!t) return;
+    if (it && it.unit !== '회') {                       // 시간 기준(통과기준 탭에서 '초'로 바꾼 경우)
+      t.className = 'spGoal' + (it.ok ? ' done' : '');
+      t.innerHTML = `<div class="r">✅ <b>통과</b>: 한 번에 ${it.min}초 이상</div>${it.ok ? '<div class="today">오늘 통과했어요 👍</div>' : ''}`;
       return;
     }
-    const min = it.min, ok = n >= min, left = Math.max(0, min - n);
-    const extra = ok ? Math.floor((n - min) / min + 1e-9) : 0, toNext = ok ? min * (extra + 2) - n : 0;
-    const pct = Math.min(100, n / min * 100);
-    const html = (title, line, sub) => `<b class="t">${title}</b><div class="n">${line}</div><div class="bar"><i style="width:${pct}%"></i></div><div class="s">${sub}</div>`;
-    const t = document.getElementById(TARGET) && box(TARGET);
-    if (t) {
-      t.className = 'spGoal' + (ok ? ' done' : '');
-      t.innerHTML = ok
-        ? html('🎯 오늘 도장', `✅ 통과! 오늘 ${n}회 <small>/ 기준 ${min}회</small>`, `${extra ? `추가 +${extra}P 받았어요 · ` : ''}${toNext}회 더 하면 추가 +1P`)
-        : html('🎯 오늘 도장', `${n}회 했어요 <small>/ 기준 ${min}회</small>`, `<b>${left}회</b> 더 하면 오늘 ${it.name} 통과! (여러 번 나눠 해도 돼요)`);
-      let btn = t.querySelector('.spGoalBtn');
-      const reps = document.querySelector(`#${TARGET} [data-reps]`);
-      const want = Math.ceil(ok ? toNext : left);
-      if (QUICK && reps && want > 0) {
-        if (!btn) { btn = document.createElement('button'); btn.className = 'spGoalBtn'; btn.type = 'button'; t.appendChild(btn); }
-        btn.textContent = ok ? `➕ ${want}회 더 하기 (추가 +1P)` : `🎯 남은 ${want}회 하기`;
-        btn.onclick = () => { const was = reps.dataset.reps; reps.dataset.reps = String(want); reps.click(); reps.dataset.reps = was; };
-      } else if (btn) btn.remove();
+    const min = it ? it.min : DEF[EX], name = (it && it.name) || NAME[EX] || '';
+    if (!min) { t.remove(); return; }
+    const a = Math.floor(min / 2), b = min - a;
+    let html = `<div class="r">✅ <b>통과</b>: 정확한 ${name} <b>하루 합계 ${min}회</b></div>
+      <div class="r2">한 번에 ${min}회를 해도 되고, ${a}회 + ${b}회처럼 나눠 해도 모두 더해서 셉니다.</div>
+      <div class="r">➕ <b>추가 포인트</b>: 통과한 뒤 ${min}회를 더 할 때마다 <b>+1P</b></div>`;
+    let want = 0, ok = false;
+    if (it) {
+      const n = Math.round((it.n + st.added) * 10) / 10;
+      ok = n >= min;
+      const left = Math.max(0, min - n), extra = ok ? Math.floor((n - min) / min + 1e-9) : 0, toNext = ok ? min * (extra + 2) - n : 0;
+      want = Math.ceil(ok ? toNext : left);
+      html += `<div class="today"><span>오늘 <b>${n}회</b> / ${min}회</span><span>${ok ? `✅ 통과${extra ? ` · 추가 +${extra}P` : ''}` : `${Math.ceil(left)}회 남음`}</span></div>
+        <div class="bar"><i style="width:${Math.min(100, n / min * 100)}%"></i></div>`;
+    }
+    t.className = 'spGoal' + (ok ? ' done' : '');
+    t.innerHTML = html;
+    const reps = document.querySelector(`#${TARGET} [data-reps]`);
+    if (QUICK && reps && want > 0) {
+      const btn = document.createElement('button'); btn.className = 'spGoalBtn'; btn.type = 'button';
+      btn.textContent = ok ? `➕ ${want}회 더 하기 (다음 +1P까지)` : `🎯 남은 ${want}회 하기`;
+      btn.onclick = () => { const was = reps.dataset.reps; reps.dataset.reps = String(want); reps.click(); reps.dataset.reps = was; };
+      t.appendChild(btn);
     }
   }
 
@@ -112,7 +122,8 @@
   let wasTarget = false, wasResult = false;
   setInterval(() => {
     const e = who();
-    if (e !== st.email) { st.email = e; st.data = null; st.added = 0; render(); }
+    if (e !== st.email) { st.email = e; st.data = null; st.added = 0; }
+    if (visible(TARGET) && !document.querySelector(`#${TARGET} .spGoal`)) render();
     if (!st.email) return;
     const vt = visible(TARGET), vr = RESULT && visible(RESULT);
     if (vt && !wasTarget) fetchGoal();                  // 고르는 화면에 올 때마다 새로

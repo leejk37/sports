@@ -78,6 +78,7 @@
   #saveState.ok{color:var(--good)}
   #saveState.fail{color:var(--warn)}
   @media (max-width:820px){#main{flex-direction:column}#stage{border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto}}
+  @media (orientation:portrait){#main{flex-direction:column}#stage{flex:1 1 56%;border-right:0;border-bottom:4px solid var(--yellow)}#side{width:auto;flex:0 1 44%;max-height:44vh}}   /* 세로 태블릿 (2026-11-16) */
 </style>
 <script src="../config.js"></script>
 </head>
@@ -114,16 +115,11 @@
       </section>
 
       <section class="screen" id="s-time">
-        <h2>어떻게 측정할까요?</h2>
-        <p class="pickLabel">🎯 몇 번? — 오늘 도장은 하루 동안 한 횟수를 모두 더해요</p>
+        <h2>측정 방법</h2>
+        <p class="pickLabel">몇 회 할까요?</p>
         <div class="pick">
           <button class="btn" data-reps="30">30회</button>
           <button class="btn" data-reps="60">60회</button>
-        </div>
-        <p class="pickLabel">⏱ 시간 동안 몇 번? (기록 도전, 횟수는 오늘 합계에 더해져요)</p>
-        <div class="pick">
-          <button class="btn" data-sec="30">30초</button>
-          <button class="btn" data-sec="60">1분</button>
         </div>
         <button class="btn line" id="rescan">다른 학생 스캔</button>
       </section>
@@ -251,10 +247,14 @@ function flash(text) {
 }
 
 /* ===== 카메라 ===== */
+/* 세로 태블릿: 카메라도 세로(720×1280)로 받고, 화면을 돌리면 카메라를 다시 켬 (2026-11-16) */
+const PORTRAIT = () => matchMedia('(orientation: portrait)').matches;
+matchMedia('(orientation: portrait)').addEventListener('change', () => { if (stream) startCamera().catch(() => {}); });
+video.addEventListener('resize', () => { if (video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; } });
 async function startCamera() {
   stream?.getTracks().forEach(t => t.stop());
   stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+    video: { facingMode: facing, width: { ideal: PORTRAIT() ? 720 : 1280 }, height: { ideal: PORTRAIT() ? 1280 : 720 } }, audio: false
   });
   video.srcObject = stream;
   await video.play();

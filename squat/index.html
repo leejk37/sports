@@ -316,10 +316,13 @@ function flash(text, kind) {
 }
 
 /* ---------- 카메라 ---------- */
+/* 세로 태블릿: 카메라도 세로(720×1280)로 받고, 화면을 돌리면 카메라를 다시 켬 (2026-11-16) */
+const PORTRAIT = () => matchMedia("(orientation: portrait)").matches;
+matchMedia("(orientation: portrait)").addEventListener("change", () => { if (video.srcObject) startCamera().catch(() => {}); });
 async function startCamera() {
   if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false
+    video: { facingMode: facing, width: { ideal: PORTRAIT() ? 720 : 1280 }, height: { ideal: PORTRAIT() ? 1280 : 720 } }, audio: false
   });
   video.srcObject = stream;
   await video.play();
