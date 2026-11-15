@@ -79,7 +79,9 @@
 
   /* 제목·단추를 오른쪽 칸 맨 위로 → 카메라가 화면 높이를 모두 씀 (2026-11-16) */
   #side > header{padding:0 0 10px;margin:-8px 0 2px;background:none;border-bottom:2px solid rgba(255,255,255,.18);flex-wrap:wrap;gap:6px}
-  #side > header h1{font-size:20px;flex:1 1 100%}
+  #side > header h1{font-size:20px;flex:0 1 auto}
+  #side > header #who{flex:1 1 auto;min-height:0;font-size:20px;font-weight:800;color:#f5c518}   /* 제목 옆 학생 이름 */
+  #side > header .hbr{flex-basis:100%;height:0}
   #side > header .hbtn{font-size:14px;padding:6px 10px}
 </style>
 <script src="../config.js"></script>
@@ -100,11 +102,10 @@
 
     <aside id="side">
       <header>
-        <h1>팔굽혀펴기 측정</h1>
+        <h1>팔굽혀펴기 측정</h1><span id="who"></span><i class="hbr"></i>
         <button class="hbtn" id="flip">카메라 전환</button>
         <button class="hbtn" id="cancel">처음으로</button>
       </header>
-      <div id="who"></div>
 
       <section class="screen" id="s-loading">
         <h2>준비하고 있어요</h2>
@@ -373,7 +374,7 @@ function scanQr() {
   const id = code.data.trim();
   if (!/^[\w.\-]+(@[\w.\-]+)?$/.test(id)) { flash('이름표 QR이 아니에요'); return; }
   email = (id.includes('@') ? id : id + CONFIG.DOMAIN).toLowerCase(); window.SPORT_EMAIL = email;
-  $('who').textContent = email;
+  $('who').textContent = email.split('@')[0];
   beep(1200, 80);
   show('time');
 }

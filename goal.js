@@ -25,7 +25,9 @@
     .spGoal .r{font-size:17px;font-weight:700;line-height:1.45}
     .spGoal .r b{color:#9ff0b0}
     .spGoal .r2{font-size:14px;font-weight:600;opacity:.8;line-height:1.4;margin:1px 0 6px 26px}
-    .spGoal .today{display:flex;justify-content:space-between;gap:8px;font-size:18px;font-weight:800}
+    .spGoal .today{display:flex;justify-content:space-between;gap:8px;font-size:18px;font-weight:800;margin-top:8px}
+    .spGoal .r1{font-size:16px;font-weight:700;line-height:1.4}
+    .spGoal .r1 b{color:#9ff0b0}
     .spGoal .today b{font-size:20px}
     .spGoal .bar{height:9px;border-radius:999px;background:rgba(255,255,255,.15);margin:7px 0 2px;overflow:hidden}
     .spGoal .bar i{display:block;height:100%;background:#9ff0b0;border-radius:999px;transition:width .4s}
@@ -49,6 +51,8 @@
       if (!d || !d.ok) return;
       const prev = item(), shown = prev ? prev.n + st.added : 0;
       st.data = d;
+      const w = document.getElementById('who');                 // 제목 옆 이름: QR로 들어오면 아이디만 보이므로 이름으로
+      if (w && d.name && !/학생$/.test(w.textContent)) w.textContent = d.name + ' 학생';
       const it = item();
       if (it) { st.added = Math.max(0, shown - it.n); }   // 서버가 아직 방금 기록을 모르면 화면에서 더한 만큼 유지
       render();
@@ -86,7 +90,7 @@
     }
     const min = it ? it.min : DEF[EX], name = (it && it.name) || NAME[EX] || '';
     if (!min) { t.remove(); return; }
-    let html = '';
+    let html = `<div class="r1">✅ 통과 <b>하루 ${min}회</b> · ➕ 통과 뒤 <b>${min}회마다 +1P</b></div>`;
     let want = 0, ok = false;
     if (it) {
       const n = Math.round((it.n + st.added) * 10) / 10;
@@ -96,7 +100,6 @@
       html += `<div class="today"><span>오늘 <b>${n}</b> / ${min}회</span><span>${ok ? `✅ 통과${extra ? ` +${extra}P` : ''}` : `${Math.ceil(left)}회 남음`}</span></div>
         <div class="bar"><i style="width:${Math.min(100, n / min * 100)}%"></i></div>`;
     }
-    if (!it) { t.remove(); return; }                   // 학생을 모르면 칸 없이 (기준 설명은 도장·규칙 화면에서)
     t.className = 'spGoal' + (ok ? ' done' : '');
     t.innerHTML = html;
     const reps = document.querySelector(`#${TARGET} [data-reps]`);
