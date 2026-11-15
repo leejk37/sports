@@ -165,6 +165,11 @@ function pointCompute_(ss, from, to, only) {
     m[r.d] = m[r.d] ? Math.min(m[r.d], r.sec) : r.sec;
   });
 
+  // 1-3) 아침달리기를 도장 판정용 best에도 (2026-11-16부터 도장 종목, Stamp.gs STAMP_EX)
+  Object.keys(mr).forEach(id => Object.keys(mr[id]).forEach(d => {
+    const b = ((best[id] = best[id] || {})[d] = (best[id][d] || {})); b.morningrun = mr[id][d];
+  }));
+
   // 2) 기록 경신: 조건(측정시간·방식)별로 날짜 순서대로 '전날까지 최고'와 비교
   const pbs = {};           // id → 날짜 → [종목 이름…]
   const exName = {}; DASH_EX.forEach(ex => exName[ex.key] = ex.name);
@@ -196,7 +201,7 @@ function pointCompute_(ss, from, to, only) {
       if (!(best[st.id] && best[st.id][d]) && !(ctx.bike[st.id] && ctx.bike[st.id][d])) { s[d] = 0; p[d] = 0; return; }
       s[d] = stampJudge_(ctx, st.id, d).stamp;
       const b = (best[st.id] || {})[d] || {};
-      p[d] = STAMP_EX.filter(ex => ex.key !== 'squat' && !(ex.key === 'jumprope' && d >= POINT.ROPE_FROM) && stampExOn_(ex, d) && (b[ex.key] || 0) >= ctx.crit[ex.key].min).length;
+      p[d] = STAMP_EX.filter(ex => ex.key !== 'squat' && !ex.mrun && !(ex.key === 'jumprope' && d >= POINT.ROPE_FROM) && stampExOn_(ex, d) && (b[ex.key] || 0) >= ctx.crit[ex.key].min).length;
     });
   });
   const groupOf = {};       // gkey → 날짜 → 0/90/100
@@ -465,7 +470,9 @@ function pointRulesInfo_() {
   return {
     ok: true, today,
     rules: pointRules_(ss),
-    exercises: STAMP_EX.map(ex => stampByCount_(ex, today)
+    exercises: STAMP_EX.map(ex => ex.mrun
+      ? { key: ex.key, name: ex.name, min: 5, unit: '바퀴', weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }
+      : stampByCount_(ex, today)
       ? { key: ex.key, name: ex.name, min: crit[ex.key].countMin, unit: '회', weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }
       : { key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }),
     bikeKm: STAMP.BIKE_KM, bikeKmByGrade: STAMP.BIKE_KM_BY_GRADE, bikeFromHour: STAMP.BIKE_FROM_HOUR,
@@ -575,7 +582,7 @@ function pointsReport() { pointsReport_(SpreadsheetApp.getActiveSpreadsheet()); 
  *  종목 탭의 측정시간 열을 학생별로 더함 → 누적(10월 19일부터)·이달·오늘
  *  포인트 원장과 따로, 실시간(2분 캐시). 실내자전거(km만 있음)는 아직 빠짐 → 나중에 보완
  *  열 위치는 Stamp.gs STAMP_EX의 time */
-const POINT_TIME_EX = STAMP_EX.map(ex => ({ sheet: ex.sheet, time: ex.time }));
+const POINT_TIME_EX = STAMP_EX.filter(ex => ex.sheet).map(ex => ({ sheet: ex.sheet, time: ex.time }));
 const POINT_TIME_MAX = 3600;     // 한 기록이 1시간을 넘으면 잘못 누른 것으로 보고 1시간까지만
 
 function pointTimeAll_(ss) {

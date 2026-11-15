@@ -56,7 +56,9 @@ const STAMP_EX = [
   { key: 'burpee',      name: '버피테스트',     sheet: '버피테스트',     time: 6, from: '2026-10-30' },
   { key: 'hanging',     name: '행잉',           sheet: '행잉',           time: 9, room: true },
   { key: 'treadmill',   name: '트레드밀',       sheet: '트레드밀',       time: 6, room: true },
-  { key: 'rowing',      name: '로잉머신',       sheet: '로잉머신',       time: 7, room: true }
+  { key: 'rowing',      name: '로잉머신',       sheet: '로잉머신',       time: 7, room: true },
+  // 아침달리기(운동장 5바퀴, NFC 기록대 → MorningRun.gs): 그날 기록이 있으면 통과. 학교 오는 날만(휴일 제외). 2026-11-16부터 도장 종목 (2026-11-15 선생님 결정)
+  { key: 'morningrun',  name: '아침달리기',     mrun: true, schoolDay: true, from: '2026-11-16' }
 ];
 
 /* from: 이날부터 도장 종목 (그 전 날짜의 도장은 그대로 둠) */
@@ -127,6 +129,16 @@ function stampReadAllBest_(ss) {
   const dayOf = v => v instanceof Date ? stampFmt_(v, 'yyyy-MM-dd') : String(v).trim().slice(0, 10);
   const sec = v => { const x = Number(v); return isFinite(x) ? x : 0; };
   STAMP_EX.forEach(ex => {
+    if (ex.mrun) {                                     // 아침달리기: 다른 파일(MorningRun.gs) → 그날 가장 빠른 기록(초)
+      try {
+        morningRunRows_().forEach(r => {
+          if (r.d < '2026-09-01') return;
+          const b = ((best[r.id] = best[r.id] || {})[r.d] = (best[r.id][r.d] || {}));
+          b[ex.key] = b[ex.key] ? Math.min(b[ex.key], r.sec) : r.sec;
+        });
+      } catch (e) { console.warn('아침달리기 읽기: ' + e); }
+      return;
+    }
     const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
     const n = sh.getLastRow() - 1; if (n < 1) return;
     sh.getRange(2, 1, n, Math.max(6, ex.time + 1)).getValues().forEach(r => {   // 필요한 열(측정일시~측정시간)까지만
@@ -176,6 +188,10 @@ function stampJudge_(ctx, id, d) {
   const need = STAMP_EX.filter(ex => stampExOn_(ex, d) && !(weekend && ctx.crit[ex.key].weekendOff));
   const b = ((ctx.best[id] || {})[d]) || {};
   const items = need.map(ex => {
+    if (ex.mrun) {                                                    // 아침달리기: 5바퀴 기록이 있으면 통과 (sec = 달린 시간)
+      const s = b[ex.key] || 0;
+      return { key: ex.key, name: ex.name, sec: s, min: 1, unit: '', mrun: true, ok: s > 0, tried: s > 0 };
+    }
     if (stampByCount_(ex, d)) {                                       // 줄넘기: 그날 횟수 합
       const n = b[ex.key + '#n'] || 0, cmin = ctx.crit[ex.key].countMin;
       return { key: ex.key, name: ex.name, sec: n, min: cmin, unit: '회', ok: n >= cmin, tried: ex.key in b };
@@ -396,13 +412,13 @@ function stampHolidays_(ss) {
 /** 통과기준 탭 → { key: { min, weekendOff } }. 탭이 없으면 기본값으로 만들어 둠 */
 function stampCriteria_(ss) {
   const out = {};
-  STAMP_EX.forEach(ex => out[ex.key] = { min: STAMP.DEFAULT_SEC, weekendOff: !!ex.room, countMin: ex.countMin });
+  STAMP_EX.forEach(ex => out[ex.key] = { min: ex.mrun ? 1 : STAMP.DEFAULT_SEC, weekendOff: !!(ex.room || ex.schoolDay), countMin: ex.countMin });
   let sh = ss.getSheetByName(STAMP.CRITERIA_SHEET);
   if (!sh) {
     try {
       sh = ss.insertSheet(STAMP.CRITERIA_SHEET);
       sh.appendRow(['종목', '최소시간(초)', '주말 제외(O)']);
-      STAMP_EX.forEach(ex => sh.appendRow([ex.name, STAMP.DEFAULT_SEC, ex.room ? 'O' : '']));
+      STAMP_EX.filter(ex => !ex.mrun).forEach(ex => sh.appendRow([ex.name, STAMP.DEFAULT_SEC, ex.room ? 'O' : '']));
       sh.setFrozenRows(1);
       sh.getRange(1, 1, 1, 3).setFontWeight('bold');
     } catch (e) {}
@@ -416,7 +432,7 @@ function stampCriteria_(ss) {
     else { try { sh.appendRow([ex.name + '(횟수)', ex.countMin, '← ' + ex.countFrom.slice(5).replace('-', '월 ') + '일부터 이 종목은 시간 대신 그날 뛴 횟수 합으로 통과']); } catch (e) {} }
   });
   rows.forEach(r => {
-    const ex = STAMP_EX.find(x => x.name === String(r[0]).trim()); if (!ex) return;
+    const ex = STAMP_EX.find(x => x.name === String(r[0]).trim() && !x.mrun); if (!ex) return;   // 아침달리기는 탭과 관계없이 '기록 있음' + 휴일 제외
     const m = Number(r[1]);
     if (String(r[1]).trim() !== '' && isFinite(m) && m >= 0) out[ex.key].min = m;
     out[ex.key].weekendOff = /^(o|ㅇ|y|예|true)$/i.test(String(r[2]).trim());
