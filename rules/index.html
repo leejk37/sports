@@ -292,7 +292,7 @@ function calc() {
   const bike = S.n.bike, bikeOk = bike >= bikeKm();
   const stamp = all ? (bikeOk || S.day === 'holiday' ? 100 : 90) : 0;
   // 종목 통과: 통과한 도장 종목(스쿼트·줄넘기 빼고, 둘은 횟수로) — 휴일에 한 스포츠실 종목도 셈
-  const pass = R.exercises.filter(ex => exOn(ex) && ex.key !== 'squat' && ex.key !== 'jumprope' && ex.key !== 'morningrun' && S.done.has(ex.key)).length;   // 아침달리기는 '참여' 포인트로 따로
+  const pass = R.exercises.filter(ex => exOn(ex) && ex.key !== 'squat' && ex.key !== 'jumprope' && S.done.has(ex.key)).length;
   const sqP = Math.floor(S.n.squat / R.squatPer) * r['스쿼트 20회'];
   const rpP = Math.floor(S.n.rope / R.ropePer) * r['줄넘기 100회'];
   const bkP = Math.floor(Math.max(0, bike - bikeKm()) * r['자전거 추가 1km'] + 1e-9);

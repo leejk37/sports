@@ -54,6 +54,7 @@
   .it .go{font-size:13px;font-weight:800;color:var(--yellow)}
   .it.ok .go{display:none}
   .bike{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.07)}
+  .bike.bonus{margin-top:8px} .bike.bonus .n small{font-size:11px;font-weight:900;color:var(--blue-dd);background:#9ff0b0;border-radius:999px;padding:2px 7px;margin-left:4px} .bike.bonus .s{margin-left:auto}
   .bike .n{font-size:17px;font-weight:900;flex:none}
   .bike .w{flex:1;height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
   .bike .w i{display:block;height:100%;width:0;background:#7fb0f0;border-radius:999px;transition:width .8s ease}
@@ -343,16 +344,11 @@ function render() {
     sub = t.stamp === 90 ? `실내자전거 ${d.rule.bikeKm}km를 더 탔으면 완벽 도장이었어요.` : '';
   }
   const notes = [];
-  if (t.weekend) notes.push(`${t.holiday ? t.holiday + ' · ' : ''}휴일에는 트레드밀·로잉머신·행잉·아침달리기를 빼고, 모두 하면 바로 완벽 도장이에요`);
+  if (t.weekend) notes.push(`${t.holiday ? t.holiday + ' · ' : ''}휴일에는 트레드밀·로잉머신·행잉을 빼고, 모두 하면 바로 완벽 도장이에요`);
 
   const items = t.items.map(i => {
     const cls = (i.ok ? 'ok' : i.tried ? 'part' : '') + (isToday ? '' : ' past');
     const u = i.unit || '초';   // 줄넘기는 11/2부터 '회'(그날 횟수 합)
-    if (i.mrun) {                                       // 아침달리기: 앱 없음(운동장 NFC 기록대)
-      const t2 = i.sec ? `${Math.floor(i.sec / 60)}분 ${String(Math.round(i.sec % 60)).padStart(2, '0')}초` : '';
-      const sm = i.ok ? `5바퀴 통과 · ${t2}` : isToday ? '운동장 5바퀴 (아침에 NFC 카드)' : '기록 없음';
-      return `<div class="it ${cls}"><span class="n">${esc(i.name)}</span><span class="s">${esc(sm)}</span></div>`;
-    }
     const s = i.ok ? `${fmtSec(i.sec)}${u} 통과` : i.tried ? `${fmtSec(i.sec)}${u} · ${fmtSec(i.min - i.sec)}${u} 모자람` : isToday ? `${i.min}${u} 이상` : '기록 없음';
     const inner = `<span class="n">${esc(i.name)}</span><span class="s">${esc(s)}</span>`;
     return isToday ? `<a class="it ${cls}" href="${esc(goUrl(i.key))}">${inner}<span class="go">하러 가기 ›</span></a>`
@@ -394,6 +390,9 @@ function render() {
       <div class="note" id="note">${esc(notes.join(' · '))}</div>
       <div class="items">${items}</div>
       <div class="bike${t.bikeOk ? ' ok' : ''}"><span class="n">🚴 실내자전거</span><span class="w"><i id="bikeBar"></i></span><span class="s">${esc(bikeS)}</span></div>
+      ${(t.bonus || []).map(x => `<div class="bike bonus${x.ok ? ' ok' : ''}"><span class="n">🏃 ${esc(x.name)} <small>보너스</small></span><span class="s">${x.ok
+        ? `5바퀴 · ${Math.floor(x.sec / 60)}분 ${String(Math.round(x.sec % 60)).padStart(2, '0')}초 · +${(d.points && d.points.rules && d.points.rules['아침달리기 참여']) || 5}P~`
+        : isToday ? '운동장 5바퀴 하면 보너스 포인트 (도장과는 따로)' : '기록 없음'}</span></div>`).join('')}
       ${teamHtml(d, sel, isToday)}
     </section>
     <section class="card">

@@ -165,11 +165,6 @@ function pointCompute_(ss, from, to, only) {
     m[r.d] = m[r.d] ? Math.min(m[r.d], r.sec) : r.sec;
   });
 
-  // 1-3) 아침달리기를 도장 판정용 best에도 (2026-11-16부터 도장 종목, Stamp.gs STAMP_EX)
-  Object.keys(mr).forEach(id => Object.keys(mr[id]).forEach(d => {
-    const b = ((best[id] = best[id] || {})[d] = (best[id][d] || {})); b.morningrun = mr[id][d];
-  }));
-
   // 2) 기록 경신: 조건(측정시간·방식)별로 날짜 순서대로 '전날까지 최고'와 비교
   const pbs = {};           // id → 날짜 → [종목 이름…]
   const exName = {}; DASH_EX.forEach(ex => exName[ex.key] = ex.name);
@@ -470,9 +465,7 @@ function pointRulesInfo_() {
   return {
     ok: true, today,
     rules: pointRules_(ss),
-    exercises: STAMP_EX.map(ex => ex.mrun
-      ? { key: ex.key, name: ex.name, min: 5, unit: '바퀴', weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }
-      : stampByCount_(ex, today)
+    exercises: STAMP_EX.filter(ex => !ex.bonus).map(ex => stampByCount_(ex, today)
       ? { key: ex.key, name: ex.name, min: crit[ex.key].countMin, unit: '회', weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }
       : { key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }),
     bikeKm: STAMP.BIKE_KM, bikeKmByGrade: STAMP.BIKE_KM_BY_GRADE, bikeFromHour: STAMP.BIKE_FROM_HOUR,

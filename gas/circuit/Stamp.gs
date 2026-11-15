@@ -57,8 +57,8 @@ const STAMP_EX = [
   { key: 'hanging',     name: '행잉',           sheet: '행잉',           time: 9, room: true },
   { key: 'treadmill',   name: '트레드밀',       sheet: '트레드밀',       time: 6, room: true },
   { key: 'rowing',      name: '로잉머신',       sheet: '로잉머신',       time: 7, room: true },
-  // 아침달리기(운동장 5바퀴, NFC 기록대 → MorningRun.gs): 그날 기록이 있으면 통과. 학교 오는 날만(휴일 제외). 2026-11-16부터 도장 종목 (2026-11-15 선생님 결정)
-  { key: 'morningrun',  name: '아침달리기',     mrun: true, schoolDay: true, from: '2026-11-16' }
+  // 아침달리기(운동장 5바퀴, NFC 기록대 → MorningRun.gs): 당분간 **보너스** — 도장 판정(need)에는 넣지 않고 도장 화면에만 따로 보여 줌 (2026-11-15 선생님 결정)
+  { key: 'morningrun',  name: '아침달리기',     mrun: true, bonus: true, schoolDay: true, from: '2026-11-02' }
 ];
 
 /* from: 이날부터 도장 종목 (그 전 날짜의 도장은 그대로 둠) */
@@ -185,13 +185,14 @@ function stampJudge_(ctx, id, d) {
   const w = Number(stampFmt_(new Date(d + 'T12:00:00+09:00'), 'u'));   // 1=월 … 7=일
   const holiday = (ctx.holi || {})[d] || '';                         // 공휴일 이름 (주말이 아닌 휴일)
   const weekend = w >= 6 || !!holiday;                               // 휴일: 스포츠실 종목 빼고, 모두 하면 완벽 도장
-  const need = STAMP_EX.filter(ex => stampExOn_(ex, d) && !(weekend && ctx.crit[ex.key].weekendOff));
+  const need = STAMP_EX.filter(ex => !ex.bonus && stampExOn_(ex, d) && !(weekend && ctx.crit[ex.key].weekendOff));
   const b = ((ctx.best[id] || {})[d]) || {};
+  // 보너스 종목(아침달리기): 도장과 관계없이 했는지만 (sec = 달린 시간). 학교 오는 날이거나 기록이 있을 때만
+  const bonus = STAMP_EX.filter(ex => ex.bonus && stampExOn_(ex, d)).map(ex => {
+    const s = b[ex.key] || 0;
+    return { key: ex.key, name: ex.name, sec: s, ok: s > 0 };
+  }).filter(x => x.ok || !weekend);
   const items = need.map(ex => {
-    if (ex.mrun) {                                                    // 아침달리기: 5바퀴 기록이 있으면 통과 (sec = 달린 시간)
-      const s = b[ex.key] || 0;
-      return { key: ex.key, name: ex.name, sec: s, min: 1, unit: '', mrun: true, ok: s > 0, tried: s > 0 };
-    }
     if (stampByCount_(ex, d)) {                                       // 줄넘기: 그날 횟수 합
       const n = b[ex.key + '#n'] || 0, cmin = ctx.crit[ex.key].countMin;
       return { key: ex.key, name: ex.name, sec: n, min: cmin, unit: '회', ok: n >= cmin, tried: ex.key in b };
@@ -204,7 +205,7 @@ function stampJudge_(ctx, id, d) {
   const bikeOpen = d < ctx.today || ctx.hour >= STAMP.BIKE_FROM_HOUR;
   const bikeOk = bikeOpen && km >= stampBikeKm_(ctx.grade[id], d);
   const all = done === items.length;
-  return { weekend, holiday, items, done, need: items.length, km, bikeOpen, bikeOk, stamp: all ? (bikeOk || weekend ? 100 : 90) : 0 };
+  return { weekend, holiday, items, bonus, done, need: items.length, km, bikeOpen, bikeOk, stamp: all ? (bikeOk || weekend ? 100 : 90) : 0 };
 }
 
 /** 그 학년·그날의 자전거 통과 km (BIKE_KM_BY_GRADE에 없으면 BIKE_KM, BIKE_KM_FROM 전날까지는 BIKE_KM_OLD) */
