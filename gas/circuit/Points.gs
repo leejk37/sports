@@ -262,7 +262,8 @@ function pointCompute_(ss, from, to, only) {
         const extra = sec >= min ? Math.floor((sec - min) / 60 + 1e-9) : 0;
         if (extra) { cdP += extra * R['트레드밀·로잉 추가 1분']; cdList.push(`${exName[k]} +${extra}분`); }
       });
-      const pEx = pass * R['종목 통과'] + sqP + rpP + exP + bkP + mrP + cdP;
+      const bkPass = d >= POINT.COUNT_FROM && km > 0 && km >= stampBikeKm_(st.grade, d) ? 1 : 0;   // 11/16~ 실내자전거도 통과 거리 이상이면 종목 통과 1P (선생님 결정)
+      const pEx = (pass + bkPass) * R['종목 통과'] + sqP + rpP + exP + bkP + mrP + cdP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const gOld = d < POINT.GROUP_FROM;                        // 2026-11-01부터 모둠 도장 10·완벽 +20
       const pG = g ? (gOld ? POINT.GROUP_OLD : R['모둠 도장']) + (g === 100 ? (gOld ? POINT.GROUP_PERFECT_OLD : R['완벽 모둠 도장']) : 0) : 0;
@@ -271,7 +272,7 @@ function pointCompute_(ss, from, to, only) {
       const pAc = accList.length * R['바른 자세'];
       const total = pEx + pSt + pG + pSk + pPb + pAc;
       if (!total) return;
-      const memo = [pass ? `종목 ${pass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', rpP ? `줄넘기 ${rpN}회 ${rpP}P` : '', exP ? `추가: ${exList.join(' · ')} ${exP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '', cdP ? `${cdList.join(' · ')} ${cdP}P` : '',
+      const memo = [pass + bkPass ? `종목 ${pass + bkPass}` : '', sqP ? `스쿼트 ${sqN}회 ${sqP}P` : '', rpP ? `줄넘기 ${rpN}회 ${rpP}P` : '', exP ? `추가: ${exList.join(' · ')} ${exP}P` : '', bkP ? `자전거 ${Math.round(km * 10) / 10}km ${bkP}P` : '', cdP ? `${cdList.join(' · ')} ${cdP}P` : '',
         mrSec ? `아침달리기 ${mrunFmt_(mrSec)}` + (mrPb ? ' 경신' : '') + (mrSkP ? ` 연속 ${mrStreak}일` : '') + ` ${mrP + mrPbP + mrSkP}P` : '', s === 100 ? '완벽 도장' : s ? '도장' : '', g === 100 ? '완벽 모둠 도장' : g ? '모둠 도장' : '',
         pSk - mrSkP ? `연속 ${streak}일` : '', pbList.length ? '경신: ' + pbList.join(', ') : '', accList.length ? '자세: ' + accList.join(', ') : '']
         .filter(Boolean).join(' · ');

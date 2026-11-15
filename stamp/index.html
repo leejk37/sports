@@ -293,7 +293,7 @@ function pointsHtml(d) {
       <div class="rcard">
         <div class="rtitle">📖 포인트 규칙 <a href="../rules/">규칙과 계산기 보기 ›</a></div>
         <div class="rules">
-          <div>· 종목 통과 ${p.rules['종목 통과']}P · 기준 횟수만큼 더 할 때마다 +${p.rules['추가 횟수'] ?? 1}P</div>
+          <div>· 종목 통과 ${p.rules['종목 통과']}P (자전거 포함) · 기준 횟수만큼 더 할 때마다 +${p.rules['추가 횟수'] ?? 1}P</div>
           <div>· 하루 도장 ${p.rules['하루 도장']}P (완벽 +${p.rules['완벽 도장']}) · 모둠 도장 ${p.rules['모둠 도장']}P (완벽 +${p.rules['완벽 모둠 도장']})</div>
           <div>· 연속 3일 ${p.rules['연속 3일']}P · 5일마다 ${p.rules['연속 5일마다']}P · 기록 경신 ${p.rules['기록 경신']}P · 바른 자세 ${p.rules['바른 자세']}P</div>
           <div>· '오늘 예정'은 지금까지 한 운동으로 계산해요 (2분마다 새로)</div>
@@ -356,6 +356,9 @@ function render() {
       : `<div class="it ${cls}">${inner}</div>`;
   }).join('');
   const bikeW = Math.min(100, t.km / d.rule.bikeKm * 100);
+  // 자전거 포인트 (아침달리기처럼 거리 옆에): 통과 거리 이상이면 종목 통과 1P(11/16~) + 넘은 1km마다 '자전거 추가 1km' (Points.gs와 같은 계산)
+  const pr = (d.points && d.points.rules) || {};
+  const bikePt = t.km >= d.rule.bikeKm ? (sel >= '2026-11-16' ? (pr['종목 통과'] ?? 1) : 0) + Math.floor(Math.max(0, t.km - d.rule.bikeKm) * (pr['자전거 추가 1km'] ?? 0.5) + 1e-9) : 0;
   const bikeS = t.weekend && !t.bikeOk ? (t.km ? `${t.km}km · 휴일엔 없어도 완벽` : '휴일엔 없어도 완벽 도장') : !t.bikeOpen ? `${d.rule.bikeFromHour}시부터 반영` : t.bikeOk ? `${t.km}km 통과` : t.km ? `${t.km}km / ${d.rule.bikeKm}km` : (isToday ? `0km / ${d.rule.bikeKm}km` : '기록 없음');
 
   const prev = data._prevMonth, next = data._nextMonth;
@@ -390,7 +393,7 @@ function render() {
       </div>
       <div class="note" id="note">${esc(notes.join(' · '))}</div>
       <div class="items">${items}</div>
-      <div class="bike${t.bikeOk ? ' ok' : ''}"><span class="n">🚴 실내자전거</span><span class="w"><i id="bikeBar"></i></span><span class="s">${esc(bikeS)}</span></div>
+      <div class="bike${t.bikeOk ? ' ok' : ''}"><span class="n">🚴 실내자전거</span><span class="w"><i id="bikeBar"></i></span><span class="s">${esc(bikeS)}${bikePt ? ` · +${fmtP(bikePt)}P` : ''}</span></div>
       ${(t.bonus || []).map(x => `<div class="bike bonus${x.ok ? ' ok' : ''}"><span class="n">🏃 ${esc(x.name)} <small>보너스</small></span><span class="s">${x.ok
         ? `5바퀴 · ${Math.floor(x.sec / 60)}분 ${String(Math.round(x.sec % 60)).padStart(2, '0')}초 · +${(d.points && d.points.rules && d.points.rules['아침달리기 참여']) || 5}P~`
         : isToday ? '운동장 5바퀴 하면 보너스 포인트 (도장과는 따로)' : '기록 없음'}</span></div>`).join('')}
