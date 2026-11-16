@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>모둠 안무 연습실</title>
+<style>
+  :root { --navy:#2F3C7E; --coral:#F96167; --teal:#1D9E75; --bg:#F3F5FB; --line:#D9DEEA; --text:#1F2A44; --muted:#5A6378; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Malgun Gothic","Noto Sans KR",sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--navy); color:#fff; padding:12px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:20px; margin:0; }
+  header .privacy { font-size:13px; opacity:.85; }
+  main { padding:14px 20px 30px; max-width:1400px; margin:0 auto; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:12px; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .row + .row { margin-top:8px; }
+  label.ctl { display:flex; align-items:center; gap:6px; font-size:14px; }
+  input[type=number] { width:72px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
+  select { padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
+  button { padding:7px 12px; border:none; border-radius:8px; background:var(--navy); color:#fff; font-size:14px; cursor:pointer; }
+  button.coral { background:var(--coral); }
+  button.ghost { background:#fff; color:var(--navy); border:1px solid var(--navy); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .step { display:inline-block; min-width:22px; height:22px; line-height:22px; text-align:center; border-radius:50%; background:var(--coral); color:#fff; font-size:13px; font-weight:bold; }
+  .muted { color:var(--muted); font-size:13px; }
+  progress { width:180px; height:12px; }
+  .stage { display:flex; gap:12px; flex-wrap:wrap; }
+  .view { flex:1 1 420px; background:#111; border-radius:12px; position:relative; overflow:hidden; min-height:240px; }
+  .view .label { position:absolute; top:8px; left:10px; z-index:3; background:rgba(0,0,0,.55); color:#fff; font-size:13px; padding:3px 8px; border-radius:6px; }
+  .flip { position:relative; width:100%; }
+  .flip.mirror { transform:scaleX(-1); }
+  .flip video { width:100%; display:block; }
+  .flip canvas { position:absolute; left:0; top:0; width:100%; height:100%; pointer-events:none; }
+  .empty { color:#bbb; font-size:14px; padding:90px 20px; text-align:center; }
+  .hud { display:flex; gap:12px; flex-wrap:wrap; margin-top:12px; }
+  .card { flex:1 1 150px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 14px; }
+  .card .k { font-size:13px; color:var(--muted); }
+  .card .v { font-size:30px; font-weight:bold; }
+  #beatDots { display:flex; gap:6px; margin-top:6px; }
+  #beatDots span { width:18px; height:18px; border-radius:50%; background:var(--line); }
+  #beatDots span.on { background:var(--coral); }
+  #beatDots span.first { outline:2px solid var(--navy); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; }
+  .bar { height:12px; background:var(--line); border-radius:6px; overflow:hidden; min-width:120px; }
+  .bar i { display:block; height:100%; background:var(--teal); }
+  tr.now { background:#FFF1F1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>모둠 안무 연습실</h1>
+  <span class="privacy">영상은 이 기기 안에서만 분석되며 어디에도 저장·전송되지 않습니다.</span>
+</header>
+<main>
+  <div class="panel">
+    <div class="row">
+      <span class="step">1</span>
+      <label class="ctl">기준 영상 <input type="file" id="refFile" accept="video/*"></label>
+      <button id="analyzeBtn" disabled>기준 영상 분석</button>
+      <progress id="anaProg" value="0" max="1" hidden></progress>
+      <span id="anaMsg" class="muted">모둠의 1분 안무 시범 영상을 고르세요.</span>
+    </div>
+    <div class="row">
+      <span class="step">2</span>
+      <button id="camBtn">카메라 켜기</button>
+      <label class="ctl"><input type="checkbox" id="camMirror" checked> 내 화면 거울</label>
+      <label class="ctl"><input type="checkbox" id="refMirror"> 기준 영상 거울</label>
+      <label class="ctl"><input type="checkbox" id="ghost" checked> 기준 뼈대를 내 화면에 겹치기</label>
+      <span id="modelMsg" class="muted">AI 모델 준비 중…</span>
+    </div>
+    <div class="row">
+      <span class="step">3</span>
+      <label class="ctl">BPM <input type="number" id="bpm" value="120" min="40" max="220"></label>
+      <button class="ghost" id="tapBtn">박자 두드리기</button>
+      <label class="ctl">첫 박 위치(초) <input type="number" id="offset" value="0" step="0.1" min="0"></label>
+      <button class="ghost" id="setOffsetBtn">지금 위치를 첫 박으로</button>
+      <label class="ctl"><input type="checkbox" id="metro" checked> 메트로놈</label>
+    </div>
+    <div class="row">
+      <span class="step">4</span>
+      <button class="coral" id="playBtn" disabled>재생</button>
+      <label class="ctl">속도 <select id="speed"><option value="0.5">0.5배</option><option value="0.75">0.75배</option><option value="1" selected>1배</option></select></label>
+      <label class="ctl">구간 반복 <select id="loopSel"><option value="-1">전체</option></select></label>
+      <button class="ghost" id="resetBtn">점수 초기화</button>
+      <button class="ghost" id="copyBtn">연습 기록 복사</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="view">
+      <span class="label">기준 영상</span>
+      <div class="flip" id="refFlip">
+        <video id="refVideo" playsinline muted></video>
+        <canvas id="refCanvas"></canvas>
+      </div>
+      <div class="empty" id="refEmpty">기준 영상을 불러오면 여기에 나옵니다.</div>
+    </div>
+    <div class="view">
+      <span class="label">나</span>
+      <div class="flip mirror" id="camFlip">
+        <video id="camVideo" playsinline muted></video>
+        <canvas id="camCanvas"></canvas>
+      </div>
+      <div class="empty" id="camEmpty">카메라를 켜면 여기에 나옵니다. 전신이 보이게 서세요.</div>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="card"><div class="k">지금 일치도</div><div class="v" id="scoreNow">-</div></div>
+    <div class="card"><div class="k">지금 박자</div><div class="v" id="beatNow">-</div><div id="beatDots"></div></div>
+    <div class="card"><div class="k">연습 시간</div><div class="v" id="practice">0:00</div></div>
+    <div class="card"><div class="k">분석 속도</div><div class="v" id="fps">-</div><div class="k">fps (15 이상이면 충분)</div></div>
+  </div>
+
+  <div class="panel" style="margin-top:12px">
+    <div class="row" style="justify-content:space-between">
+      <strong>8박 구간별 일치도</strong>
+      <span class="muted">점수는 연습을 돕는 참고 자료입니다. 박자와 강약은 선생님과 친구의 눈으로 함께 확인하세요.</span>
+    </div>
+    <table>
+      <thead><tr><th>구간</th><th>시간</th><th>평균 일치도</th><th></th></tr></thead>
+      <tbody id="secBody"><tr><td colspan="4" class="muted">기준 영상을 분석하면 구간이 만들어집니다.</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver, DrawingUtils } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+const STEP = 1 / 15;
+const WINDOW = 0.2;
+const JOINTS = [[11,13,15],[12,14,16],[23,11,13],[24,12,14],[11,23,25],[12,24,26],[23,25,27],[24,26,28]];
+
+const $ = id => document.getElementById(id);
+const refVideo = $("refVideo"), camVideo = $("camVideo");
+const refCanvas = $("refCanvas"), camCanvas = $("camCanvas");
+const refCtx = refCanvas.getContext("2d"), camCtx = camCanvas.getContext("2d");
+const refDraw = new DrawingUtils(refCtx), camDraw = new DrawingUtils(camCtx);
+
+let refLM = null, camLM = null;
+let refFrames = [];
+let refTs = 0;
+let camOn = false, analyzed = false;
+let sections = [];
+let lastBeat = null, audioCtx = null;
+let practiceSec = 0, lastTick = performance.now();
+let fpsCount = 0, fpsStart = performance.now();
+let taps = [];
+let lastCamLm = null;
+
+async function makeLandmarker(fileset) {
+  const opts = d => ({ baseOptions: { modelAssetPath: MODEL, delegate: d }, runningMode: "VIDEO", numPoses: 1 });
+  try { return await PoseLandmarker.createFromOptions(fileset, opts("GPU")); }
+  catch (e) { return await PoseLandmarker.createFromOptions(fileset, opts("CPU")); }
+}
+
+(async () => {
+  try {
+    const fileset = await FilesetResolver.forVisionTasks(WASM);
+    refLM = await makeLandmarker(fileset);
+    camLM = await makeLandmarker(fileset);
+    $("modelMsg").textContent = "AI 모델 준비 완료";
+    if (refVideo.src) $("analyzeBtn").disabled = false;
+  } catch (e) {
+    $("modelMsg").textContent = "AI 모델을 불러오지 못했습니다. 인터넷 연결을 확인하세요.";
+    console.error(e);
+  }
+})();
+
+function angles(lm, aspect) {
+  if (!lm) return null;
+  return JOINTS.map(([a, b, c]) => {
+    const A = lm[a], B = lm[b], C = lm[c];
+    if (Math.min(A.visibility ?? 1, B.visibility ?? 1, C.visibility ?? 1) < 0.5) return null;
+    const v1x = (A.x - B.x) * aspect, v1y = A.y - B.y;
+    const v2x = (C.x - B.x) * aspect, v2y = C.y - B.y;
+    const cos = (v1x * v2x + v1y * v2y) / (Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y) + 1e-6);
+    return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
+  });
+}
+
+function similarity(a, b) {
+  if (!a || !b) return null;
+  let sum = 0, n = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] == null || b[i] == null) continue;
+    sum += Math.max(0, 1 - Math.abs(a[i] - b[i]) / 90);
+    n++;
+  }
+  return n >= 3 ? (sum / n) * 100 : null;
+}
+
+function refIndexAt(t) {
+  return Math.max(0, Math.min(refFrames.length - 1, Math.round(t / STEP)));
+}
+
+function bestScore(camAng, t) {
+  let best = null;
+  const i0 = refIndexAt(t - WINDOW), i1 = refIndexAt(t + WINDOW);
+  for (let i = i0; i <= i1; i++) {
+    const s = similarity(camAng, refFrames[i]?.ang);
+    if (s != null && (best == null || s > best)) best = s;
+  }
+  return best;
+}
+
+function fitCanvas(cv, v) {
+  if (v.videoWidth && (cv.width !== v.videoWidth || cv.height !== v.videoHeight)) {
+    cv.width = v.videoWidth; cv.height = v.videoHeight;
+  }
+}
+
+function drawPose(draw, lm, color) {
+  draw.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color, lineWidth: 4 });
+  draw.drawLandmarks(lm, { color: "#FFFFFF", fillColor: color, radius: 3, lineWidth: 1 });
+}
+
+function ghostFor(refLm, camLm) {
+  if (!refLm || !camLm) return null;
+  const rw = refVideo.videoWidth, rh = refVideo.videoHeight, cw = camVideo.videoWidth, ch = camVideo.videoHeight;
+  const hip = (lm, w, h) => ({ x: (lm[23].x + lm[24].x) / 2 * w, y: (lm[23].y + lm[24].y) / 2 * h });
+  const sh = (lm, w, h) => ({ x: (lm[11].x + lm[12].x) / 2 * w, y: (lm[11].y + lm[12].y) / 2 * h });
+  const rH = hip(refLm, rw, rh), rS = sh(refLm, rw, rh), cH = hip(camLm, cw, ch), cS = sh(camLm, cw, ch);
+  const rT = Math.hypot(rS.x - rH.x, rS.y - rH.y), cT = Math.hypot(cS.x - cH.x, cS.y - cH.y);
+  if (rT < 1 || cT < 1) return null;
+  const k = cT / rT;
+  return refLm.map(p => ({ x: (cH.x + (p.x * rw - rH.x) * k) / cw, y: (cH.y + (p.y * rh - rH.y) * k) / ch, z: 0, visibility: p.visibility }));
+}
+
+/* ---------- 1. 기준 영상 ---------- */
+$("refFile").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  refVideo.src = URL.createObjectURL(f);
+  refVideo.load();
+  $("refEmpty").hidden = true;
+  analyzed = false; refFrames = [];
+  $("playBtn").disabled = true;
+  $("analyzeBtn").disabled = !refLM;
+  $("anaMsg").textContent = "‘기준 영상 분석’을 누르세요. 1분 영상은 1~2분쯤 걸립니다.";
+});
+
+function seek(t) {
+  return new Promise(res => { refVideo.addEventListener("seeked", res, { once: true }); refVideo.currentTime = t; });
+}
+
+$("analyzeBtn").addEventListener("click", async () => {
+  if (!refLM || !refVideo.duration) return;
+  $("analyzeBtn").disabled = true; $("playBtn").disabled = true;
+  refVideo.pause();
+  const dur = refVideo.duration;
+  const n = Math.floor(dur / STEP) + 1;
+  const prog = $("anaProg"); prog.hidden = false; prog.max = n; prog.value = 0;
+  refFrames = [];
+  fitCanvas(refCanvas, refVideo);
+  const aspect = refVideo.videoWidth / refVideo.videoHeight;
+  let found = 0;
+  for (let i = 0; i < n; i++) {
+    await seek(Math.min(i * STEP, dur - 0.01));
+    refTs += 50;
+    const r = refLM.detectForVideo(refVideo, refTs);
+    const lm = r.landmarks?.[0] ? r.landmarks[0].map(p => ({ x: p.x, y: p.y, z: p.z, visibility: p.visibility })) : null;
+    if (lm) found++;
+    refFrames.push({ lm, ang: angles(lm, aspect) });
+    prog.value = i + 1;
+    if (i % 5 === 0) {
+      $("anaMsg").textContent = `분석 중… ${Math.round((i + 1) / n * 100)}%`;
+      refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
+      if (lm) drawPose(refDraw, lm, "#F96167");
+    }
+  }
+  prog.hidden = true;
+  analyzed = true;
+  await seek(0);
+  $("anaMsg").textContent = `분석 완료: 화면 ${n}장 중 ${found}장에서 사람을 찾았습니다.` + (found < n * 0.7 ? " 전신이 잘 보이지 않는 부분이 많습니다." : "");
+  $("analyzeBtn").disabled = false; $("playBtn").disabled = false;
+  buildSections();
+});
+
+/* ---------- 2. 카메라 ---------- */
+$("camBtn").addEventListener("click", async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    camVideo.srcObject = stream;
+    await camVideo.play();
+    camOn = true;
+    $("camEmpty").hidden = true;
+    $("camBtn").disabled = true;
+  } catch (e) {
+    alert("카메라를 켜지 못했습니다. 브라우저 주소창의 카메라 권한을 허용했는지 확인하세요.");
+  }
+});
+$("camMirror").addEventListener("change", e => $("camFlip").classList.toggle("mirror", e.target.checked));
+$("refMirror").addEventListener("change", e => $("refFlip").classList.toggle("mirror", e.target.checked));
+
+/* ---------- 3. 박자 ---------- */
+const bpm = () => Math.max(40, Math.min(220, Number($("bpm").value) || 120));
+const offset = () => Math.max(0, Number($("offset").value) || 0);
+const secLen = () => 8 * 60 / bpm();
+
+$("tapBtn").addEventListener("click", () => {
+  const now = performance.now();
+  taps = taps.filter(t => now - t < 3000); taps.push(now);
+  if (taps.length >= 4) {
+    const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+    $("bpm").value = Math.round(60000 / iv);
+    buildSections();
+  }
+});
+$("setOffsetBtn").addEventListener("click", () => { $("offset").value = refVideo.currentTime.toFixed(2); buildSections(); });
+$("bpm").addEventListener("change", buildSections);
+$("offset").addEventListener("change", buildSections);
+
+function fmt(t) { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, "0")}`; }
+
+function buildSections() {
+  if (!refVideo.duration) return;
+  const L = secLen(), o = offset();
+  const count = Math.max(1, Math.ceil((refVideo.duration - o) / L));
+  sections = Array.from({ length: count }, (_, k) => ({ start: o + k * L, end: Math.min(o + (k + 1) * L, refVideo.duration), sum: 0, n: 0 }));
+  const sel = $("loopSel"), keep = sel.value;
+  sel.innerHTML = `<option value="-1">전체</option>` + sections.map((s, k) => `<option value="${k}">${k + 1}구간 (${k * 8 + 1}~${k * 8 + 8}박)</option>`).join("");
+  sel.value = Number(keep) < count ? keep : "-1";
+  const dots = $("beatDots"); dots.innerHTML = "";
+  for (let i = 0; i < 8; i++) { const s = document.createElement("span"); if (i === 0) s.className = "first"; dots.appendChild(s); }
+  renderSections(-1);
+}
+
+function renderSections(cur) {
+  if (!sections.length) return;
+  $("secBody").innerHTML = sections.map((s, k) => {
+    const avg = s.n ? Math.round(s.sum / s.n) : null;
+    return `<tr class="${k === cur ? "now" : ""}"><td>${k + 1}구간 (${k * 8 + 1}~${k * 8 + 8}박)</td><td>${fmt(s.start)} ~ ${fmt(s.end)}</td>` +
+      `<td>${avg == null ? "-" : avg + "점"}</td><td><div class="bar"><i style="width:${avg ?? 0}%"></i></div></td></tr>`;
+  }).join("");
+}
+
+function click(accent) {
+  if (!audioCtx || !$("metro").checked) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.frequency.value = accent ? 1200 : 800;
+  g.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + 0.07);
+}
+
+/* ---------- 4. 재생 ---------- */
+$("playBtn").addEventListener("click", async () => {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (refVideo.paused) {
+    const k = Number($("loopSel").value);
+    if (k >= 0 && sections[k]) refVideo.currentTime = sections[k].start;
+    refVideo.muted = false;
+    refVideo.playbackRate = Number($("speed").value);
+    await refVideo.play();
+    $("playBtn").textContent = "일시정지";
+  } else {
+    refVideo.pause();
+    $("playBtn").textContent = "재생";
+  }
+});
+refVideo.addEventListener("ended", () => { $("playBtn").textContent = "재생"; });
+$("speed").addEventListener("change", e => { refVideo.playbackRate = Number(e.target.value); });
+$("loopSel").addEventListener("change", e => {
+  const k = Number(e.target.value);
+  if (k >= 0 && sections[k]) refVideo.currentTime = sections[k].start;
+});
+$("resetBtn").addEventListener("click", () => { sections.forEach(s => { s.sum = 0; s.n = 0; }); practiceSec = 0; renderSections(-1); });
+$("copyBtn").addEventListener("click", async () => {
+  const d = new Date();
+  const scores = sections.map((s, k) => `${k + 1}구간 ${s.n ? Math.round(s.sum / s.n) + "점" : "-"}`).join(", ");
+  const text = `날짜: ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}\n연습 시간: ${Math.round(practiceSec / 60)}분\n구간별 일치도: ${scores}`;
+  try { await navigator.clipboard.writeText(text); alert("연습 기록을 복사했습니다. 수행평가 연습 일지에 붙여 넣으세요.\n\n" + text); }
+  catch (e) { prompt("아래 내용을 복사하세요.", text); }
+});
+
+/* ---------- 매 화면 처리 ---------- */
+let renderCount = 0;
+function loop() {
+  const now = performance.now();
+  const dt = (now - lastTick) / 1000; lastTick = now;
+  const playing = !refVideo.paused && !refVideo.ended;
+  const t = refVideo.currentTime;
+
+  const k = Number($("loopSel").value);
+  if (playing && k >= 0 && sections[k] && (t >= sections[k].end || t < sections[k].start - 0.1)) {
+    refVideo.currentTime = sections[k].start; lastBeat = null;
+  }
+
+  let curSec = -1;
+  if (refVideo.duration && sections.length) {
+    const beatPos = (t - offset()) * bpm() / 60;
+    const b = Math.floor(beatPos);
+    if (b >= 0) {
+      curSec = Math.min(sections.length - 1, Math.floor(b / 8));
+      $("beatNow").textContent = `${curSec + 1}구간 ${b % 8 + 1}박`;
+      [...$("beatDots").children].forEach((d, i) => d.classList.toggle("on", i === b % 8));
+      if (playing && lastBeat !== null && b !== lastBeat) click(b % 8 === 0);
+    } else {
+      $("beatNow").textContent = "준비";
+    }
+    lastBeat = playing ? b : null;
+  }
+
+  const refLm = analyzed ? refFrames[refIndexAt(t)]?.lm : null;
+  if (analyzed) {
+    fitCanvas(refCanvas, refVideo);
+    refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
+    if (refLm) drawPose(refDraw, refLm, "#F96167");
+  }
+
+  if (camOn && camLM && camVideo.readyState >= 2) {
+    fitCanvas(camCanvas, camVideo);
+    const r = camLM.detectForVideo(camVideo, now);
+    fpsCount++;
+    const lm = r.landmarks?.[0] || null;
+    lastCamLm = lm;
+    camCtx.clearRect(0, 0, camCanvas.width, camCanvas.height);
+    if (lm && refLm && $("ghost").checked) {
+      const g = ghostFor(refLm, lm);
+      if (g) drawPose(camDraw, g, "rgba(249,97,103,0.55)");
+    }
+    if (lm) drawPose(camDraw, lm, "#2FBF8F");
+    if (analyzed && lm) {
+      const s = bestScore(angles(lm, camVideo.videoWidth / camVideo.videoHeight), t);
+      if (s != null) {
+        $("scoreNow").textContent = Math.round(s) + "점";
+        if (playing && curSec >= 0 && sections[curSec]) { sections[curSec].sum += s; sections[curSec].n++; }
+      }
+    } else if (!lm) {
+      $("scoreNow").textContent = "-";
+    }
+    if (playing) practiceSec += dt;
+  }
+
+  if (now - fpsStart >= 1000) {
+    $("fps").textContent = camOn ? Math.round(fpsCount * 1000 / (now - fpsStart)) : "-";
+    fpsCount = 0; fpsStart = now;
+  }
+  const ps = Math.floor(practiceSec);
+  $("practice").textContent = `${Math.floor(ps / 60)}:${String(ps % 60).padStart(2, "0")}`;
+  if (++renderCount % 15 === 0 && sections.length) renderSections(curSec);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
