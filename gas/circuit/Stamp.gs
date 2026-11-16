@@ -85,7 +85,7 @@ function stampCtx_(ss, ids, roster) {
   };
   const list = [...ids];
   list.forEach(id => { const st = roster.byId[id]; if (st) ctx.grade[id] = st.grade; });
-  ctx.best = stampShared_(ss, 'sb5', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
+  ctx.best = stampShared_(ss, 'sb6', STAMP.SHARED_SEC, list, () => stampReadAllBest_(ss));
   ctx.bike = stampShared_(ss, 'rd5', STAMP.RIDE_SEC, list, () => stampReadAllRide_(roster));
   return ctx;
 }
@@ -146,7 +146,7 @@ function stampReadAllBest_(ss) {
     }
     const sh = ss.getSheetByName(ex.sheet); if (!sh) return;
     const n = sh.getLastRow() - 1; if (n < 1) return;
-    sh.getRange(2, 1, n, Math.max(6, ex.time + 1)).getValues().forEach(r => {   // 필요한 열(측정일시~측정시간)까지만
+    sh.getRange(2, 1, n, Math.max(6, ex.time + 1, ex.count != null ? ex.count + 1 : 0)).getValues().forEach(r => {   // 필요한 열(측정일시~측정시간·정확한 횟수)까지만
       const id = stampIdOf_(r[5]); if (!id) return;
       const d = dayOf(r[0]); if (!d || d < '2026-09-01') return;
       const byDay = best[id] || (best[id] = {});
@@ -173,7 +173,7 @@ function warmStamp() {
   const ss = SpreadsheetApp.getActiveSpreadsheet(), t0 = Date.now();
   const roster = stampRoster_(ss);
   const ids = roster.list.map(x => x.id);
-  stampShared_(ss, 'sb5', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
+  stampShared_(ss, 'sb6', STAMP.SHARED_SEC, ids, () => stampReadAllBest_(ss));
   stampShared_(ss, 'rd5', STAMP.RIDE_SEC, ids, () => stampReadAllRide_(roster));
   try { pointGet_(ss, []); } catch (e) {}              // Points.gs 포인트 합계 캐시
   console.log('도장 캐시 채움: ' + (Date.now() - t0) + 'ms');
