@@ -89,11 +89,18 @@
   .bd small{display:block;color:var(--soft);font-weight:700}
   .bd.got{background:rgba(245,197,24,.2);box-shadow:inset 0 0 0 2px rgba(245,197,24,.6)}
   .bd:not(.got){color:var(--dim)} .bd:not(.got) i{filter:grayscale(1);opacity:.35}
-  .hist div{display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:17px}
+  .hist > div{display:flex;gap:8px;padding:9px 0;border-top:1px solid var(--line);font-size:17px}
   .hist .dd{flex:none;width:44px;color:var(--soft);font-weight:800}
   .hist .pp{flex:none;width:44px;text-align:right;font-weight:900;color:var(--green)}
   .hist .pp.minus{color:var(--red)}
-  .hist .tt{flex:1;color:var(--soft)}
+  .hist .tt{flex:1;min-width:0;color:var(--soft)}
+  /* 최근 내역 갈래별 줄 (2026-11-18): "✅ 통과 14종목 +14P" 아래에 작은 글씨로 내용 */
+  .hist .ln{display:block;padding:2px 0;line-height:1.4}
+  .hist .ln + .ln{margin-top:3px}
+  .hist .li{display:inline-block;width:1.6em}
+  .hist .ln b{color:#fff;font-weight:800}
+  .hist .ln em{font-style:normal;font-size:14px;font-weight:900;color:var(--green);background:rgba(159,240,176,.14);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+  .hist .ln .it{display:block;padding-left:1.6em;font-size:15px;color:var(--soft);word-break:keep-all}
   .note{margin-top:14px;font-size:14px;color:var(--dim);line-height:1.6}
 
   /* ===== 학생용 (열쇠 없을 때): 포인트 순위 ===== */
@@ -149,6 +156,19 @@ const fmt = n => Number(n || 0).toLocaleString('ko-KR');
 const hm = sec => { const m = Math.round((Number(sec) || 0) / 60); return m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간 ${m % 60}분`; };   // 5시간 4분
 const usedOf = s => Math.max(0, (s.total != null ? s.total : s.earned) - s.bal);   // 사용 = 합계(체력+수학) − 남은 (체력·수학 선물 모두)
 const addMin = sec => `(+${Math.round((Number(sec) || 0) / 60)}분)`;                                                     // 오늘 더한 시간
+/* 최근 내역 글 (2026-11-18): Points.gs가 갈래마다 한 줄 "아이콘 갈래 +점수: 내용"으로 씀 → 줄마다 제목·점수·내용으로 나눠 보여 줌.
+ * 예전 형식(" · "로 이어 붙인 한 줄)은 그대로 보여 줌 */
+const MEMO_ICONS = ['✅', '➕', '🏃', '🌅', '🏅', '📈', '🎯'];
+function memoHtml(t) {
+  const lines = String(t || '').split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length || !lines.every(l => MEMO_ICONS.includes(l.split(' ')[0]))) return esc(t);
+  return lines.map(l => {
+    const sp = l.indexOf(' '), icon = l.slice(0, sp), rest = l.slice(sp + 1);
+    const c = rest.indexOf(': '), head = c < 0 ? rest : rest.slice(0, c), items = c < 0 ? '' : rest.slice(c + 2);
+    const m = head.match(/^(.*?)(?: \+([\d.]+)P)?$/) || [head, head, ''];
+    return `<span class="ln"><span class="li">${icon}</span><b>${esc(m[1])}</b>${m[2] ? `<em>+${esc(m[2])}</em>` : ''}${items ? `<span class="it">${esc(items)}</span>` : ''}</span>`;
+  }).join('');
+}
 /* 모둠 선물 나눠 내기 (2026-11-15): 똑같이 나누되, 내 몫보다 적게 가진 친구는 가진 만큼만, 모자란 만큼은 다른 모둠원이 똑같이.
  * 모둠원 남은 합이 선물값 이상이면 줄 수 있음. GAS Points.gs pointGroupSplit_과 같은 계산 */
 function groupSplit(mates, cost) {
@@ -287,9 +307,9 @@ function drawPanel(toGift, msg) {
       <div class="split">${sp.map(m => `<span class="${m.bal < m.share ? 'lack' : ''}">${esc(m.name)} −${fmt(m.share)} → ${fmt(m.bal - m.share)}P</span>`).join('')}</div></div>`;
   }
   const badges = cur.d ? cur.d.badges.map(b => `<div class="bd${b.got ? ' got' : ''}"><i>${b.icon}</i>${esc(b.name)}<small>${b.got ? md(b.got) : fmt(b.have) + '/' + fmt(b.n)}</small></div>`).join('') : '<div style="color:var(--dim)">불러오는 중…</div>';
-  const hist = cur.d ? [...cur.d.trades.map(t => ({ d: t.d, p: -t.p, t: '🎁 ' + t.gift })), ...cur.d.recent]
+  const hist = cur.d ? [...cur.d.trades.map(t => ({ d: t.d, p: -t.p, t: '🎁 ' + t.gift, gift: true })), ...cur.d.recent]
     .sort((a, b) => a.d < b.d ? 1 : a.d > b.d ? -1 : 0)
-    .map(h => `<div><span class="dd">${md(h.d)}</span><span class="pp${h.p < 0 ? ' minus' : ''}">${h.p > 0 ? '+' : ''}${fmt(h.p)}</span><span class="tt">${esc(h.t)}</span></div>`).join('') || '<div><span class="tt">아직 내역이 없어요</span></div>' : '';
+    .map(h => `<div><span class="dd">${md(h.d)}</span><span class="pp${h.p < 0 ? ' minus' : ''}">${h.p > 0 ? '+' : ''}${fmt(h.p)}</span><span class="tt">${h.gift ? esc(h.t) : memoHtml(h.t)}</span></div>`).join('') || '<div><span class="tt">아직 내역이 없어요</span></div>' : '';
   $('panel').innerHTML = `
     <div class="ph"><h2>${esc(s.grade)}학년 ${esc(s.cls)}반 ${esc(s.no)}번 ${esc(s.name)}</h2><button class="x" id="close" aria-label="닫기">×</button></div>
     <div class="psum">
