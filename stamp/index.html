@@ -356,9 +356,12 @@ function render() {
       : `<div class="it ${cls}">${inner}</div>`;
   }).join('');
   const bikeW = Math.min(100, t.km / d.rule.bikeKm * 100);
-  // 자전거 포인트 (아침달리기처럼 거리 옆에): 통과 거리 이상이면 종목 통과 1P(11/16~) + 넘은 1km마다 '자전거 추가 1km' (Points.gs와 같은 계산)
+  // 자전거 포인트 (아침달리기처럼 거리 옆에, Points.gs pointBikeP_와 같은 계산)
+  //  11/22~ 통과 거리 이상이면 탄 거리 전체 × '자전거 1km'(0.5), 최소 1점 (7km = 3점) / 그 전: 통과 1P(11/16~) + 넘은 1km마다 '자전거 추가 1km'
   const pr = (d.points && d.points.rules) || {};
-  const bikePt = t.km >= d.rule.bikeKm ? (sel >= '2026-11-16' ? (pr['종목 통과'] ?? 1) : 0) + Math.floor(Math.max(0, t.km - d.rule.bikeKm) * (pr['자전거 추가 1km'] ?? 0.5) + 1e-9) : 0;
+  const bikePt = t.km < d.rule.bikeKm || !(t.km > 0) ? 0
+    : sel >= '2026-11-22' ? Math.max(1, Math.floor(t.km * (pr['자전거 1km'] ?? 0.5) + 1e-9))
+    : (sel >= '2026-11-16' ? (pr['종목 통과'] ?? 1) : 0) + Math.floor(Math.max(0, t.km - d.rule.bikeKm) * (pr['자전거 추가 1km'] ?? 0.5) + 1e-9);
   const bikeS = t.weekend && !t.bikeOk ? (t.km ? `${t.km}km · 휴일엔 없어도 완벽` : '휴일엔 없어도 완벽 도장') : !t.bikeOpen ? `${d.rule.bikeFromHour}시부터 반영` : t.bikeOk ? `${t.km}km 통과` : t.km ? `${t.km}km / ${d.rule.bikeKm}km` : (isToday ? `0km / ${d.rule.bikeKm}km` : '기록 없음');
 
   const prev = data._prevMonth, next = data._nextMonth;

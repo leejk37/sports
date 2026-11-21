@@ -26,6 +26,7 @@ const POINT = {
   ACC_MIN_COUNT: 20,           // 바른 자세 포인트: 그날 그 종목을 이만큼 이상 했을 때만 (횟수 종목)
   ACC_MIN_SEC: 60,             //   플랭크는 전체 시간(초)
   BIKE_FROM: '2026-11-01',     // '자전거 추가 1km' 포인트를 주기 시작하는 날
+  BIKE_ALL_FROM: '2026-11-22', // 이날부터 실내자전거는 통과 거리(7km) 이상이면 '탄 거리 전체' × '자전거 1km'(0.5) = 7km 3점 (종목 통과 1P·자전거 추가 1km 대신, 2026-11-22 선생님 결정)
   ROPE_FROM: '2026-11-01',     // 줄넘기: 이날부터 '종목 통과' 대신 '줄넘기 100회' (그 전 날은 통과 1P 그대로)
   COUNT_FROM: '2026-11-16',    // 이날부터 횟수 종목은 '그날 횟수 합 ≥ 기준'이면 종목 통과 + 기준만큼 더 할 때마다 '추가 횟수' (Stamp.gs STAMP_COUNT_FROM). 스쿼트 20회·줄넘기 100회 규칙은 그 전 날만
   ROPE_PER: 100,               // 줄넘기: 그날 줄넘기 앱('줄넘기' 탭 H열) 횟수 합 이만큼마다 '줄넘기 100회' 포인트
@@ -43,7 +44,8 @@ const POINT_RULES = [
   ['스쿼트 20회', 1, '스쿼트 정확한 횟수를 하루 합해 20회마다 (예: 20회×3세트 = 3점, 종목P에 더함)'],
   ['추가 횟수', 1, '횟수 종목에서 통과 기준만큼 더 할 때마다 (예: 스쿼트 기준 10회 → 35회 = 통과 1 + 추가 2, 11월 16일부터)'],
   ['줄넘기 100회', 1, '줄넘기 앱으로 뛴 횟수를 하루 합해 100회마다 (예: 1분 120회 + 30초 60회 = 1점, 종목P에 더함, 11월 1일부터)'],
-  ['자전거 추가 1km', 0.5, '실내자전거 그날 통과 거리(7km, 11월 8일까지 5km, 1·2학년 1km)를 넘은 1km마다, 소수점 버림, 11월 1일부터 (예: 20km = 7점, 종목P에 더함, 도장과 관계없이)'],
+  ['자전거 1km', 0.5, '실내자전거 그날 통과 거리(7km = 완벽 도장 조건, 1·2학년 1km) 이상이면 탄 거리 1km마다, 소수점 버림, 최소 1점, 11월 22일부터 (예: 7km = 3점, 10km = 5점, 20km = 10점, 종목P에 더함)'],
+  ['자전거 추가 1km', 0.5, '(11월 21일까지) 실내자전거 그날 통과 거리(7km, 11월 8일까지 5km, 1·2학년 1km)를 넘은 1km마다 + 통과 1점(11월 16일부터)'],
   ['트레드밀·로잉 추가 1분', 1, '트레드밀·로잉머신 각각 그날 가장 긴 기록이 통과 시간(2분)을 넘은 1분마다 (예: 5분 = 3점, 종목P에 더함, 11월 10일부터)'],
   ['하루 도장', 10, '그날 해야 할 종목을 모두 통과'],
   ['완벽 도장', 5, '하루 도장 + 실내자전거, 휴일은 하루 도장만으로 (하루 도장에 더해서)'],
@@ -89,7 +91,7 @@ const POINT_HEAD = ['날짜', '학년', '반', '번호', '이름', '이메일', 
 
 /* ===== 규칙 읽기 ===== */
 function pointRules_(ss) {
-  const c = CacheService.getScriptCache(), hit = c.get('prule5');
+  const c = CacheService.getScriptCache(), hit = c.get('prule6');
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
   const out = {}; POINT_RULES.forEach(r => out[r[0]] = r[1]);
   let sh = ss.getSheetByName(POINT.RULES);
@@ -108,7 +110,7 @@ function pointRules_(ss) {
     });
     POINT_RULES.filter(r => !seen.has(r[0])).forEach(r => { try { sh.appendRow(r); } catch (e) {} });   // 새로 생긴 규칙은 탭 아래에 추가
   }
-  try { c.put('prule5', JSON.stringify(out), 60); } catch (e) {}
+  try { c.put('prule6', JSON.stringify(out), 60); } catch (e) {}
   return out;
 }
 
@@ -253,7 +255,7 @@ function pointCompute_(ss, from, to, only) {
         if (extra) { exP += extra * R['추가 횟수']; exList.push(`${ex.name} ${n}회 +${extra}`); }
       });
       const km = (ctx.bike[st.id] || {})[d] || 0;
-      const bkP = d < POINT.BIKE_FROM ? 0 : Math.floor(Math.max(0, km - stampBikeKm_(st.grade, d)) * R['자전거 추가 1km'] + 1e-9);   // 통과 거리(완벽 도장 몫)를 넘은 만큼
+      const bkP = pointBikeP_(km, stampBikeKm_(st.grade, d), d, R);   // 11/22~ 통과하면 탄 거리 전체 × 0.5 (그 전은 넘은 만큼)
       // 트레드밀·로잉머신(11/10~): 그날 가장 긴 기록이 통과 시간을 넘은 1분마다 (3분 = 1점, 5분 = 3점)
       const cdList = [];
       let cdP = 0;
@@ -262,7 +264,7 @@ function pointCompute_(ss, from, to, only) {
         const extra = sec >= min ? Math.floor((sec - min) / 60 + 1e-9) : 0;
         if (extra) { cdP += extra * R['트레드밀·로잉 추가 1분']; cdList.push(`${exName[k]} +${extra}분`); }
       });
-      const bkPass = d >= POINT.COUNT_FROM && km > 0 && km >= stampBikeKm_(st.grade, d) ? 1 : 0;   // 11/16~ 실내자전거도 통과 거리 이상이면 종목 통과 1P (선생님 결정)
+      const bkPass = d >= POINT.COUNT_FROM && d < POINT.BIKE_ALL_FROM && km > 0 && km >= stampBikeKm_(st.grade, d) ? 1 : 0;   // 11/16~11/21 실내자전거 통과 1P (11/22부터는 bkP에 거리로 들어감)
       const pEx = (pass + bkPass) * R['종목 통과'] + sqP + rpP + exP + bkP + mrP + cdP;
       const pSt = s ? R['하루 도장'] + (s === 100 ? R['완벽 도장'] : 0) : 0;
       const gOld = d < POINT.GROUP_FROM;                        // 2026-11-01부터 모둠 도장 10·완벽 +20
@@ -282,6 +284,15 @@ function pointCompute_(ss, from, to, only) {
   });
   rows.sort((x, y) => x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0);
   return rows;
+}
+
+/** 실내자전거 거리 포인트
+ *  11/22~ : 통과 거리(7km, 1·2학년 1km) 이상이면 탄 거리 전체 × '자전거 1km'(0.5), 소수점 버림, 최소 1점 → 7km 3점 · 20km 10점
+ *  11/1~11/21 : 통과 거리를 넘은 만큼 × '자전거 추가 1km' (통과 1점은 bkPass로 따로) */
+function pointBikeP_(km, passKm, d, R) {
+  if (d < POINT.BIKE_FROM || !(km > 0)) return 0;
+  if (d >= POINT.BIKE_ALL_FROM) return km >= passKm ? Math.max(1, Math.floor(km * R['자전거 1km'] + 1e-9)) : 0;
+  return Math.floor(Math.max(0, km - passKm) * R['자전거 추가 1km'] + 1e-9);
 }
 
 /** 학생명단 F열(구분)이 '교직원'인 아이디 → 포인트에서 뺌 */
@@ -484,7 +495,7 @@ function pointRulesInfo_() {
       ? { key: ex.key, name: ex.name, min: crit[ex.key].countMin, unit: '회', weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }
       : { key: ex.key, name: ex.name, min: crit[ex.key].min, weekendOff: crit[ex.key].weekendOff, from: ex.from || '' }),
     bikeKm: STAMP.BIKE_KM, bikeKmByGrade: STAMP.BIKE_KM_BY_GRADE, bikeFromHour: STAMP.BIKE_FROM_HOUR,
-    countFrom: POINT.COUNT_FROM, bikeFrom: POINT.BIKE_FROM, squatPer: POINT.SQUAT_PER, ropePer: POINT.ROPE_PER, ropeFrom: POINT.ROPE_FROM, accMinCount: POINT.ACC_MIN_COUNT, accMinSec: POINT.ACC_MIN_SEC,
+    countFrom: POINT.COUNT_FROM, bikeFrom: POINT.BIKE_FROM, bikeAllFrom: POINT.BIKE_ALL_FROM, squatPer: POINT.SQUAT_PER, ropePer: POINT.ROPE_PER, ropeFrom: POINT.ROPE_FROM, accMinCount: POINT.ACC_MIN_COUNT, accMinSec: POINT.ACC_MIN_SEC,
     badges: POINT_BADGES.map(b => ({ icon: b.icon, name: b.name, what: b.what, n: b.n })),
     gifts: pointGifts_(ss).map(g => ({ name: g.name, cost: g.cost, group: g.group }))
   };
