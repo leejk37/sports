@@ -224,7 +224,7 @@ let R = {
     ['pushup', '팔굽혀펴기'], ['plank', '플랭크'], ['jumprope', '줄넘기'], ['legraise', '레그레이즈'], ['burpee', '버피테스트'],
     ['hanging', '행잉', 1], ['treadmill', '트레드밀', 1], ['rowing', '로잉머신', 1]
   ].map(([key, name, room]) => ({ key, name, min: 30, weekendOff: !!room, from: '' })),
-  bikeKm: 7, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 17, bikeFrom: '2026-11-01',
+  bikeKm: 7, bikeKmByGrade: { 1: 1, 2: 1 }, bikeFromHour: 0, bikeFrom: '2026-11-01',
   squatPer: 20, ropePer: 100, ropeFrom: '2026-11-01', accMinCount: 20, accMinSec: 60, badges: [], gifts: [], today: ''
 };
 
@@ -361,7 +361,7 @@ function drawGuide() {
       ${later.length ? `<p style="margin-top:8px;font-size:14px">${later.map(e => esc(e.name)).join('·')}는 ${later[0].from.slice(5).replace('-', '월 ')}일부터 도장 종목이에요.</p>` : ''}</div>
     <div class="stp"><h3>⭐ 완벽 도장 <span class="badge">+${P(r['완벽 도장'])}점 더</span></h3>
       <p>하루 도장 + 그날 <b class="y">실내자전거 ${R.bikeKm}km</b> 이상 (1·2학년은 ${lo}km, 11월 9일부터 7km로 올림).<br>
-      자전거 기록은 모아서 입력하므로 오늘 도장에는 <b>${R.bikeFromHour}시부터</b> 보여요.</p></div>
+      ${R.bikeFromHour > 0 ? `자전거 기록은 모아서 입력하므로 오늘 도장에는 <b>${R.bikeFromHour}시부터</b> 보여요.` : '자전거 기록이 들어오면 오늘 도장에도 바로(10분 안에) 보여요. 포인트는 밤에 계산돼요.'}</p></div>
     <div class="stp"><h3>🤝 모둠 도장 <span class="badge">+${P(r['모둠 도장'])}점</span></h3>
       <p>우리 모둠 <b>모두</b> 그날 도장을 받으면 모둠원 모두에게 모둠 도장. 모두 완벽 도장이면 <b class="y">완벽 모둠 도장</b> +${P(r['완벽 모둠 도장'])}점 더.</p></div>
     <div class="stcol">
