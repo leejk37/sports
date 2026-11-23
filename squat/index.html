@@ -238,12 +238,14 @@ const CONFIG = {
   TOKEN: SITE.TOKEN,                    // GAS 코드의 TOKEN과 같게
   EMAIL_DOMAIN: SITE.DOMAIN,
   UP_ANGLE: 160,       // 이 각도 이상이면 '선 자세'
-  DOWN_ANGLE: 100,     // 이 각도 이하까지 내려가야 정확한 스쿼트
+  // 판정 기준 완화 (2026-11-24): 깊이 100→110°, 허리 50→55°, 무릎 0.3→0.5
+  // 태블릿에서 주소 끝에 ?depth=115 / ?lean=60 / ?knee=0.6 처럼 붙이면 그 기기에 기억,
+  // =default 는 기본값으로, ?knee=0 은 무릎 판정 끔
+  DOWN_ANGLE: 110,     // 이 각도 이하까지 내려가야 정확한 스쿼트 (?depth=)
   IGNORE_ANGLE: 135,   // 이보다 덜 굽히면 흔들림으로 보고 무시
-  MAX_LEAN: 50,        // 상체가 수직에서 이 각도보다 더 숙여지면 '허리 숙임'
-  // 무릎이 발끝보다 '발 길이(뒤꿈치~발끝)의 이 배수'만큼 더 나가면 '무릎 나옴' (2026-11-24)
-  // 0.3 = 발 길이의 30%. 태블릿에서 ?knee=0.4 처럼 바꾸면 기억, ?knee=default 기본값, ?knee=0 판정 끔
-  MAX_KNEE_FWD: 0.3,
+  MAX_LEAN: 55,        // 상체가 수직에서 이 각도보다 더 숙여지면 '허리 숙임' (?lean=)
+  // 무릎이 발끝보다 '발 길이(뒤꿈치~발끝)의 이 배수'만큼 더 나가면 '무릎 나옴' (?knee=)
+  MAX_KNEE_FWD: 0.5,
   MIN_FOOT_VIS: 0.4,   // 발이 이만큼 확실히 보일 때만 무릎 나옴 판정(안 보이면 벌주지 않음)
   MIN_VISIBILITY: 0.5, // 관절이 이만큼 확실히 보여야 측정
   IDLE_SEC: 60,        // 이 시간 동안 한 번도 앉았다 일어서지 않으면 끝냄(멈춘 학생 대비). 저장 시간은 마지막 동작까지만
@@ -253,14 +255,18 @@ const CONFIG = {
   MAX_PEOPLE: 3        // 한 화면에서 찾아볼 최대 인원(이 중 틀 안에서 가장 크게 보이는 사람을 측정)
 };
 /* ============================================ */
-(() => {   // ?knee= 로 무릎 나옴 기준 바꾸기 (이 태블릿에 기억)
-  const q = new URLSearchParams(location.search).get("knee");
-  try {
-    if (q === "default") localStorage.removeItem("squatKnee");
-    else if (q !== null && !isNaN(parseFloat(q))) localStorage.setItem("squatKnee", String(parseFloat(q)));
-    const v = localStorage.getItem("squatKnee");
-    if (v !== null) CONFIG.MAX_KNEE_FWD = parseFloat(v);
-  } catch (e) {}
+(() => {   // ?depth= ?lean= ?knee= 로 판정 기준 바꾸기 (이 태블릿에 기억)
+  const P = new URLSearchParams(location.search);
+  const keys = { depth: ["squatDepth", "DOWN_ANGLE"], lean: ["squatLean", "MAX_LEAN"], knee: ["squatKnee", "MAX_KNEE_FWD"] };
+  for (const [param, [store, cfg]] of Object.entries(keys)) {
+    try {
+      const q = P.get(param);
+      if (q === "default") localStorage.removeItem(store);
+      else if (q !== null && !isNaN(parseFloat(q))) localStorage.setItem(store, String(parseFloat(q)));
+      const v = localStorage.getItem(store);
+      if (v !== null) CONFIG[cfg] = parseFloat(v);
+    } catch (e) {}
+  }
 })();
 
 const $ = id => document.getElementById(id);
@@ -275,7 +281,7 @@ let reps = 10, sets = 1;          // 한 세트 횟수 · 세트 수
 let setNo = 1, setGood = 0, setsDone = 0, runStart = 0, lastRepAt = 0, workMs = 0, restEnd = 0, restBeep = 0;
 let good = 0, badDepth = 0, badKnee = 0, badBack = 0;   // 모든 세트 합계
 let rep = { down: false, minKnee: 180, maxLean: 0, maxFwd: 0 };
-let smoothKnee = null, endTime = 0, lastScan = 0, lastVideoTime = -1;
+let smoothKnee = null, smoothFwd = null, endTime = 0, lastScan = 0, lastVideoTime = -1;
 let lastPayload = null;
 let editing = false;              // 선생님이 운동 구역을 그리는 중
 
@@ -445,6 +451,9 @@ function analyze(lm) {
   updateGauge(k);
   const kneeOn = CONFIG.MAX_KNEE_FWD > 0;
   const f = kneeOn ? kneeForward(lm, side) : null;
+  // 한 프레임 튀는 값으로 벌주지 않게 무릎 각도처럼 부드럽게 (2026-11-24)
+  smoothFwd = f ? (smoothFwd == null ? f.fwd : smoothFwd * 0.6 + f.fwd * 0.4) : null;
+  if (f) f.fwd = smoothFwd;
   const over = !!f && f.fwd > CONFIG.MAX_KNEE_FWD;
   if (f) drawToeLine(f, over);
 
