@@ -10,7 +10,7 @@
  *************************************************************/
 /* time: 측정시간 열, good: 정확한 횟수(플랭크는 버틴 시간), bad: 자세 오류 열, total: 전체 시간 열(플랭크), mode: 방식·자세 열 */
 const FB_EX = {
-  squat:       { name: '스쿼트',         sheet: '스쿼트',         time: 6, good: 7, bad: [[8, '깊이 부족'], [9, '허리 숙임']], mode: 11, unit: '회' },
+  squat:       { name: '스쿼트',         sheet: '스쿼트',         time: 6, good: 7, bad: [[8, '깊이 부족'], [9, '허리 숙임'], [12, '무릎 나옴']], mode: 11, unit: '회' },
   curlup:      { name: '윗몸말아올리기', sheet: '윗몸말아올리기', time: 6, good: 7, bad: [[8, '덜 올라옴'], [9, '무릎 펴짐']], unit: '회' },
   jumpingjack: { name: '점핑잭',         sheet: '점핑잭',         time: 6, good: 7, bad: [[8, '팔 덜 올림'], [9, '다리 덜 벌림']], unit: '회' },
   lunge:       { name: '런지',           sheet: '런지',           time: 6, good: 7, bad: [[8, '깊이 부족'], [9, '상체 숙임']], unit: '회' },

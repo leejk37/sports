@@ -127,9 +127,9 @@
     color: var(--line); text-align: center; margin: 0;
   }
   .count-label { text-align: center; font-size: 1.2rem; margin: 0; }
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .stat { background: var(--court-deep); border-radius: 12px; padding: 10px 12px; }
-  .stat b { display: block; font-family: "Jua", sans-serif; font-size: 1.8rem; font-weight: 400; }
+  .stat b { display: block; font-family: "Jua", sans-serif; font-size: 1.6rem; font-weight: 400; }
   .stat span { font-size: .9rem; opacity: .85; }
   #timer { font-family: "Jua", sans-serif; font-size: 2.2rem; text-align: center; margin: 0; }
   #saveStatus { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--court-deep); }
@@ -204,6 +204,7 @@
       <p class="count-label" id="runLabel">정확한 스쿼트</p>
       <div class="stats">
         <div class="stat"><b id="depthNow">0</b><span>더 깊이 필요</span></div>
+        <div class="stat"><b id="kneeNow">0</b><span>무릎 나옴</span></div>
         <div class="stat"><b id="backNow">0</b><span>허리 숙임</span></div>
       </div>
       <button class="secondary" id="stopBtn" type="button">측정 그만하기</button>
@@ -215,6 +216,7 @@
       <p class="big-count" id="goodFinal">0</p>
       <div class="stats">
         <div class="stat"><b id="depthFinal">0</b><span>더 깊이 필요</span></div>
+        <div class="stat"><b id="kneeFinal">0</b><span>무릎 나옴</span></div>
         <div class="stat"><b id="backFinal">0</b><span>허리 숙임</span></div>
       </div>
       <p class="count-label" id="timeFinal" hidden></p>
@@ -239,6 +241,10 @@ const CONFIG = {
   DOWN_ANGLE: 100,     // 이 각도 이하까지 내려가야 정확한 스쿼트
   IGNORE_ANGLE: 135,   // 이보다 덜 굽히면 흔들림으로 보고 무시
   MAX_LEAN: 50,        // 상체가 수직에서 이 각도보다 더 숙여지면 '허리 숙임'
+  // 무릎이 발끝보다 '발 길이(뒤꿈치~발끝)의 이 배수'만큼 더 나가면 '무릎 나옴' (2026-11-24)
+  // 0.3 = 발 길이의 30%. 태블릿에서 ?knee=0.4 처럼 바꾸면 기억, ?knee=default 기본값, ?knee=0 판정 끔
+  MAX_KNEE_FWD: 0.3,
+  MIN_FOOT_VIS: 0.4,   // 발이 이만큼 확실히 보일 때만 무릎 나옴 판정(안 보이면 벌주지 않음)
   MIN_VISIBILITY: 0.5, // 관절이 이만큼 확실히 보여야 측정
   IDLE_SEC: 60,        // 이 시간 동안 한 번도 앉았다 일어서지 않으면 끝냄(멈춘 학생 대비). 저장 시간은 마지막 동작까지만
   REST_SEC: 10,        // 세트 사이 쉬는 시간(초) → 끝나면 저절로 다음 세트 시작
@@ -247,6 +253,15 @@ const CONFIG = {
   MAX_PEOPLE: 3        // 한 화면에서 찾아볼 최대 인원(이 중 틀 안에서 가장 크게 보이는 사람을 측정)
 };
 /* ============================================ */
+(() => {   // ?knee= 로 무릎 나옴 기준 바꾸기 (이 태블릿에 기억)
+  const q = new URLSearchParams(location.search).get("knee");
+  try {
+    if (q === "default") localStorage.removeItem("squatKnee");
+    else if (q !== null && !isNaN(parseFloat(q))) localStorage.setItem("squatKnee", String(parseFloat(q)));
+    const v = localStorage.getItem("squatKnee");
+    if (v !== null) CONFIG.MAX_KNEE_FWD = parseFloat(v);
+  } catch (e) {}
+})();
 
 const $ = id => document.getElementById(id);
 const video = $("video"), canvas = $("overlay"), ctx = canvas.getContext("2d");
@@ -258,14 +273,14 @@ let mode = "loading";            // loading | scan | ready | countdown | run | r
 let student = null, studentName = "";
 let reps = 10, sets = 1;          // 한 세트 횟수 · 세트 수
 let setNo = 1, setGood = 0, setsDone = 0, runStart = 0, lastRepAt = 0, workMs = 0, restEnd = 0, restBeep = 0;
-let good = 0, badDepth = 0, badBack = 0;   // 모든 세트 합계
-let rep = { down: false, minKnee: 180, maxLean: 0 };
+let good = 0, badDepth = 0, badKnee = 0, badBack = 0;   // 모든 세트 합계
+let rep = { down: false, minKnee: 180, maxLean: 0, maxFwd: 0 };
 let smoothKnee = null, endTime = 0, lastScan = 0, lastVideoTime = -1;
 let lastPayload = null;
 let editing = false;              // 선생님이 운동 구역을 그리는 중
 
-const LEFT  = { sh: 11, hip: 23, knee: 25, ank: 27 };
-const RIGHT = { sh: 12, hip: 24, knee: 26, ank: 28 };
+const LEFT  = { sh: 11, hip: 23, knee: 25, ank: 27, heel: 29, toe: 31 };
+const RIGHT = { sh: 12, hip: 24, knee: 26, ank: 28, heel: 30, toe: 32 };
 
 /* ---------- 허브 연결: 주소에 학생 정보가 있으면 QR 단계를 건너뜀 ---------- */
 const PARAMS = new URLSearchParams(location.search);
@@ -392,6 +407,29 @@ function updateGauge(knee) {
 }
 $("gaugeTarget").style.bottom = ((180 - CONFIG.DOWN_ANGLE) / 110 * 100) + "%";
 
+/* ---------- 무릎 나옴: 무릎이 발끝 세로선보다 얼마나 앞에 있나 ----------
+ * 옆에서 찍으므로 발끝이 향한 쪽(뒤꿈치→발끝)이 '앞'.
+ * 값 = (무릎 x − 발끝 x) ÷ 발 길이  →  0이면 무릎이 발끝 바로 위, 0.3이면 발 길이 30%만큼 넘어감
+ * 발이 잘 안 보이면 null(판정 안 함) */
+function kneeForward(lm, side) {
+  const heel = lm[side.heel], toe = lm[side.toe];
+  if (Math.min(heel.visibility ?? 1, toe.visibility ?? 1) < CONFIG.MIN_FOOT_VIS) return null;
+  const h = px(heel), t = px(toe), k = px(lm[side.knee]);
+  const foot = Math.abs(t.x - h.x);
+  if (foot < 8) return null;                       // 발이 정면을 보고 있으면(옆모습 아님) 판정 안 함
+  const dir = Math.sign(t.x - h.x);
+  return { fwd: (k.x - t.x) * dir / foot, toe: t, knee: k };
+}
+// 발끝 세로선 그리기: 넘으면 빨강
+function drawToeLine(f, over) {
+  ctx.save();
+  ctx.strokeStyle = over ? "#FF4D4D" : "rgba(255,210,63,.8)";
+  ctx.lineWidth = over ? 6 : 3; ctx.setLineDash([12, 10]);
+  ctx.beginPath(); ctx.moveTo(f.toe.x, f.toe.y); ctx.lineTo(f.toe.x, f.knee.y - 40); ctx.stroke();
+  if (over) { ctx.setLineDash([]); ctx.fillStyle = "#FF4D4D"; ctx.beginPath(); ctx.arc(f.knee.x, f.knee.y, 14, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+
 /* ---------- 스쿼트 판정 (상태 머신) ---------- */
 function analyze(lm) {
   const side = sideVisibility(lm, LEFT) >= sideVisibility(lm, RIGHT) ? LEFT : RIGHT;
@@ -405,28 +443,38 @@ function analyze(lm) {
   const k = smoothKnee;
   const lean = Math.atan2(Math.abs(sh.x - hip.x), Math.max(1, hip.y - sh.y)) * 180 / Math.PI;
   updateGauge(k);
+  const kneeOn = CONFIG.MAX_KNEE_FWD > 0;
+  const f = kneeOn ? kneeForward(lm, side) : null;
+  const over = !!f && f.fwd > CONFIG.MAX_KNEE_FWD;
+  if (f) drawToeLine(f, over);
 
   if (mode !== "run") return;
 
   if (!rep.down) {
-    if (k < CONFIG.UP_ANGLE - 15) rep = { down: true, minKnee: k, maxLean: 0 };
+    if (k < CONFIG.UP_ANGLE - 15) rep = { down: true, minKnee: k, maxLean: 0, maxFwd: 0 };
     return;
   }
   rep.minKnee = Math.min(rep.minKnee, k);
-  if (k <= CONFIG.DOWN_ANGLE + 20) rep.maxLean = Math.max(rep.maxLean, lean);   // 앉은 구간의 상체 기울기
+  if (k <= CONFIG.DOWN_ANGLE + 20) {                    // 앉은 구간에서만 봄
+    rep.maxLean = Math.max(rep.maxLean, lean);          // 상체 기울기
+    if (f) rep.maxFwd = Math.max(rep.maxFwd, f.fwd);    // 무릎이 발끝을 넘은 정도
+  }
+  if (over) setHint("엉덩이를 뒤로! 무릎이 발끝을 넘었어요", true);   // 앉는 중에 바로 알려 줌
 
   if (k >= CONFIG.UP_ANGLE) {           // 끝까지 일어섰을 때만 1회 판정
     rep.down = false;
     if (rep.minKnee > CONFIG.IGNORE_ANGLE) return;
     if (rep.minKnee > CONFIG.DOWN_ANGLE) {
       badDepth++; flash("더 깊이!", "bad"); beep(260);
+    } else if (kneeOn && rep.maxFwd > CONFIG.MAX_KNEE_FWD) {
+      badKnee++; flash("엉덩이 뒤로!", "bad"); beep(260);
     } else if (rep.maxLean > CONFIG.MAX_LEAN) {
       badBack++; flash("허리 펴기!", "bad"); beep(260);
     } else {
       good++; setGood++; flash("좋아요!", "good"); beep(880);
     }
     lastRepAt = performance.now();
-    $("goodNow").textContent = setGood; $("depthNow").textContent = badDepth; $("backNow").textContent = badBack;
+    $("goodNow").textContent = setGood; $("depthNow").textContent = badDepth; $("kneeNow").textContent = badKnee; $("backNow").textContent = badBack;
   }
 }
 
@@ -542,7 +590,7 @@ document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click"
 }));
 
 function startSet() {
-  setGood = 0; rep = { down: false, minKnee: 180, maxLean: 0 };
+  setGood = 0; rep = { down: false, minKnee: 180, maxLean: 0, maxFwd: 0 };
   $("goodNow").textContent = 0; $("timer").textContent = "0초"; $("timer").classList.remove("rest");
   $("runLabel").textContent = `정확한 스쿼트 · ${sets > 1 ? `${setNo}/${sets}세트 · ` : ""}목표 ${reps}회`;
   runStart = lastRepAt = performance.now(); mode = "run";
@@ -562,8 +610,8 @@ function endSet(timeout) {
 $("startBtn").addEventListener("click", async () => {
   if (actx && actx.state === "suspended") actx.resume();
   beep(1, 1); // 첫 터치로 소리 켜기
-  good = badDepth = badBack = 0; setNo = 1; setsDone = 0; workMs = 0;
-  $("goodNow").textContent = 0; $("depthNow").textContent = 0; $("backNow").textContent = 0;
+  good = badDepth = badKnee = badBack = 0; setNo = 1; setsDone = 0; workMs = 0;
+  $("goodNow").textContent = 0; $("depthNow").textContent = 0; $("kneeNow").textContent = 0; $("backNow").textContent = 0;
   $("timer").textContent = "0초"; $("timer").classList.remove("rest");
   $("runLabel").textContent = `정확한 스쿼트 · ${sets > 1 ? `1/${sets}세트 · ` : ""}목표 ${reps}회`;
   show("runPanel"); mode = "countdown";
@@ -574,7 +622,7 @@ $("startBtn").addEventListener("click", async () => {
 // 그만하기: 한 번이라도 했으면 한 것까지 저장, 아무것도 안 했으면 취소
 $("stopBtn").addEventListener("click", () => {
   if (mode === "countdown") return;
-  if (good + badDepth + badBack === 0) { mode = "ready"; goReady(); return; }
+  if (good + badDepth + badKnee + badBack === 0) { mode = "ready"; goReady(); return; }
   if (mode === "run") workMs += lastRepAt - runStart;
   finish();
 });
@@ -594,10 +642,10 @@ function finish() {
   $("timeFinal").hidden = false;
   $("timeFinal").textContent = `${sets > 1 ? `${setsDone}/${sets}세트 완료 · ` : ""}운동한 시간 ${duration}초`
     + ` · ⭐ 정확한 ${good}회 → ${Math.floor(good / 20)}점 (내일 아침 반영)`;
-  $("goodFinal").textContent = good; $("depthFinal").textContent = badDepth; $("backFinal").textContent = badBack;
+  $("goodFinal").textContent = good; $("depthFinal").textContent = badDepth; $("kneeFinal").textContent = badKnee; $("backFinal").textContent = badBack;
   show("resultPanel"); setHint("");
   lastPayload = { type: "squat", token: CONFIG.TOKEN, email: student,
-    duration, target: reps, sets, setsDone, mode: modeName(), good, badDepth, badBack,
+    duration, target: reps, sets, setsDone, mode: modeName(), good, badDepth, badBack, badKnee,
     clientId: crypto.randomUUID?.() || String(Date.now()) + Math.random() };   // 다시 저장해도 중복되지 않게
   send(lastPayload);
 }

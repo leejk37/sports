@@ -23,15 +23,17 @@ function handleSquat_(d) {
       : SpreadsheetApp.getActiveSpreadsheet();
     const sh = ss.getSheetByName(SQUAT_CONFIG.SHEET_NAME) || createSquatSheet_(ss);
     const st = lookupStudent_(ss, email);
-    const good = n(d.good), badDepth = n(d.badDepth), badBack = n(d.badBack);
-    const total = good + badDepth + badBack;
+    const good = n(d.good), badDepth = n(d.badDepth), badBack = n(d.badBack), badKnee = n(d.badKnee);
+    const total = good + badDepth + badBack + badKnee;
 
     sh.appendRow([
       new Date(), st.grade, st.cls, st.no, st.name, email, n(d.duration),
       good, badDepth, badBack, total ? good / total : 0,
-      String(d.mode || '').slice(0, 20)                     // L 방식 (예: 20회×3세트) — 같은 방식끼리 기록 비교
+      String(d.mode || '').slice(0, 20),                    // L 방식 (예: 20회×3세트) — 같은 방식끼리 기록 비교
+      badKnee                                               // M 무릎 나옴 (2026-11-24~, 예전 줄은 빈칸)
     ]);
     if (sh.getRange(1, 12).getValue() === '') sh.getRange(1, 12).setValue('방식');
+    if (sh.getRange(1, 13).getValue() === '') sh.getRange(1, 13).setValue('무릎 나옴');
     sh.getRange(sh.getLastRow(), 11).setNumberFormat('0%');
     if (key) cache.put(key, st.name || '', 21600);
     return squatJson_({ ok: true, name: st.name });
@@ -44,9 +46,9 @@ function handleSquat_(d) {
 
 function createSquatSheet_(ss) {
   const sh = ss.insertSheet(SQUAT_CONFIG.SHEET_NAME);
-  sh.appendRow(['측정일시', '학년', '반', '번호', '이름', '이메일', '측정시간(초)', '정확한 횟수', '깊이 부족', '허리 숙임', '정확도', '방식']);
+  sh.appendRow(['측정일시', '학년', '반', '번호', '이름', '이메일', '측정시간(초)', '정확한 횟수', '깊이 부족', '허리 숙임', '정확도', '방식', '무릎 나옴']);
   sh.setFrozenRows(1);
-  sh.getRange(1, 1, 1, 11).setFontWeight('bold');
+  sh.getRange(1, 1, 1, 13).setFontWeight('bold');
   return sh;
 }
 
@@ -55,7 +57,7 @@ function testSquat() {
   const TEST_ID = '여기에_테스트용_아이디';
   const res = handleSquat_({
     type: 'squat', token: SQUAT_CONFIG.TOKEN,
-    email: TEST_ID + SQUAT_CONFIG.DOMAIN, duration: 30, good: 12, badDepth: 2, badBack: 1
+    email: TEST_ID + SQUAT_CONFIG.DOMAIN, duration: 30, good: 12, badDepth: 2, badBack: 1, badKnee: 1
   });
   Logger.log(res.getContent());
 }
