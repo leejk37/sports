@@ -80,7 +80,7 @@ td:last-child{text-align:right}
     <section class="panel">
       <h2>박자별 판정</h2>
       <div id="beats"></div>
-      <div class="legend">테두리 <span class="cL">파랑 = 왼 무릎</span> · <span class="cR">주황 = 오른 무릎</span> 올리는 박자<br>
+      <div class="legend">숫자 박자에 앞발 쾅, ‘&’에 무릎 위로. 테두리 <span class="cL">파랑 = 왼 무릎</span> · <span class="cR">주황 = 오른 무릎</span><br>
       초록 Perfect · 연두 Good · 노랑 발 바뀜 · 빨강 Miss</div>
     </section>
     <section class="panel">
@@ -221,25 +221,39 @@ function ik(H, A, L1) {
   const k = k1.z > k2.z ? k1 : k2;
   return { x: (H.x + A.x) / 2, y: k.y, z: k.z };
 }
+// 러닝맨 한 주기 = 2박. 숫자 박자: 앞발 쾅 + 뒷발 뒤로(앞뒤 벌림), '&': 뒷발 무릎 위로 + 디딤발은 가운데로 미끄러짐
+// 발 하나의 움직임(주기 u, 0~2): 0 뒤 → 0.5 무릎 최고점(공중) → 1 앞에 디딤 → 1~2 바닥에서 앞→뒤로 미끄러짐
+const RM = { A: 0.24, LIFT: 0.40 };
+function footAt(u) {
+  u = ((u % 2) + 2) % 2;
+  if (u < 1) {                                   // 공중: 뒤 → 무릎 위 → 앞
+    const z = -RM.A * Math.cos(Math.PI * (u + 0.12 * Math.sin(2 * Math.PI * u)));   // 무릎이 앞으로 빨리 나옴
+    const y = RM.LIFT * Math.pow(Math.sin(Math.PI * u), 0.6);
+    return { z, y, lift: Math.pow(Math.sin(Math.PI * u), 0.6) };
+  }
+  return { z: RM.A - 2 * RM.A * (u - 1), y: 0, lift: 0 };   // 바닥: 같은 빠르기로 뒤로 미끄러짐
+}
 function modelJoints(tb, moving) {
-  let lL = 0, lR = 0, zL = 0, zR = 0;
-  if (moving) {
-    const s = ((tb % 2) + 2) % 2;               // 0박 = 왼 무릎 최고점, 1박 = 오른 무릎 최고점
-    lL = Math.max(0, Math.cos(Math.PI * Math.min(s, 2 - s)));
-    lR = Math.max(0, Math.cos(Math.PI * Math.abs(s - 1)));
-    zL = 0.16 * Math.cos(Math.PI * s); zR = -zL;  // 디딤발은 뒤로 미끄러짐
+  let fL = { z: 0, y: 0, lift: 0 }, fR = { z: 0, y: 0, lift: 0 }, bounce = 0;
+  if (moving && tb >= -1) {
+    const b = tb < 0 ? tb + 1 : 1;               // 마지막 카운트 동안 준비 자세(오른발 앞·왼발 뒤)로
+    const t = Math.max(0, tb);
+    fL = footAt(t); fR = footAt(t + 1);
+    if (b < 1) { fL = { z: fL.z * b, y: 0, lift: 0 }; fR = { z: fR.z * b, y: 0, lift: 0 }; }
+    bounce = tb >= 0 ? Math.abs(Math.sin(Math.PI * tb)) : 0;   // 디딜 때 낮게, 무릎 올릴 때 높게
   }
-  const hipY = 0.95 + 0.03 * Math.max(lL, lR);
-  const J = { lL, lR };
-  for (const [sd, x, l, z] of [['L', -0.11, lL, zL], ['R', 0.11, lR, zR]]) {
+  const hipY = 0.91 + 0.05 * bounce;
+  const J = { lL: fL.lift, lR: fR.lift };
+  for (const [sd, x, f] of [['L', -0.11, fL], ['R', 0.11, fR]]) {
     const H = { x, y: hipY, z: 0 };
-    const A = { x: x * 0.95, y: 0.07 + l * 0.36, z: z + l * 0.06 };
+    const A = { x: x * 0.95, y: 0.07 + f.y, z: f.z };
     J['hip' + sd] = H; J['knee' + sd] = ik(H, A, 0.5); J['ankle' + sd] = A;
-    J['heel' + sd] = { x: A.x, y: A.y - 0.05, z: A.z - 0.06 };
-    J['toe' + sd] = { x: A.x, y: A.y - 0.06, z: A.z + 0.14 };
+    const down = f.lift * 0.05;                  // 들린 발은 발끝이 아래로
+    J['heel' + sd] = { x: A.x, y: A.y - 0.05 + down, z: A.z - 0.06 };
+    J['toe' + sd] = { x: A.x, y: A.y - 0.06 - down, z: A.z + 0.13 };
   }
-  const sw = lR - lL;                            // 팔은 다리와 반대로
-  for (const [sd, x, a] of [['L', -0.19, sw * 0.8], ['R', 0.19, -sw * 0.8]]) {
+  const sw = (fR.z - fL.z) / (2 * RM.A);         // 팔은 다리와 반대로
+  for (const [sd, x, a] of [['L', -0.19, sw * 0.7], ['R', 0.19, -sw * 0.7]]) {
     const S = { x, y: hipY + 0.52, z: 0 };
     const E = { x: x * 1.12, y: S.y - 0.27 * Math.cos(a), z: 0.27 * Math.sin(a) };
     const W = { x: x * 1.12, y: E.y - 0.24 * Math.cos(a + 0.9), z: E.z + 0.24 * Math.sin(a + 0.9) };
@@ -305,8 +319,9 @@ let actx = null, metro = null;
 function ensureAudio() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); }
 function click(at, k) {
   const o = actx.createOscillator(), g = actx.createGain();
-  o.frequency.value = k < 0 ? 1320 : (k % 4 === 0 ? 1000 : 700);
-  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.5, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.08);
+  const and = k !== Math.floor(k);
+  o.frequency.value = and ? 1800 : k < 0 ? 1320 : (k % 4 === 0 ? 1000 : 700);
+  g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(and ? 0.15 : 0.5, at + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.08);
   o.connect(g).connect(actx.destination); o.start(at); o.stop(at + 0.1);
 }
 function startMetro(firstK, lastK, ib) {
@@ -320,7 +335,7 @@ function scheduleClicks() {
   while (metro.next <= metro.last) {
     const at = metro.a0 + metro.next * metro.ib;
     if (at > actx.currentTime + 0.25) break;
-    if (at >= actx.currentTime - 0.02) click(at, metro.next);
+    if (at >= actx.currentTime - 0.02) { click(at, metro.next); if (metro.next >= 0) click(at + metro.ib / 2, metro.next + 0.5); }
     metro.next++;
   }
 }
@@ -353,7 +368,7 @@ $('btnPreview').onclick = () => {
   if (state === 'preview') { stopAll(); return; }
   if (state !== 'idle' && state !== 'result') return;
   ensureAudio(); readOptions();
-  beat0 = startMetro(0, Infinity, ib);
+  beat0 = startMetro(-COUNT_IN, Infinity, ib);
   state = 'preview';
   $('btnPreview').textContent = '■ 멈춤'; $('btnPreview').className = 'stop';
 };
@@ -408,7 +423,7 @@ function handlePose(lm, now) {
     const lat = cfg.camLatMs / 1000;
     for (const p of [pl, pr]) if (p) peaks.push({ side: p.side, t: p.t - lat, h: p.h });
     frames.push({ t: now - beat0, l: relL, r: relR });
-    if (now >= beat0 - 0.5 * ib) leans.push(Math.abs(mid(P(11), P(12)).x - mid(P(23), P(24)).x) / torso);
+    if (now >= beat0) leans.push(Math.abs(mid(P(11), P(12)).x - mid(P(23), P(24)).x) / torso);
   }
 }
 
@@ -417,14 +432,14 @@ function tickSession(now) {
   if (state === 'calib' && now - calibStart > 1 && !visible) setMsg('발끝까지 화면에 보이게 뒤로 물러나 주세요');
   if (state !== 'run') return;
   const tb = (now - beat0) / ib;
-  if (tb < 0) { setBig(String(Math.ceil(-tb)), '#facc15'); setMsg('준비… 왼 무릎부터!'); }
+  if (tb < 0) { setBig(String(Math.ceil(-tb)), '#facc15'); setMsg('오른발 앞·왼발 뒤로 준비! 첫 ‘&’에 왼 무릎'); }
   else if (flash && now - flash.t < 0.45) setBig(flash.text, flash.color);
   else setBig('');
   if (tb >= 0 && !visible) setMsg('몸이 화면 밖으로 나갔어요'); else if (tb >= 0) setMsg('');
 
   const win = Math.min(cfg.goodMs / 1000, 0.45 * ib);
-  while (nextJudge < nBeats && now > beat0 + nextJudge * ib + win + 0.35) {
-    const r = judgeBeat(nextJudge, sideOf(nextJudge), beat0 + nextJudge * ib, peaks, used, ib, cfg);
+  while (nextJudge < nBeats && now > beat0 + (nextJudge + 0.5) * ib + win + 0.35) {
+    const r = judgeBeat(nextJudge, sideOf(nextJudge), beat0 + (nextJudge + 0.5) * ib, peaks, used, ib, cfg);
     results.push(r);
     const d = $('dot' + nextJudge); if (d) d.classList.add(r.grade);
     flash = { t: now, text: { perfect: 'Perfect!', good: 'Good', wrong: '발 바뀜', miss: 'Miss' }[r.grade], color: { perfect: '#22c55e', good: '#a3e635', wrong: '#facc15', miss: '#ef4444' }[r.grade] };
@@ -436,7 +451,7 @@ function tickSession(now) {
 function finish() {
   metro = null; state = 'result'; setBig(''); setMsg('');
   $('btnStart').textContent = '● 도전 시작'; $('btnStart').className = 'go';
-  const t0 = beat0 - 0.5 * ib, t1 = beat0 + (nBeats - 0.5) * ib;
+  const t0 = beat0, t1 = beat0 + nBeats * ib;
   const inRun = peaks.filter(p => p.t >= t0 && p.t <= t1);
   const S = summarize(results, inRun, leans, ib, cfg);
   lastSummary = S;
@@ -494,7 +509,7 @@ function drawModel(now) {
   mctx.clearRect(0, 0, w, h);
   let tb = 0, moving = false;
   if (state === 'preview' || state === 'run') { tb = (now - beat0) / ib; moving = tb >= 0; }
-  const J = modelJoints(tb, moving);
+  const J = modelJoints(tb, tb >= -1 && (state === 'preview' || state === 'run'));
   const phi = parseFloat($('view').value), sc = h * 0.42, cx = w / 2, gy = h * 0.9;
   const P = p => ({ x: cx + (p.x * Math.cos(phi) + p.z * Math.sin(phi)) * sc, y: gy - p.y * sc, d: -p.x * Math.sin(phi) + p.z * Math.cos(phi) });
 
@@ -524,14 +539,22 @@ function drawModel(now) {
   const fs = Math.round(h * 0.07);
   mctx.font = `800 ${fs}px system-ui`; mctx.textAlign = 'center';
   if (moving) {
-    const k = Math.round(tb), cnt = ((k % 4) + 4) % 4;
-    for (let i = 0; i < 4; i++) {
-      mctx.fillStyle = i === cnt ? '#fff' : '#475569';
-      mctx.fillText(String(i + 1), w / 2 + (i - 1.5) * fs * 1.3, fs * 1.3);
+    const slot = ((Math.round(tb * 2) % 8) + 8) % 8;           // 1 & 2 & 3 & 4 &
+    const labels = ['1', '&', '2', '&', '3', '&', '4', '&'];
+    for (let i = 0; i < 8; i++) {
+      mctx.fillStyle = i === slot ? (i % 2 ? '#facc15' : '#fff') : '#475569';
+      mctx.font = `800 ${i % 2 ? Math.round(fs * 0.7) : fs}px system-ui`;
+      mctx.fillText(labels[i], w / 2 + (i - 3.5) * fs * 0.85, fs * 1.3);
     }
-    const sd = sideOf(((k % 2) + 2) % 2);
-    mctx.fillStyle = COL[sd]; mctx.font = `700 ${Math.round(fs * 0.6)}px system-ui`;
-    mctx.fillText(sd === 'L' ? '왼 무릎 ↑' : '오른 무릎 ↑', sd === 'L' ? w * 0.18 : w * 0.82, fs * 2.4);
+    const k = Math.floor(tb), frac = tb - k;
+    mctx.font = `700 ${Math.round(fs * 0.6)}px system-ui`;
+    if (frac > 0.2 && frac < 0.8) {
+      const sd = sideOf(((k % 2) + 2) % 2);
+      mctx.fillStyle = COL[sd];
+      mctx.fillText(sd === 'L' ? '왼 무릎 ↑' : '오른 무릎 ↑', sd === 'L' ? w * 0.18 : w * 0.82, fs * 2.4);
+    } else if (k >= 0) {
+      mctx.fillStyle = '#e2e8f0'; mctx.fillText('쾅! 앞뒤로', w / 2, fs * 2.4);
+    }
   } else {
     mctx.fillStyle = '#94a3b8'; mctx.font = `600 ${Math.round(fs * 0.55)}px system-ui`;
     mctx.fillText(state === 'run' ? '카운트가 끝나면 시작!' : '‘모범 동작 보기’로 먼저 익혀 보세요', w / 2, fs * 1.2);
