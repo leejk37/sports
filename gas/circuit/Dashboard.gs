@@ -63,7 +63,7 @@ const DASH_EX = [
   { key: 'curlup',      name: '윗몸말아올리기', sheet: '윗몸말아올리기', email: 5, value: 7, unit: '회', sum: true, pbBy: 6, acc: { good: 7, bad: [8, 9] } },
   { key: 'pushup',      name: '팔굽혀펴기',     sheet: '팔굽혀펴기',     email: 5, value: 8, unit: '회', sum: true, pbBy: 7, acc: { good: 8, bad: [9, 10] } },
   { key: 'plank',       name: '플랭크',         sheet: '플랭크',         email: 5, value: 8, unit: '초', sum: true, pbBy: null, decimals: 1, acc: { good: 8, total: 9 } },
-  { key: 'hanging',     name: '행잉',           sheet: '행잉',           email: 5, value: 9, unit: '초', sum: true, pbBy: null, decimals: 1 },
+  { key: 'hanging',     name: '행잉',           sheet: '행잉',           email: 5, value: 9, unit: '초', sum: true, pbBy: 6, decimals: 1 },
   { key: 'treadmill',   name: '트레드밀',       sheet: '트레드밀',       email: 5, value: 8, unit: 'km', sum: true, pbBy: null, decimals: 2, distance: true, noPb: true },
   { key: 'jumprope',    name: '줄넘기',         sheet: '줄넘기',         email: 5, value: 7, unit: '회', sum: true, pbBy: 6, mergeInto: 'rope' },
   { key: 'rowing',      name: '로잉머신',       sheet: '로잉머신',       email: 5, value: 9, unit: 'km', sum: true, pbBy: null, decimals: 2, distance: true, noPb: true }

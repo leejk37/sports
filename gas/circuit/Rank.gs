@@ -38,7 +38,7 @@ const RANK_EX = {
   burpee:      { sheet: '버피테스트',     value: 7, cond: 6, acc: { good: 7, bad: [8, 9] } },
   pushup:      { sheet: '팔굽혀펴기',     value: 8, cond: 7, acc: { good: 8, bad: [9, 10] } },
   plank:       { sheet: '플랭크',         value: 8, acc: { good: 8, total: 9 } },   // 버틴 시간(초), 유지율
-  hanging:     { sheet: '행잉',           value: 9 },               // 매달린 시간(초)
+  hanging:     { sheet: '행잉',           value: 9, cond: 6, bestCond: '매달리기' },   // 매달린 시간(초). 최고 기록은 매달리기만 (무릎 들기 줄은 매달린 시간이 짧음, 2026-11-28)
   rope:        { sheet: '줄넘기',         value: 7, cond: 6, bestCond: '최대한 많이', run: 11 },   // 횟수, 방식. 최고 기록은 '최대한 많이'만(없으면 전체), L 최장 연속 순위 (2026-11-01)
   treadmill:   { sheet: '트레드밀',       value: 8 },               // 거리(km)
   rowing:      { sheet: '로잉머신',       value: 9 },               // 거리(km)

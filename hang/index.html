@@ -73,6 +73,18 @@
   #side > header button:first-of-type{margin-left:auto}   /* 구역·카메라 전환 단추는 제목과 같은 줄, 오른쪽 */
   #side > header{align-items:center}
   #side > header .hbtn{font-size:14px;padding:6px 10px}
+
+  /* 방법 고르기 (2026-11-28 어드밴스트: 매달려 무릎 들기) */
+  #modes{display:flex;flex-direction:column;gap:8px}
+  .mode{font:inherit;font-size:17px;font-weight:800;padding:11px 14px;border-radius:10px;cursor:pointer;text-align:left;
+    border:2px solid rgba(255,255,255,.6);background:transparent;color:#fff}
+  .mode small{display:block;font-size:13px;font-weight:600;opacity:.8;margin-top:2px}
+  .mode.on{background:#fff;color:var(--blue);border-color:#fff}
+  .mode .adv{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:var(--yellow);color:#1f2d3d;font-size:12px;vertical-align:2px}
+  #subNum{font-size:20px;font-weight:700;color:var(--soft)}
+  #subNum:empty{display:none}
+  #nextSide{font-size:34px;font-weight:900;color:var(--yellow)}
+  #nextSide:empty{display:none}
 </style>
 <script src="../config.js"></script>
 </head>
@@ -113,6 +125,11 @@
       <section class="screen" id="s-wait">
         <h2 id="waitTitle">철봉을<br>두 손으로 잡아요</h2>
         <p id="waitText">두 손이 머리 위 철봉을 잡으면 3-2-1이 시작돼요.</p>
+        <div id="modes">
+          <button class="mode" data-m="hang">🧗 매달리기<small>바르게 매달린 시간(초)</small></button>
+          <button class="mode" data-m="knee">🦵 무릎 들기<small>무릎을 엉덩이보다 높이 (90° 넘게)</small></button>
+          <button class="mode" data-m="oblique">↔️ 좌우 무릎 들기<span class="adv">어드밴스드</span><small>왼쪽·오른쪽 번갈아 비틀어 올리기 · 무릎 들기 반동 없이 8회 되면 도전</small></button>
+        </div>
         <div id="waitState"></div>
         <button class="btn line" id="barBtn">📏 철봉선 맞추기</button>
         <button class="btn line" id="barClear" hidden>철봉선 지우기</button>
@@ -121,6 +138,8 @@
 
       <section class="screen" id="s-measure">
         <div class="count"><span id="mainNum">0</span><small id="mainUnit">초</small></div>
+        <div id="nextSide"></div>
+        <div id="subNum"></div>
         <button class="btn line" id="stopBtn">측정 끝내기</button>
       </section>
 
@@ -164,8 +183,26 @@ const CONFIG = {
   MIN_SAVE_SEC: 3,       // 이보다 짧은 기록은 저장하지 않음 (2026-11-10: 0~2초 기록이 많아 — 발이 닿았거나 잘못 시작된 것)
   VIS_MIN: 0.5,          // 어깨·코 인식 신뢰도
   VIS_WRIST: 0.3,        // 손목 인식 신뢰도 (철봉 근처는 낮게 잡힘)
-  SAVE_TIMEOUT_MS: 30000
+  SAVE_TIMEOUT_MS: 30000,
+  // ---- 어드밴스트: 매달려 무릎 들기 (2026-11-28) ----
+  // 무릎 높이 h = (엉덩이 y − 무릎 y) ÷ 허벅지 길이(시작 때 잼). 매달려 다리를 내리면 약 −1, 허벅지가 수평(90°)이면 0, 그보다 높으면 +
+  KNEE_TOP: 0.05,        // 이 높이를 넘는 순간 1회 (90°보다 조금 더). 현장 조정: ?knee=0.2 (태블릿마다 기억, ?knee=default 기본값)
+  KNEE_MID: -0.35,       // 이보다 올라오면 한 회 시작
+  KNEE_DOWN: -0.6,       // 이보다 내려와야 한 회 끝 → 다음 회
+  SIDE_MIN: 0.35,        // 좌우 무릎 들기: 두 무릎 가운데가 두 손 가운데에서 어깨너비의 이만큼 옆으로 가야 '비틀었음'. ?side=0.5
+  KNEE_SMOOTH: 0.45,     // 무릎 높이 떨림 거름 (새 값 비율)
+  BODY_SWING: 0.35       // 무릎 들기 흔들림: 어깨 가운데가 두 손 가운데에서 좌우로 어깨너비의 이만큼 넘게 벗어남 (엉덩이는 비틀면 옆으로 가서 안 씀)
 };
+const METHOD_NAME = { hang: '매달리기', knee: '무릎 들기', oblique: '좌우 무릎 들기' };
+{ // ?knee=0.2 · ?side=0.5 태블릿마다 기억 (?knee=default 기본값)
+  const q = new URLSearchParams(location.search);
+  [['knee', 'hangKneeTop', 'KNEE_TOP', -0.5, 1], ['side', 'hangSide', 'SIDE_MIN', 0.1, 1.5]].forEach(([k, store, key, lo, hi]) => {
+    const v = q.get(k);
+    try { if (v === 'default' || v === '0' && k === 'side') localStorage.removeItem(store); else if (v != null && v !== '') localStorage.setItem(store, v); } catch (e) {}
+    let n = NaN; try { const t = localStorage.getItem(store); if (t != null) n = Number(t); } catch (e) {}
+    if (n >= lo && n <= hi) CONFIG[key] = n;
+  });
+}
 
 /* ===== 화면 요소 ===== */
 const $ = id => document.getElementById(id);
@@ -173,7 +210,8 @@ const video = $('video'), canvas = $('view'), ctx = canvas.getContext('2d');
 const qrCanvas = document.createElement('canvas'), qrCtx = qrCanvas.getContext('2d', { willReadFrequently: true });
 
 /* ===== 상태 ===== */
-let mode = 'loading', method = 'hang';
+let mode = 'loading', method = (() => { try { const m = new URLSearchParams(location.search).get('mode') || localStorage.getItem('hangMethod'); return METHOD_NAME[m] ? m : 'hang'; } catch (e) { return 'hang'; } })();
+let K = null;   // 무릎 들기 상태 (startMeasure에서 만듦)
 let pose, stream, facing = localStorage.getItem('hangFacing') || 'user';
 let email = '', clientId = '';
 let S0 = null, lastS = null, cdTimer = null, cdLostSince = null;
@@ -246,6 +284,11 @@ function analyze(lm) {
     // 무릎(없으면 엉덩이) 가운데 y — 지금은 판정에 안 씀, 어드밴스트 모드(무릎 들기)용
     lowY: kneesOk ? (lk.y + rk.y) / 2 : hipsOk ? (lh.y + rh.y) / 2 : null, lowBy: kneesOk ? 'knee' : hipsOk ? 'hip' : '',
     hipX: hipsOk ? (lh.x + rh.x) / 2 : null,
+    hipY: hipsOk ? (lh.y + rh.y) / 2 : null,
+    kneeX: kneesOk ? (lk.x + rk.x) / 2 : null, kneeY: kneesOk ? (lk.y + rk.y) / 2 : null,
+    thigh: kneesOk && hipsOk ? (Math.hypot(lk.x - lh.x, lk.y - lh.y) + Math.hypot(rk.x - rh.x, rk.y - rh.y)) / 2 : null,
+    shX: (ls.x + rs.x) / 2,
+    leftSign: Math.sign(ls.x - rs.x) || 1,   // 학생의 왼쪽이 화면 x에서 어느 방향인지 (카메라·거울과 상관없이)
     grip: wA && wB ? Math.abs(wA.x - wB.x) / S : 0,
     elbow: Math.min(angle(ls, le, lw), angle(rs, re, rw)),
     segs: [[ls, rs], [ls, le], [le, lw], [rs, re], [re, rw], [ls, lh], [rs, rh], [lh, rh], [lh, p(25)], [p(25), la], [rh, p(26)], [p(26), ra]]
@@ -286,6 +329,18 @@ function drawPose(r, live) {
   ctx.fillStyle = '#fff';
   [r.wA, r.wB].forEach(w => { if (w) { ctx.beginPath(); ctx.arc(X(w.x), w.y, 12, 0, 7); ctx.fill(); } });
   drawBar(r);
+  if (mode === 'measure' && K && r.hipY != null) drawKneeGoal(r, X);
+}
+/* 무릎 들기: 엉덩이 높이 위 목표선(넘으면 초록) + 무릎 점 */
+function drawKneeGoal(r, X) {
+  const y = r.hipY - CONFIG.KNEE_TOP * K.L0, W = canvas.width, hit = K.h != null && K.h >= CONFIG.KNEE_TOP;
+  ctx.save();
+  ctx.strokeStyle = hit ? '#5fd3a6' : '#7cc4ff'; ctx.lineWidth = 6; ctx.setLineDash([18, 12]);
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  ctx.setLineDash([]); ctx.fillStyle = ctx.strokeStyle; ctx.font = 'bold 28px sans-serif';
+  ctx.fillText('무릎 목표', 14, y - 10);
+  if (r.kneeY != null) { ctx.beginPath(); ctx.arc(X(r.kneeX), r.kneeY, 16, 0, 7); ctx.fill(); }
+  ctx.restore();
 }
 /* 선 하나 + 띠(판정 범위). 맞추는 중이면 굵은 손잡이와 '끌어 옮겨요' 표시 */
 function drawLine(y, top, bottom, color, band, label) {
@@ -359,11 +414,22 @@ function scanQr() {
 
 /* ===== 1단계: 철봉 잡기 대기 ===== */
 const bothUp = r => r.bodyOk && handUp(r.wA, r) && handUp(r.wB, r);
+const WAIT_TEXT = {
+  hang: '두 손으로 잡으면 3-2-1이 시작돼요. ‘시작’ 소리에 발을 떼고 팔을 편 채 버텨요.',
+  knee: '‘시작’ 소리에 발을 떼고, 몸을 흔들지 말고 무릎을 파란 목표선(엉덩이보다 위)까지 끌어올려요. 다리를 끝까지 내렸다가 다시!',
+  oblique: '‘시작’ 소리에 발을 떼고, 무릎을 왼쪽 → 오른쪽 번갈아 비틀어 목표선 위로 올려요. 같은 쪽 두 번은 안 세요.'
+};
+function setMethod(m) {
+  method = METHOD_NAME[m] ? m : 'hang';
+  try { localStorage.setItem('hangMethod', method); } catch (e) {}
+  document.querySelectorAll('.mode').forEach(b => b.classList.toggle('on', b.dataset.m === method));
+  $('waitText').textContent = WAIT_TEXT[method] + ' (소리가 안 나면 화면을 한 번 눌러 주세요)';
+}
 function toWait(m = method) {
-  method = 'hang'; hangSince = null;
+  hangSince = null;
   clearTimeout(cdTimer);
   beep(660, 60);   // 첫 터치로 소리 켜기
-  $('waitText').textContent = '두 손으로 잡으면 3-2-1이 시작돼요. ‘시작’ 소리에 발을 떼고 팔을 편 채 버텨요. (소리가 안 나면 화면을 한 번 눌러 주세요)';
+  setMethod(m);
   show('wait');
 }
 
@@ -400,8 +466,15 @@ function startMeasure(now = performance.now()) {
   startAt = now; lastGoodAt = now; lastSeenAt = now; badSince = null;
   holdMs = 0; swingMs = 0; lastT = now; swingSince = null; swinging = false;
   clientId = crypto.randomUUID?.() || String(Date.now()) + Math.random();
-  $('mainUnit').textContent = '초';
-  $('mainNum').textContent = '0.0';
+  const kneeMode = method !== 'hang';
+  K = kneeMode ? {
+    L0: Math.max(lastR?.thigh || 0, (S0 || lastS || 100) * 0.7),   // 허벅지 길이 (서 있을 때 잼, 못 재면 어깨너비로)
+    h: null, st: 'down', counted: false, swung: false, sideMax: 0,
+    reps: 0, short: 0, bounce: 0, same: 0, left: 0, right: 0, lastSide: 0
+  } : null;
+  $('mainUnit').textContent = kneeMode ? '회' : '초';
+  $('mainNum').textContent = kneeMode ? '0' : '0.0';
+  $('subNum').textContent = ''; $('nextSide').textContent = method === 'oblique' ? '⬅ 왼쪽부터' : '';
   show('measure');
   $('big').textContent = '발 떼!'; setTimeout(() => mode === 'measure' && ($('big').textContent = ''), 800);
   beep(1000, 400);
@@ -424,9 +497,62 @@ function measure(r, now) {
   const counting = ok && badSince == null && !swinging;
   if (counting) { holdMs += dt; lastGoodAt = now; }
   else if (swinging && ok) swingMs += dt;
+  if (K) return kneeStep(r, now, ok, counting, handX, S);
   setHint(swinging ? '흔들리지 않게 멈춰요!' : ok && r.elbow < CONFIG.BENT_ELBOW ? '팔을 쭉 펴요' : '');
   $('mainNum').textContent = (holdMs / 1000).toFixed(1);
   drawPose(r, counting);
+}
+
+/* ===== 어드밴스트: 무릎 들기 · 좌우 무릎 들기 (2026-11-28) =====
+   한 회: 다리 내림(h < KNEE_DOWN) → 올라옴(h > KNEE_MID) → 목표(h ≥ KNEE_TOP)에 닿는 순간 소리와 함께 1회 → 다시 내려야 다음 회.
+   좌우: 닿는 순간 무릎이 두 손 가운데에서 옆으로 SIDE_MIN 넘게 가 있어야 하고, 지난번과 반대쪽이어야 함.
+   흔들림(어깨가 두 손 가운데에서 벗어남)이 그 회에 있었으면 '반동' → 안 셈. 목표에 못 닿고 내려오면 '덜 올림'. */
+function kneeStep(r, now, ok, counting, handX, S) {
+  const sideL = r.leftSign;
+  const bodyOff = handX != null ? Math.abs(r.shX - handX) / S : 0;
+  const shaky = bodyOff > CONFIG.BODY_SWING;
+  if (r.kneeY != null && r.hipY != null) {
+    const raw = (r.hipY - r.kneeY) / K.L0;
+    K.h = K.h == null ? raw : K.h + CONFIG.KNEE_SMOOTH * (raw - K.h);
+  }
+  const h = K.h;
+  const side = r.kneeX != null && handX != null ? (r.kneeX - handX) * sideL / S : 0;   // + 학생 왼쪽, − 오른쪽
+  if (ok && h != null) {
+    if (K.st === 'down') {
+      if (h > CONFIG.KNEE_MID) { K.st = 'up'; K.counted = false; K.swung = shaky; K.sideMax = side; }
+    } else {
+      if (shaky) K.swung = true;
+      if (Math.abs(side) > Math.abs(K.sideMax)) K.sideMax = side;
+      if (!K.counted && h >= CONFIG.KNEE_TOP) judgeTop(side);
+      if (h < CONFIG.KNEE_DOWN) {
+        if (!K.counted) {   // 목표에 못 닿고 내려옴
+          K.short++; flash('더 높이! (덜 올림)'); beep(300, 200);
+        }
+        K.st = 'down';
+      }
+    }
+  }
+  $('mainNum').textContent = K.reps;
+  $('subNum').textContent = `매달린 시간 ${(holdMs / 1000).toFixed(1)}초` + (method === 'oblique' ? ` · 왼 ${K.left} · 오른 ${K.right}` : '');
+  setHint(!ok ? '' : swinging || shaky ? '흔들리지 않게 멈춰요!' : h == null ? '무릎이 화면에 보이게 해요'
+    : K.st === 'down' ? (method === 'oblique' ? (K.lastSide > 0 ? '오른쪽으로 비틀어 올려요' : '왼쪽으로 비틀어 올려요') : '무릎을 목표선까지!')
+    : K.counted ? '다리를 끝까지 내려요' : '조금 더 위로!');
+  drawPose(r, counting && !shaky);
+}
+function judgeTop(side) {
+  K.counted = true;
+  if (K.swung) { K.bounce++; flash('반동 — 흔들지 말고!'); beep(300, 200); return; }
+  if (method === 'oblique') {
+    const s = side || K.sideMax;
+    if (Math.abs(s) < CONFIG.SIDE_MIN) { K.short++; flash('옆으로 더 비틀어요'); beep(300, 200); return; }
+    const dir = s > 0 ? 1 : -1;
+    if (dir === K.lastSide) { K.same++; flash('반대쪽으로!'); beep(300, 200); return; }
+    K.lastSide = dir;
+    if (dir > 0) K.left++; else K.right++;
+    $('nextSide').textContent = dir > 0 ? '다음 오른쪽 ➡' : '⬅ 다음 왼쪽';
+  }
+  K.reps++; beep(1200, 120);
+  flash(method === 'oblique' ? (K.lastSide > 0 ? '왼쪽 ✓' : '오른쪽 ✓') : '좋아요 ✓', true);
 }
 
 /* ===== 결과 ===== */
@@ -437,10 +563,23 @@ function finish() {
   beep(500, 500);
   show('result');
   setHint('');
+  if (K) return finishKnee(seconds);
   $('resMain').textContent = seconds.toFixed(1); $('resUnit').textContent = '초';
   $('resRows').innerHTML = '<div class="row"><span>방법</span><span>매달리기</span></div>' +
     `<div class="row"><span>흔들려서 멈춘 시간</span>${result.swing ? `<b>${result.swing.toFixed(1)}초</b>` : '<span>없음 👍</span>'}</div>`;
   if (seconds < CONFIG.MIN_SAVE_SEC) { setSave(`${CONFIG.MIN_SAVE_SEC}초보다 짧아 저장하지 않았어요 · 한 번 더 해 봐요`, 'fail'); $('retrySave').hidden = true; return; }
+  save();
+}
+function finishKnee(seconds) {
+  Object.assign(result, { reps: K.reps, short: K.short, bounce: K.bounce, same: K.same, left: K.left, right: K.right });
+  $('resMain').textContent = K.reps; $('resUnit').textContent = '회';
+  const row = (k, v, bad) => `<div class="row"><span>${k}</span>${bad && v ? `<b>${v}회</b>` : `<span>${typeof v === 'number' ? v + '회' : v}</span>`}</div>`;
+  $('resRows').innerHTML = row('방법', METHOD_NAME[method]) +
+    (method === 'oblique' ? row('왼쪽 · 오른쪽', `${K.left}회 · ${K.right}회`) : '') +
+    row('덜 올림', K.short, true) + row('반동', K.bounce, true) +
+    (method === 'oblique' ? row('같은 쪽', K.same, true) : '') +
+    row('매달린 시간', seconds.toFixed(1) + '초');
+  if (K.reps < 1) { setSave('정확한 횟수가 없어 저장하지 않았어요 · 한 번 더 해 봐요', 'fail'); $('retrySave').hidden = true; return; }
   save();
 }
 
@@ -455,6 +594,7 @@ async function save() {
     type: CONFIG.TYPE, token: CONFIG.TOKEN, email, method,
     seconds: result.seconds, swing: result.swing, clientId
   };
+  if (K) Object.assign(body, { reps: result.reps, short: result.short, bounce: result.bounce, same: result.same, left: result.left, right: result.right });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.SAVE_TIMEOUT_MS);
   try {
@@ -511,6 +651,8 @@ document.addEventListener('pointerdown', () => {
 }, { passive: true });
 $('next').onclick = $('cancel').onclick = backOrScan;
 $('forceStart').onclick = () => startCountdown();
+document.querySelectorAll('.mode').forEach(b => b.onclick = () => { setMethod(b.dataset.m); beep(900, 50); });
+setMethod(method);
 $('stopBtn').onclick = () => finish();
 /* 철봉선 맞추기 (2026-11-02): 단추를 누르면 선이 굵게(가운데 ↕ 손잡이) 나오고, 선 가까이를 눌러 위아래로 끌어 옮김.
    철봉이 보이는 높이에 맞춤(태블릿마다 기억, hangBar). 아직 없으면 처음 누른 곳에 생김.
