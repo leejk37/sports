@@ -445,18 +445,24 @@ function measure(a, knee, reach, now) {
     if (rep.knee0 == null) rep.knee0 = knee;       // 발목이 늦게 보인 경우
     rep.kneeDev = Math.max(rep.kneeDev, Math.abs(knee - rep.knee0));
   }
-  if (!rep.reached && reachedKnee(reach)) { rep.reached = true; beep(990, 40); }
-  if (lift < CONFIG.DOWN_TOL) { judge(now); phase = 'down'; rep = null; }   // 다시 바닥에 붙어야 1회 완성
+  // 손목이 슬개골에 닿는 순간 바로 판정·카운트(2026-11-28 선생님 결정)
+  if (!rep.reached && reachedKnee(reach)) { rep.reached = true; judgeReach(); }
+  // 다음 회는 다시 바닥에 붙어야 시작. 끝내 못 닿았으면 그때 '덜 올라옴'
+  if (lift < CONFIG.DOWN_TOL) { if (!rep.reached) judgeMiss(now); phase = 'down'; rep = null; }
 }
-function judge(now) {
-  if (now - rep.start < CONFIG.MIN_REP_MS && !rep.reached) return;   // 흔들림
-  if (rep.kneeDev > CONFIG.KNEE_SWING) {           // 무릎 각이 변함(다리를 펴거나 끌어당김)
+function judgeReach() {                            // 손목 도착 순간
+  if (rep.kneeDev > CONFIG.KNEE_SWING) {           // 올라오는 동안 무릎 각이 변함(다리를 펴거나 끌어당김)
     counts.badKnee++; flash('무릎 각도를 그대로!'); beep(220, 200);
-  } else if (rep.reached) {
+  } else {
     counts.good++; beep(1320, 90);
-  } else if (rep.maxLift >= CONFIG.PARTIAL_MIN) {
-    counts.badHeight++; flash('손목이 무릎까지!'); beep(220, 200);
   }
+  updateCounts();
+}
+function judgeMiss(now) {                          // 손목이 못 닿고 바닥으로 돌아옴
+  if (now - rep.start < CONFIG.MIN_REP_MS) return; // 흔들림
+  if (rep.kneeDev > CONFIG.KNEE_SWING) { counts.badKnee++; flash('무릎 각도를 그대로!'); beep(220, 200); }
+  else if (rep.maxLift >= CONFIG.PARTIAL_MIN) { counts.badHeight++; flash('손목이 무릎까지!'); beep(220, 200); }
+  else return;
   updateCounts();
 }
 function updateCounts() {
