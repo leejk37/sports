@@ -185,11 +185,12 @@ const CONFIG = {
   //   → 가려진 다리의 무릎 각도와 상관없이 셀 수 있음
   // ---- 깊이 판정(2026-11-28 선생님 결정): 뒷다리의 엉덩이–무릎–발목 각도 ----
   // 뒷무릎 각이 KNEE_DOWN 이하로 내려가는 순간 소리와 함께 1회. 뒷다리가 잘 안 보이는 순간에만 엉덩이 높이(DEEP)로 대신
-  // 뒷다리 = 정강이가 더 누운 다리. 한 번 정하면 고정(선 자세처럼 구분이 안 될 땐 그대로, 반대가 확실히 이어질 때만 바꿈)
+  // 뒷다리 = 무릎이 더 낮은(바닥에 가까운) 다리. 한 번 정하면 고정(선 자세처럼 구분이 안 될 땐 그대로, 반대가 확실히 이어질 때만 바꿈)
+  //   (처음엔 '정강이가 더 누운 다리'였는데, 앞으로 내디딜 때 들린 앞다리 정강이가 기울어 앞다리를 뒷다리로 잡는 일이 있었음)
   // 태블릿에서 주소 끝에 ?knee=105 처럼 붙이면 그 기기에 기억, ?knee=default 는 기본값으로
   KNEE_DOWN: 100,    // 뒷무릎 각이 이 이하 → 충분히 내려감 (?knee=)
   KNEE_START: 140,   // 뒷무릎 각이 이 이하로 굽으면 → 한 번 시작(엉덩이 높이 START와 둘 중 먼저)
-  SHIN_DIFF: 0.15,   // 두 정강이 세움 정도(0 누움 ~ 1 세로) 차이가 이 이상이어야 앞·뒤를 정함
+  KNEE_GAP: 0.12,    // 두 무릎 높이 차이가 다리 길이의 이 배 이상이어야 앞·뒤를 정함(낮은 쪽 = 뒷다리)
   SWITCH_FRAMES: 10, // 반대 다리가 뒷다리로 이만큼 연속 보여야 바꿈(무릎점 왔다 갔다 방지)
   START: 0.15,       // 이만큼 내려가면 → 한 번 시작
   DEEP: 0.30,        // (뒷다리가 안 보일 때만) 이만큼 내려가면 → 충분히 내려감
@@ -310,13 +311,13 @@ function analyze(lm) {
   const ankY = P.la.v >= P.ra.v ? P.la.y : P.ra.y;
   const leg = Math.max(1, ankY - hipY);
   const kneeL = angle(P.lh, P.lk, P.la), kneeR = angle(P.rh, P.rk, P.ra);
-  // 뒷다리 후보: 정강이가 더 누운 쪽(앞다리는 정강이가 세로로 선다). 차이가 작으면(선 자세 등) 후보 없음 → 고정값 유지
-  const shinV = s => { const k = P[s + 'k'], a = P[s + 'a']; return Math.abs(a.y - k.y) / (Math.hypot(a.x - k.x, a.y - k.y) || 1); };
+  // 뒷다리 후보: 무릎이 더 낮은 쪽(y가 큼). 내려가면 뒷무릎은 바닥으로, 앞무릎은 엉덩이 높이로 → 높이 차이가 뚜렷함.
+  // 앞으로 내디딜 때도 들린 앞무릎이 더 높아 맞게 고름. 차이가 작으면(선 자세 등) 후보 없음 → 고정값 유지
   const okL = legOk('l'), okR = legOk('r');
   let backCand = null;
-  if (okL && okR) {
-    const d = shinV('l') - shinV('r');
-    if (Math.abs(d) >= CONFIG.SHIN_DIFF) backCand = d < 0 ? 'L' : 'R';
+  if (P.lk.v > CONFIG.VIS_MIN && P.rk.v > CONFIG.VIS_MIN) {
+    const d = P.lk.y - P.rk.y;
+    if (Math.abs(d) >= CONFIG.KNEE_GAP * leg) backCand = d > 0 ? 'L' : 'R';
   }
   // 상체 기울기: 두 어깨 가운데 → 두 엉덩이 가운데 선이 세로선과 이루는 각도
   const sx = (P.ls.x + P.rs.x) / 2, sy = (P.ls.y + P.rs.y) / 2;
